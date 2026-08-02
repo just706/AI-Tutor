@@ -129,10 +129,18 @@ backend/src/main/resources/db/stage1-user.sql
 
 ### 6.3 启动后端
 
-进入后端目录，安装依赖并启动 Spring Boot 服务。
+进入后端目录，使用项目内 Maven Wrapper 打包并启动 Spring Boot 服务。
 
 ```text
-mvn spring-boot:run
+cd D:/AI-Tutor/backend
+.\run.cmd
+```
+
+也可以只执行 Maven Wrapper 命令：
+
+```text
+.\mvnw.cmd package -DskipTests
+java -jar target/ai-tutor-backend-0.0.1-SNAPSHOT.jar
 ```
 
 默认访问地址：
