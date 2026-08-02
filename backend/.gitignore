@@ -5,6 +5,10 @@ logs/
 .env.*
 !.env.example
 
+.mvn/wrapper/apache-maven-*/
+.mvn/wrapper/*.zip
+.mvn/wrapper/*.tar.gz
+
 .idea/
 *.iml
 .vscode/
