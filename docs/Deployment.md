@@ -78,6 +78,12 @@ rag:
   vector-store: milvus
   top-k: 5
   upload-dir: D:/AI-Tutor/data/uploads
+
+app:
+  jwt:
+    secret: your-long-random-secret
+    issuer: ai-tutor
+    expire-minutes: 120
 ```
 
 ### 4.2 前端配置
@@ -99,6 +105,12 @@ CREATE DATABASE ai_tutor DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 ### 5.2 初始化表结构
 
 使用 `Database.md` 中的建表语句初始化数据库。
+
+如果只验证阶段 1 用户认证模块，可以先执行：
+
+```text
+backend/src/main/resources/db/stage1-user.sql
+```
 
 建议后期使用数据库迁移工具管理脚本，例如：
 

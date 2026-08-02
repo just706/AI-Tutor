@@ -22,3 +22,7 @@ mybatis-plus:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  jwt:
+    secret: ${JWT_SECRET:dev-only-ai-tutor-jwt-secret-change-me}
+    issuer: ${JWT_ISSUER:ai-tutor}
+    expire-minutes: ${JWT_EXPIRE_MINUTES:120}
