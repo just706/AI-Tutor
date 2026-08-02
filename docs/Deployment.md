@@ -111,6 +111,7 @@ CREATE DATABASE ai_tutor DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 ```text
 backend/src/main/resources/db/stage1-user.sql
 backend/src/main/resources/db/stage2-student-profile.sql
+backend/src/main/resources/db/stage3-conversation-chat.sql
 ```
 
 建议后期使用数据库迁移工具管理脚本，例如：

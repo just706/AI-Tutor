@@ -192,6 +192,11 @@ POST /api/conversations
 }
 ```
 
+说明：
+
+- `title` 必填，最长 128 个字符。
+- `mode` 可选，未传时默认为 `chat`，当前支持 `chat`、`teaching`、`rag`。
+
 响应示例：
 
 ```json
