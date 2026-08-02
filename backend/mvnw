@@ -9,6 +9,10 @@ MAVEN_BIN="$MAVEN_HOME/bin/mvn"
 DISTRIBUTION_URL="https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz"
 ARCHIVE_FILE="$WRAPPER_DIR/apache-maven-$MAVEN_VERSION-bin.tar.gz"
 
+if [ -z "${MAVEN_OPTS:-}" ]; then
+    export MAVEN_OPTS="-Xms32m -Xmx256m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=64m -Xss512k"
+fi
+
 if [ ! -x "$MAVEN_BIN" ]; then
     echo "Downloading Apache Maven $MAVEN_VERSION..."
     mkdir -p "$WRAPPER_DIR"

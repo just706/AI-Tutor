@@ -22,7 +22,14 @@ if not exist "%MAVEN_BIN%" (
 )
 
 if not defined JAVA_HOME (
-    for /f "usebackq delims=" %%J in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$paths = @('C:\Program Files\Eclipse Adoptium', 'C:\Program Files\Java'); Get-ChildItem -Path $paths -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName 'bin\java.exe') } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`) do set "JAVA_HOME=%%J"
+    for /d %%J in ("C:\Program Files\Eclipse Adoptium\jdk-*") do if exist "%%~fJ\bin\java.exe" set "JAVA_HOME=%%~fJ"
+)
+if not defined JAVA_HOME (
+    for /d %%J in ("C:\Program Files\Java\jdk-*") do if exist "%%~fJ\bin\java.exe" set "JAVA_HOME=%%~fJ"
+)
+
+if not defined MAVEN_OPTS (
+    set "MAVEN_OPTS=-Xms32m -Xmx256m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=64m -Xss512k"
 )
 
 call "%MAVEN_BIN%" %*
