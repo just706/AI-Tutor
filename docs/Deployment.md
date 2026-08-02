@@ -106,10 +106,11 @@ CREATE DATABASE ai_tutor DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 
 使用 `Database.md` 中的建表语句初始化数据库。
 
-如果只验证阶段 1 用户认证模块，可以先执行：
+如果按阶段验证后端模块，可以按顺序执行：
 
 ```text
 backend/src/main/resources/db/stage1-user.sql
+backend/src/main/resources/db/stage2-student-profile.sql
 ```
 
 建议后期使用数据库迁移工具管理脚本，例如：
