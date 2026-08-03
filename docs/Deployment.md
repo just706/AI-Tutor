@@ -69,10 +69,12 @@ spring:
     port: 6379
 
 ai:
-  provider: deepseek
-  api-key: your_api_key
-  model-name: deepseek-chat
-  timeout: 60000
+  deepseek:
+    api-key: your_api_key
+    base-url: https://api.deepseek.com
+    model-name: deepseek-v4-flash
+    timeout-ms: 60000
+    max-context-messages: 10
 
 rag:
   vector-store: milvus
@@ -112,6 +114,7 @@ CREATE DATABASE ai_tutor DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 backend/src/main/resources/db/stage1-user.sql
 backend/src/main/resources/db/stage2-student-profile.sql
 backend/src/main/resources/db/stage3-conversation-chat.sql
+backend/src/main/resources/db/stage4-ai-chat.sql
 ```
 
 建议后期使用数据库迁移工具管理脚本，例如：
@@ -132,6 +135,12 @@ backend/src/main/resources/db/stage3-conversation-chat.sql
 ### 6.3 启动后端
 
 进入后端目录，使用项目内 Maven Wrapper 打包并启动 Spring Boot 服务。
+
+调用 DeepSeek 前需要先设置 API Key，例如在 PowerShell 中：
+
+```text
+$env:DEEPSEEK_API_KEY="your_api_key"
+```
 
 ```text
 cd D:/AI-Tutor/backend
@@ -258,7 +267,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_tutor?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root_password
-      AI_API_KEY: your_api_key
+      DEEPSEEK_API_KEY: your_api_key
+      DEEPSEEK_MODEL_NAME: deepseek-v4-flash
     depends_on:
       - mysql
       - redis

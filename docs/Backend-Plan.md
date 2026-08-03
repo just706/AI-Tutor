@@ -296,9 +296,10 @@ MVP 阶段可暂不实现流式输出。
 ai:
   deepseek:
     api-key: ${DEEPSEEK_API_KEY:}
-    base-url: https://api.deepseek.com
-    model-name: deepseek-chat
-    timeout: 60000
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model-name: ${DEEPSEEK_MODEL_NAME:deepseek-v4-flash}
+    timeout-ms: ${DEEPSEEK_TIMEOUT_MS:60000}
+    max-context-messages: ${AI_MAX_CONTEXT_MESSAGES:10}
 ```
 
 ### 11.2 AI 服务层职责
