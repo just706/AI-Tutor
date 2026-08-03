@@ -200,6 +200,8 @@ Agent 流程：
 
 ## 7. 前端开发计划
 
+前端 MVP 的具体执行方案见 `docs/Frontend-Plan.md`。
+
 ### 7.1 页面清单
 
 MVP 阶段页面：
