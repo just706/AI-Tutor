@@ -162,10 +162,11 @@ CREATE TABLE knowledge_point (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   subject VARCHAR(64) NOT NULL,
   name VARCHAR(128) NOT NULL,
-  parent_id BIGINT DEFAULT 0,
+  parent_id BIGINT NOT NULL DEFAULT 0,
   sort_order INT NOT NULL DEFAULT 0,
   create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_knowledge_subject_parent_name (subject, parent_id, name),
   INDEX idx_knowledge_subject (subject),
   INDEX idx_knowledge_parent_id (parent_id)
 );
@@ -199,7 +200,8 @@ CREATE TABLE learning_record (
   create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_learning_user_knowledge (user_id, knowledge_point_id),
-  INDEX idx_learning_user_id (user_id)
+  INDEX idx_learning_user_id (user_id),
+  INDEX idx_learning_knowledge_id (knowledge_point_id)
 );
 ```
 

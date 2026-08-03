@@ -195,6 +195,16 @@ AI 评价反馈
 6. 下一步建议
 ```
 
+### 6.5 阶段 6 落地接口
+
+当前阶段先实现教学闭环，不进入题库阶段。
+
+- `POST /api/teaching/start`：选择知识点后创建教学会话，AI 输出讲解和理解检查问题。
+- `POST /api/teaching/evaluate`：学生提交理解检查回答，AI 输出评价、得分和建议。
+- `GET /api/teaching/records`：查询当前学生的知识点学习状态和掌握程度。
+
+AI 评价结果会要求包含 `得分：0-100`，后端据此更新 `learning_record.mastery_level`。
+
 ## 7. AI 出题设计
 
 ### 7.1 出题输入

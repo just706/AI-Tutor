@@ -311,15 +311,14 @@ POST /api/ai/chat/stream
 ### 6.1 开始教学
 
 ```text
-POST /api/ai/teaching/start
+POST /api/teaching/start
 ```
 
 请求参数：
 
 ```json
 {
-  "knowledgePointId": 10,
-  "conversationId": 1002
+  "knowledgePointId": 10
 }
 ```
 
@@ -330,16 +329,26 @@ POST /api/ai/teaching/start
   "code": 200,
   "message": "success",
   "data": {
-    "content": "我们先学习 Java 接口的基本概念...",
-    "checkQuestion": "接口和类有什么区别？"
+    "conversationId": 1002,
+    "knowledgePointId": 10,
+    "knowledgePointName": "HashMap",
+    "teachingContent": "我们先学习 HashMap 的核心概念...",
+    "learningStatus": "in_progress",
+    "masteryLevel": 0
   }
 }
 ```
 
+说明：
+
+- 该接口会创建一个 `mode=teaching` 的会话。
+- AI 回复中会包含知识讲解和理解检查问题。
+- 调用成功后会保存会话消息，并将学习记录更新为 `in_progress`。
+
 ### 6.2 提交理解检查答案
 
 ```text
-POST /api/ai/teaching/answer
+POST /api/teaching/evaluate
 ```
 
 请求参数：
@@ -348,7 +357,7 @@ POST /api/ai/teaching/answer
 {
   "conversationId": 1002,
   "knowledgePointId": 10,
-  "answer": "接口定义规范，类实现具体逻辑。"
+  "studentAnswer": "HashMap 通过 key 找 value，适合快速查询。"
 }
 ```
 
@@ -359,10 +368,45 @@ POST /api/ai/teaching/answer
   "code": 200,
   "message": "success",
   "data": {
-    "score": 80,
-    "feedback": "理解基本正确，但还可以补充接口支持多实现的特点。",
-    "nextSuggestion": "建议继续学习接口的默认方法和多态应用。"
+    "conversationId": 1002,
+    "knowledgePointId": 10,
+    "feedback": "是否基本正确：部分正确\n得分：75\n回答优点：...",
+    "learningStatus": "completed",
+    "masteryLevel": 75
   }
+}
+```
+
+说明：
+
+- 该接口会校验教学会话是否属于当前登录用户。
+- AI 会根据最近教学上下文评价学生回答。
+- 系统会从 AI 反馈中的得分更新 `learning_record.mastery_level`。
+- 学习状态取值：`in_progress`、`completed`、`mastered`。
+
+### 6.3 查询当前用户学习记录
+
+```text
+GET /api/teaching/records
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "knowledgePointId": 10,
+      "knowledgePointName": "HashMap",
+      "subject": "Java",
+      "learningStatus": "completed",
+      "masteryLevel": 75,
+      "studyTime": 6,
+      "updateTime": "2026-08-03T14:30:00"
+    }
+  ]
 }
 ```
 
@@ -383,11 +427,17 @@ GET /api/knowledge-points/tree?subject=Java
   "data": [
     {
       "id": 1,
+      "subject": "Java",
       "name": "Java",
+      "parentId": 0,
+      "sortOrder": 1,
       "children": [
         {
           "id": 2,
+          "subject": "Java",
           "name": "基础语法",
+          "parentId": 1,
+          "sortOrder": 10,
           "children": []
         }
       ]
@@ -412,6 +462,70 @@ POST /api/admin/knowledge-points
   "sortOrder": 3
 }
 ```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": 20,
+    "subject": "Java",
+    "name": "集合",
+    "parentId": 1,
+    "sortOrder": 3,
+    "children": []
+  }
+}
+```
+
+说明：
+
+- 需要当前登录用户角色为 `admin`。
+
+### 7.3 修改知识点
+
+```text
+PUT /api/admin/knowledge-points/{id}
+```
+
+请求参数：
+
+```json
+{
+  "subject": "Java",
+  "name": "集合框架",
+  "parentId": 1,
+  "sortOrder": 30
+}
+```
+
+说明：
+
+- 需要当前登录用户角色为 `admin`。
+- 不允许将知识点父级设置为自己或自己的子节点。
+
+### 7.4 删除知识点
+
+```text
+DELETE /api/admin/knowledge-points/{id}
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": true
+}
+```
+
+说明：
+
+- 需要当前登录用户角色为 `admin`。
+- 有子节点或已有学习记录的知识点不能删除。
 
 ## 8. 题目接口
 
