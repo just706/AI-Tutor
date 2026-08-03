@@ -98,6 +98,7 @@ public class TeachingServiceImpl implements TeachingService {
         conversation.setMode(MODE_TEACHING);
         conversationMapper.insert(conversation);
 
+        // Teaching mode owns a normal conversation so existing message-history APIs can display it.
         String userMessage = "开始学习知识点：" + knowledgePoint.getName();
         saveMessage(userId, conversation.getId(), ROLE_USER, userMessage);
 
@@ -138,6 +139,7 @@ public class TeachingServiceImpl implements TeachingService {
             AiChatResult result = deepSeekClient.chat(messages);
             int score = parseScore(result.getContent());
             String status = statusFromScore(score);
+            // Mastery is updated from the AI score, but later low scores should not erase prior progress.
             LearningRecord record = upsertLearningRecord(userId, knowledgePoint.getId(), status, score, 5);
             saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, result.getContent());
             touchConversation(conversation.getId());
@@ -322,6 +324,7 @@ public class TeachingServiceImpl implements TeachingService {
     }
 
     private int parseScore(String feedback) {
+        // AI feedback is natural language; require the prompt to include a score and clamp the parsed value.
         Integer score = findScore(CHINESE_SCORE_PATTERN, feedback);
         if (score == null) {
             score = findScore(ENGLISH_SCORE_PATTERN, feedback);

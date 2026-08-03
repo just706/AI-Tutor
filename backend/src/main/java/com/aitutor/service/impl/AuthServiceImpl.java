@@ -45,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(400, "用户名已存在");
         }
 
+        // Store only the BCrypt hash; the raw password never leaves this request boundary.
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
@@ -55,6 +56,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException ex) {
+            // Keep the database unique key as the final guard for concurrent registrations.
             throw new BusinessException(400, "用户名已存在");
         }
 
@@ -76,6 +78,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(400, "账号已禁用");
         }
 
+        // JWT carries the minimal identity used by the interceptor to rebuild UserContext.
         String token = jwtTokenProvider.generateToken(user);
         return new LoginVO(token, LoginUserVO.from(user));
     }

@@ -272,6 +272,22 @@ AI 出题需要满足：
 - 修改建议。
 - 推荐复习知识点。
 
+### 8.3 阶段 7 落地接口
+
+当前阶段实现题目生成和答题反馈闭环。
+
+- `POST /api/questions/generate`：AI 按知识点、题型、难度生成结构化题目。
+- `GET /api/questions`：查询已生成题目。
+- `GET /api/questions/{questionId}`：查询单个题目。
+- `POST /api/questions/{questionId}/answer`：提交答案并保存答题记录。
+
+落地规则：
+
+- AI 出题必须输出 JSON，后端会校验 `questions` 数组、题型、难度、选项、答案和解析。
+- 客观题 `single_choice`、`true_false` 由后端判分，避免重复调用 AI。
+- 主观题 `short_answer` 由 AI 批改，反馈中必须包含 `得分：0-100`。
+- 答题后更新 `learning_record.mastery_level`，供后续学习分析阶段使用。
+
 ## 9. RAG 模块设计
 
 ### 9.1 RAG 目标

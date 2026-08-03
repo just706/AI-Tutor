@@ -96,6 +96,95 @@ public class AiPromptBuilder {
         );
     }
 
+    public String buildQuestionGenerationPrompt(StudentProfile profile,
+                                                KnowledgePoint knowledgePoint,
+                                                String questionType,
+                                                String difficulty,
+                                                int count) {
+        return """
+                你是一个严谨的 AI 出题老师。
+                请根据知识点生成练习题，并只输出合法 JSON，不要输出 Markdown 代码块或额外解释。
+
+                知识点：%s
+                所属学科：%s
+                学生当前水平：%s
+                学生学习目标：%s
+                题目类型：%s
+                难度：%s
+                题目数量：%d
+
+                JSON 格式必须为：
+                {
+                  "questions": [
+                    {
+                      "questionType": "%s",
+                      "content": "题目内容",
+                      "options": ["A. 选项一", "B. 选项二", "C. 选项三", "D. 选项四"],
+                      "answer": "A",
+                      "analysis": "答案解析",
+                      "difficulty": "%s",
+                      "knowledgePoint": "%s"
+                    }
+                  ]
+                }
+
+                要求：
+                - 题目必须围绕当前知识点。
+                - single_choice 必须有 4 个选项，answer 使用 A/B/C/D。
+                - true_false 的 options 必须是 ["true", "false"]，answer 使用 true 或 false。
+                - short_answer 的 options 使用空数组，answer 写参考答案。
+                - analysis 必须解释为什么答案正确。
+                - questions 数组数量必须等于题目数量。
+                """.formatted(
+                valueOrDefault(knowledgePoint == null ? null : knowledgePoint.getName()),
+                valueOrDefault(knowledgePoint == null ? null : knowledgePoint.getSubject()),
+                valueOrDefault(profile == null ? null : profile.getCurrentLevel()),
+                valueOrDefault(profile == null ? null : profile.getLearningGoal()),
+                valueOrDefault(questionType),
+                valueOrDefault(difficulty),
+                count,
+                valueOrDefault(questionType),
+                valueOrDefault(difficulty),
+                valueOrDefault(knowledgePoint == null ? null : knowledgePoint.getName())
+        );
+    }
+
+    public String buildSubjectiveAnswerPrompt(StudentProfile profile,
+                                              KnowledgePoint knowledgePoint,
+                                              String questionContent,
+                                              String referenceAnswer,
+                                              String studentAnswer) {
+        return """
+                你是一个负责批改简答题的 AI 教学老师。
+                请根据题目、参考答案和学生回答给出评价。
+
+                知识点：%s
+                学生当前水平：%s
+                题目：%s
+                参考答案：%s
+                学生回答：%s
+
+                请严格按照以下结构输出：
+                1. 得分：0-100
+                2. 是否基本正确：是/否/部分正确
+                3. 回答优点：
+                4. 存在问题：
+                5. 补充讲解：
+                6. 下一步建议：
+
+                要求：
+                - 得分必须是 0 到 100 的整数。
+                - 如果学生回答偏题或过短，得分应明显降低。
+                - 反馈要具体，并与知识点相关。
+                """.formatted(
+                valueOrDefault(knowledgePoint == null ? null : knowledgePoint.getName()),
+                valueOrDefault(profile == null ? null : profile.getCurrentLevel()),
+                valueOrDefault(questionContent),
+                valueOrDefault(referenceAnswer),
+                valueOrDefault(studentAnswer)
+        );
+    }
+
     private String valueOrDefault(String value) {
         if (value == null || value.trim().isEmpty()) {
             return "未填写";

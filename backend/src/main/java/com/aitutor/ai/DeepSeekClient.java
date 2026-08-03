@@ -40,6 +40,7 @@ public class DeepSeekClient {
                 properties.getModelName(),
                 messages,
                 false,
+                // The MVP expects a concise answer body; disable reasoning output for stable parsing.
                 Map.of("type", "disabled")
         );
         try {

@@ -51,6 +51,7 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
             nodeMap.put(point.getId(), KnowledgePointVO.from(point));
         }
 
+        // Build the tree in memory so the API stays simple and does not depend on recursive SQL.
         List<KnowledgePointVO> roots = new ArrayList<>();
         for (KnowledgePointVO node : nodeMap.values()) {
             Long parentId = node.getParentId();
@@ -91,6 +92,7 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
         String subject = request.getSubject().trim();
         String name = request.getName().trim();
         Long parentId = normalizeParentId(request.getParentId());
+        // Prevent cycles; otherwise tree queries could loop or hide entire branches.
         if (id.equals(parentId) || isDescendant(parentId, id)) {
             throw new BusinessException(400, "Invalid parent knowledge point");
         }

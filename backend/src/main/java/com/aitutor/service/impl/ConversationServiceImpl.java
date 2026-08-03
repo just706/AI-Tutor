@@ -62,6 +62,7 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     public List<ChatMessageVO> listCurrentUserMessages(Long conversationId) {
         Long userId = UserContext.getRequired().getId();
+        // Conversation ownership is checked before reading messages to enforce per-user data isolation.
         requireOwnedConversation(userId, conversationId);
 
         return chatHistoryMapper.selectList(new LambdaQueryWrapper<ChatHistory>()
@@ -88,6 +89,7 @@ public class ConversationServiceImpl implements ConversationService {
             return DEFAULT_MODE;
         }
         String normalized = mode.trim();
+        // Mode is deliberately constrained because later modules attach behavior to these values.
         if (!SUPPORTED_MODES.contains(normalized)) {
             throw new BusinessException(400, "Unsupported conversation mode");
         }

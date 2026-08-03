@@ -237,7 +237,8 @@ CREATE TABLE question (
   source VARCHAR(32) NOT NULL DEFAULT 'ai',
   create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_question_knowledge (knowledge_point_id),
-  INDEX idx_question_difficulty (difficulty)
+  INDEX idx_question_difficulty (difficulty),
+  INDEX idx_question_type (question_type)
 );
 ```
 

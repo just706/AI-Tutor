@@ -36,6 +36,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         String token = authorization.substring(BEARER_PREFIX.length()).trim();
         CurrentUser tokenUser = jwtTokenProvider.parseToken(token);
+        // Re-check the database so deleted or disabled users cannot keep using an old token.
         User user = userMapper.selectById(tokenUser.getId());
         if (user == null) {
             throw new UnauthorizedException("未登录或 Token 无效");
@@ -50,6 +51,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        // UserContext is ThreadLocal; clearing it prevents identity leakage across reused servlet threads.
         UserContext.clear();
     }
 }

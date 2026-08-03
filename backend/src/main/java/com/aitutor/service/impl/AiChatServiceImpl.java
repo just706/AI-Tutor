@@ -66,6 +66,7 @@ public class AiChatServiceImpl implements AiChatService {
         Conversation conversation = requireOwnedConversation(userId, request.getConversationId());
         String userMessage = request.getMessage().trim();
 
+        // Persist the user message first so an AI failure still leaves an auditable conversation trail.
         saveMessage(userId, conversation.getId(), ROLE_USER, userMessage);
 
         StudentProfile profile = findProfile(userId);
@@ -105,6 +106,7 @@ public class AiChatServiceImpl implements AiChatService {
         List<AiMessage> messages = new ArrayList<>();
         messages.add(new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildTutorPrompt(profile)));
 
+        // Keep only the recent window to control token usage while preserving short-term context.
         for (ChatHistory history : listRecentMessages(userId, conversationId)) {
             messages.add(new AiMessage(history.getRole(), history.getMessageContent()));
         }

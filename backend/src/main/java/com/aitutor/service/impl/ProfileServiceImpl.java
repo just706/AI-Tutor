@@ -32,6 +32,7 @@ public class ProfileServiceImpl implements ProfileService {
         Long userId = UserContext.getRequired().getId();
         StudentProfile profile = findByUserId(userId);
 
+        // Profile is one row per user, so save behaves as an idempotent upsert.
         if (profile == null) {
             profile = new StudentProfile();
             profile.setUserId(userId);

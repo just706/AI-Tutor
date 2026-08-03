@@ -17,6 +17,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public Result<Void> handleBusinessException(BusinessException ex) {
+        // BusinessException already carries the API-level code expected by the frontend.
         return Result.failure(ex.getCode(), ex.getMessage());
     }
 
@@ -32,6 +33,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception ex) {
+        // Unexpected details stay in server logs; clients receive a stable generic message.
         log.error("Unexpected server error", ex);
         return Result.failure(500, "系统异常");
     }

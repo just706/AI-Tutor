@@ -542,7 +542,7 @@ POST /api/questions/generate
   "knowledgePointId": 10,
   "questionType": "single_choice",
   "difficulty": "medium",
-  "count": 3
+  "count": 1
 }
 ```
 
@@ -555,17 +555,50 @@ POST /api/questions/generate
   "data": [
     {
       "id": 2001,
-      "content": "以下关于 Java 接口的说法正确的是？",
-      "options": ["接口不能被实现", "接口可以定义抽象方法", "接口只能有成员变量", "接口不能用于多态"],
-      "answer": "接口可以定义抽象方法",
-      "analysis": "接口用于定义规范，类可以实现接口中的方法。",
-      "difficulty": "medium"
+      "knowledgePointId": 10,
+      "knowledgePointName": "HashMap",
+      "questionType": "single_choice",
+      "content": "HashMap 中 key 的主要作用是什么？",
+      "options": ["A. 快速定位 value", "B. 保存线程状态", "C. 控制循环次数", "D. 编译 Java 文件"],
+      "answer": "A",
+      "analysis": "HashMap 通过 key 计算位置，从而快速找到对应 value。",
+      "difficulty": "medium",
+      "source": "ai",
+      "createTime": "2026-08-03T15:20:00"
     }
   ]
 }
 ```
 
-### 8.2 提交答案
+说明：
+
+- `questionType` 当前支持 `single_choice`、`true_false`、`short_answer`，默认 `single_choice`。
+- `difficulty` 当前支持 `easy`、`medium`、`hard`，默认 `medium`。
+- `count` 范围为 1-5，默认 3。
+- 后端会校验 AI 返回 JSON 结构，校验通过后才保存题目。
+
+### 8.2 查询题目列表
+
+```text
+GET /api/questions?knowledgePointId=10&questionType=single_choice&difficulty=medium
+```
+
+说明：
+
+- 查询参数都可选。
+- 返回字段同生成题目接口。
+
+### 8.3 查询单个题目
+
+```text
+GET /api/questions/{questionId}
+```
+
+说明：
+
+- 返回字段同生成题目接口。
+
+### 8.4 提交答案
 
 ```text
 POST /api/questions/{questionId}/answer
@@ -586,12 +619,25 @@ POST /api/questions/{questionId}/answer
   "code": 200,
   "message": "success",
   "data": {
+    "answerRecordId": 3001,
+    "questionId": 2001,
     "correct": true,
     "score": 100,
-    "analysis": "回答正确。接口可以定义抽象方法，由实现类完成具体实现。"
+    "correctAnswer": "A",
+    "analysis": "HashMap 通过 key 计算位置，从而快速找到对应 value。",
+    "feedback": "回答正确。\n解析：HashMap 通过 key 计算位置，从而快速找到对应 value。",
+    "learningStatus": "mastered",
+    "masteryLevel": 100
   }
 }
 ```
+
+说明：
+
+- 客观题：`single_choice`、`true_false` 由后端直接判分。
+- 主观题：`short_answer` 调用 AI 批改，并从反馈中的得分更新掌握程度。
+- 答题结果会保存到 `answer_record`。
+- 答题后会更新 `learning_record`，用于后续学习分析阶段。
 
 ## 9. 学习记录接口
 
