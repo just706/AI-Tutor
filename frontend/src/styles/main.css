@@ -681,6 +681,46 @@ textarea {
   line-height: 1.55;
 }
 
+.agent-suggestion {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid #edf1f5;
+}
+
+.agent-suggestion-head,
+.agent-actions,
+.agent-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-suggestion-head {
+  justify-content: space-between;
+}
+
+.agent-suggestion-head strong {
+  display: block;
+  color: #263544;
+}
+
+.agent-suggestion-head small,
+.agent-suggestion small {
+  color: #7b8796;
+  line-height: 1.4;
+}
+
+.agent-suggestion p {
+  margin: 0;
+  color: #536173;
+  line-height: 1.5;
+}
+
+.agent-actions {
+  flex-wrap: wrap;
+}
+
 @media (max-width: 1120px) {
   .app-shell {
     grid-template-columns: 250px minmax(0, 1fr);

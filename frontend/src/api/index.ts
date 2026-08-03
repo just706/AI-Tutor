@@ -1,5 +1,7 @@
 import { request } from './http'
 import type {
+  AgentEventLog,
+  AgentSuggestion,
   AiChatResult,
   AnswerResult,
   ChatMessage,
@@ -228,5 +230,52 @@ export function generateStudyPlan(period: string, goal?: string) {
     url: '/study-plans/generate',
     method: 'POST',
     data: { period, goal }
+  })
+}
+
+export function generateAgentSuggestions(agentType = 'all') {
+  return request<AgentSuggestion[]>({
+    url: '/agents/suggestions/generate',
+    method: 'POST',
+    data: { agentType }
+  })
+}
+
+export function listAgentSuggestions(status?: string, agentType?: string) {
+  return request<AgentSuggestion[]>({
+    url: '/agents/suggestions',
+    method: 'GET',
+    params: { status, agentType }
+  })
+}
+
+export function listAgentEvents(suggestionId: number) {
+  return request<AgentEventLog[]>({
+    url: `/agents/suggestions/${suggestionId}/events`,
+    method: 'GET'
+  })
+}
+
+export function confirmAgentSuggestion(suggestionId: number, note?: string) {
+  return request<AgentSuggestion>({
+    url: `/agents/suggestions/${suggestionId}/confirm`,
+    method: 'POST',
+    data: { note }
+  })
+}
+
+export function completeAgentSuggestion(suggestionId: number, note?: string) {
+  return request<AgentSuggestion>({
+    url: `/agents/suggestions/${suggestionId}/complete`,
+    method: 'POST',
+    data: { note }
+  })
+}
+
+export function dismissAgentSuggestion(suggestionId: number, note?: string) {
+  return request<AgentSuggestion>({
+    url: `/agents/suggestions/${suggestionId}/dismiss`,
+    method: 'POST',
+    data: { note }
   })
 }

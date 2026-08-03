@@ -407,7 +407,81 @@ CREATE TABLE ai_call_log (
 );
 ```
 
-## 15. 表关系说明
+## 15. Agent 建议表 agent_suggestion
+
+### 15.1 字段设计
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | 主键 |
+| user_id | BIGINT | 用户 ID |
+| agent_type | VARCHAR(32) | Agent 类型 |
+| title | VARCHAR(120) | 建议标题 |
+| suggestion | TEXT | 建议内容 |
+| reason | TEXT | 生成原因 |
+| action_type | VARCHAR(64) | 建议动作类型 |
+| action_payload | TEXT | 建议动作参数 JSON |
+| impact_level | VARCHAR(16) | 影响等级 |
+| requires_confirmation | TINYINT | 是否需要确认 |
+| status | VARCHAR(32) | 状态 |
+| create_time | DATETIME | 创建时间 |
+| confirm_time | DATETIME | 确认时间 |
+| complete_time | DATETIME | 完成时间 |
+| update_time | DATETIME | 更新时间 |
+
+### 15.2 建表语句
+
+```sql
+CREATE TABLE agent_suggestion (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  agent_type VARCHAR(32) NOT NULL,
+  title VARCHAR(120) NOT NULL,
+  suggestion TEXT NOT NULL,
+  reason TEXT,
+  action_type VARCHAR(64) NOT NULL,
+  action_payload TEXT,
+  impact_level VARCHAR(16) NOT NULL DEFAULT 'medium',
+  requires_confirmation TINYINT NOT NULL DEFAULT 1,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  confirm_time DATETIME,
+  complete_time DATETIME,
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_agent_suggestion_user_status (user_id, status),
+  INDEX idx_agent_suggestion_user_type (user_id, agent_type)
+);
+```
+
+## 16. Agent 事件日志表 agent_event_log
+
+### 16.1 字段设计
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | 主键 |
+| suggestion_id | BIGINT | Agent 建议 ID |
+| user_id | BIGINT | 用户 ID |
+| event_type | VARCHAR(32) | 事件类型 |
+| note | TEXT | 备注 |
+| create_time | DATETIME | 创建时间 |
+
+### 16.2 建表语句
+
+```sql
+CREATE TABLE agent_event_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  suggestion_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  event_type VARCHAR(32) NOT NULL,
+  note TEXT,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_agent_event_suggestion (suggestion_id),
+  INDEX idx_agent_event_user (user_id)
+);
+```
+
+## 17. 表关系说明
 
 - `user` 与 `student_profile` 是一对一关系。
 - `user` 与 `conversation` 是一对多关系。
@@ -418,17 +492,19 @@ CREATE TABLE ai_call_log (
 - `user` 与 `answer_record` 是一对多关系。
 - `document` 与 `document_chunk` 是一对多关系。
 - `user` 与 `study_plan` 是一对多关系。
+- `user` 与 `agent_suggestion` 是一对多关系。
+- `agent_suggestion` 与 `agent_event_log` 是一对多关系。
 
-## 16. 字段枚举建议
+## 18. 字段枚举建议
 
-### 16.1 用户角色 role
+### 18.1 用户角色 role
 
 | 值 | 说明 |
 |---|---|
 | student | 学生 |
 | admin | 管理员 |
 
-### 16.2 学习状态 learning_status
+### 18.2 学习状态 learning_status
 
 | 值 | 说明 |
 |---|---|
@@ -437,7 +513,7 @@ CREATE TABLE ai_call_log (
 | completed | 已完成 |
 | need_review | 需要复习 |
 
-### 16.3 会话模式 mode
+### 18.3 会话模式 mode
 
 | 值 | 说明 |
 |---|---|
@@ -445,7 +521,7 @@ CREATE TABLE ai_call_log (
 | teaching | 教学模式 |
 | rag | 知识库问答 |
 
-### 16.4 文档处理状态 process_status
+### 18.4 文档处理状态 process_status
 
 | 值 | 说明 |
 |---|---|
@@ -453,3 +529,21 @@ CREATE TABLE ai_call_log (
 | processing | 处理中 |
 | completed | 已完成 |
 | failed | 处理失败 |
+
+### 18.5 Agent 类型 agent_type
+
+| 值 | 说明 |
+|---|---|
+| planning | 学习规划 Agent |
+| teaching | 教学 Agent |
+| practice | 出题练习 Agent |
+| analysis | 分析 Agent |
+
+### 18.6 Agent 建议状态 status
+
+| 值 | 说明 |
+|---|---|
+| pending | 待处理 |
+| confirmed | 已确认 |
+| completed | 已完成 |
+| dismissed | 已忽略 |

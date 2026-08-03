@@ -213,3 +213,28 @@ export interface StudyPlan {
   steps: string[]
   planContent: string
 }
+
+export interface AgentSuggestion {
+  id: number
+  agentType: 'planning' | 'teaching' | 'practice' | 'analysis'
+  title: string
+  suggestion: string
+  reason?: string
+  actionType: string
+  actionPayload?: string
+  impactLevel: 'low' | 'medium' | 'high'
+  requiresConfirmation: boolean
+  status: 'pending' | 'confirmed' | 'completed' | 'dismissed'
+  createTime?: string
+  confirmTime?: string
+  completeTime?: string
+  updateTime?: string
+}
+
+export interface AgentEventLog {
+  id: number
+  suggestionId: number
+  eventType: string
+  note?: string
+  createTime?: string
+}

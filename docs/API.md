@@ -1024,3 +1024,141 @@ POST /api/study-plans/generate
 - `period` 当前支持 `week` 和 `month`，其他值会按 `week` 处理。
 - `goal` 可不传；不传时优先使用学习档案中的 `learningGoal`。
 - 学习计划会优先围绕薄弱知识点生成；没有薄弱项时使用学习方向作为重点。
+
+## 12. Agent 建议接口
+
+说明：
+
+- 当前阶段是 Agent MVP，不自动执行创建会话、生成题目、修改资料等高影响操作。
+- Agent 会根据学习档案、学习分析、知识点掌握明细和近期答题生成建议，并保存可追踪记录。
+- 需要确认的建议必须先确认，再由用户标记完成。
+
+### 12.1 生成 Agent 建议
+
+```text
+POST /api/agents/suggestions/generate
+```
+
+请求参数：
+
+```json
+{
+  "agentType": "all"
+}
+```
+
+说明：
+
+- `agentType` 可选，支持 `all`、`planning`、`teaching`、`practice`、`analysis`。
+- `all` 会生成学习规划、教学、练习和分析四类建议。
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 10001,
+      "agentType": "planning",
+      "title": "生成本周学习路线",
+      "suggestion": "围绕「HashMap」生成 7 天学习计划，并在完成练习后回来查看分析变化。",
+      "reason": "学习目标是「提升 Java 集合」，当前薄弱项或重点是「HashMap」。",
+      "actionType": "generate_study_plan",
+      "actionPayload": "{\"period\":\"week\",\"goal\":\"提升 Java 集合\"}",
+      "impactLevel": "medium",
+      "requiresConfirmation": true,
+      "status": "pending",
+      "createTime": "2026-08-02 10:00:00"
+    }
+  ]
+}
+```
+
+### 12.2 查询 Agent 建议
+
+```text
+GET /api/agents/suggestions?status=pending&agentType=planning
+```
+
+说明：
+
+- `status` 可选，支持 `pending`、`confirmed`、`completed`、`dismissed`。
+- `agentType` 可选，支持 `planning`、`teaching`、`practice`、`analysis`。
+
+### 12.3 查询 Agent 事件日志
+
+```text
+GET /api/agents/suggestions/{suggestionId}/events
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 20001,
+      "suggestionId": 10001,
+      "eventType": "generated",
+      "note": "Agent 根据当前学习数据生成建议",
+      "createTime": "2026-08-02 10:00:00"
+    }
+  ]
+}
+```
+
+### 12.4 确认 Agent 建议
+
+```text
+POST /api/agents/suggestions/{suggestionId}/confirm
+```
+
+请求参数：
+
+```json
+{
+  "note": "确认执行这个学习建议"
+}
+```
+
+说明：
+
+- 仅 `pending` 状态可以确认。
+- 确认后状态变为 `confirmed`，并写入事件日志。
+
+### 12.5 标记 Agent 建议完成
+
+```text
+POST /api/agents/suggestions/{suggestionId}/complete
+```
+
+请求参数：
+
+```json
+{
+  "note": "已完成本次建议"
+}
+```
+
+说明：
+
+- `requiresConfirmation=true` 的建议必须先确认才能完成。
+- 当前阶段只记录完成状态，不自动替用户执行高影响动作。
+
+### 12.6 忽略 Agent 建议
+
+```text
+POST /api/agents/suggestions/{suggestionId}/dismiss
+```
+
+请求参数：
+
+```json
+{
+  "note": "暂时不做"
+}
+```

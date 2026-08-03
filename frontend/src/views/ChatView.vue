@@ -444,6 +444,91 @@
             </div>
           </section>
         </el-tab-pane>
+
+        <el-tab-pane label="Agent" name="agent">
+          <section class="feature-block">
+            <div class="block-title">Agent 建议</div>
+            <el-form label-position="top">
+              <el-form-item label="Agent 类型">
+                <el-select v-model="agentTypeFilter">
+                  <el-option label="全部" value="all" />
+                  <el-option label="学习规划" value="planning" />
+                  <el-option label="教学" value="teaching" />
+                  <el-option label="练习" value="practice" />
+                  <el-option label="分析" value="analysis" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="状态">
+                <el-select v-model="agentStatusFilter">
+                  <el-option label="待处理" value="pending" />
+                  <el-option label="已确认" value="confirmed" />
+                  <el-option label="已完成" value="completed" />
+                  <el-option label="已忽略" value="dismissed" />
+                  <el-option label="全部" value="" />
+                </el-select>
+              </el-form-item>
+            </el-form>
+            <el-button class="full-action" type="primary" :loading="agentLoading" @click="generateAgentSuggestionsFlow">
+              生成 Agent 建议
+            </el-button>
+            <el-button class="full-action stacked-input" :loading="agentLoading" @click="loadAgentSuggestionsFlow">
+              刷新建议
+            </el-button>
+          </section>
+
+          <section class="feature-block">
+            <div class="block-title">建议列表</div>
+            <div v-if="agentSuggestions.length === 0" class="muted-line">
+              暂无 Agent 建议
+            </div>
+            <div v-for="item in agentSuggestions" :key="item.id" class="agent-suggestion">
+              <div class="agent-suggestion-head">
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <small>{{ agentTypeLabel(item.agentType) }} · {{ item.actionType }}</small>
+                </div>
+                <el-tag size="small" :type="agentStatusTagType(item.status)">
+                  {{ agentStatusLabel(item.status) }}
+                </el-tag>
+              </div>
+              <p>{{ item.suggestion }}</p>
+              <small>{{ item.reason }}</small>
+              <div class="agent-meta">
+                <el-tag size="small">{{ item.impactLevel }}</el-tag>
+                <el-tag v-if="item.requiresConfirmation" size="small" type="warning">需要确认</el-tag>
+                <el-tag v-else size="small" type="success">可直接完成</el-tag>
+              </div>
+              <div class="agent-actions">
+                <el-button
+                  size="small"
+                  :disabled="item.status !== 'pending'"
+                  :loading="agentActionLoadingId === item.id"
+                  @click="confirmAgentSuggestionFlow(item)"
+                >
+                  确认
+                </el-button>
+                <el-button
+                  size="small"
+                  type="success"
+                  :disabled="item.status === 'completed' || item.status === 'dismissed' || (item.requiresConfirmation && item.status === 'pending')"
+                  :loading="agentActionLoadingId === item.id"
+                  @click="completeAgentSuggestionFlow(item)"
+                >
+                  完成
+                </el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  :disabled="item.status === 'completed' || item.status === 'dismissed'"
+                  :loading="agentActionLoadingId === item.id"
+                  @click="dismissAgentSuggestionFlow(item)"
+                >
+                  忽略
+                </el-button>
+              </div>
+            </div>
+          </section>
+        </el-tab-pane>
       </el-tabs>
     </aside>
   </main>
@@ -457,8 +542,12 @@ import MarkdownIt from 'markdown-it'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
+  completeAgentSuggestion,
+  confirmAgentSuggestion,
+  dismissAgentSuggestion,
   evaluateTeaching,
   deleteDocument,
+  generateAgentSuggestions,
   generateStudyPlan,
   generateQuestions,
   getDocument,
@@ -469,6 +558,7 @@ import {
   listKnowledgeTree,
   listLearningRecords,
   listRecentAnswerAnalysis,
+  listAgentSuggestions,
   listQuestions,
   reprocessDocument,
   sendRagChat,
@@ -479,6 +569,7 @@ import {
 import { useAuthStore } from '../stores/auth'
 import { useWorkspaceStore } from '../stores/workspace'
 import type {
+  AgentSuggestion,
   AnswerResult,
   Conversation,
   DocumentChunk,
@@ -494,7 +585,7 @@ import type {
   StudyPlan
 } from '../types/domain'
 
-type ToolMode = 'profile' | 'chat' | 'teaching' | 'practice' | 'rag' | 'analysis'
+type ToolMode = 'profile' | 'chat' | 'teaching' | 'practice' | 'rag' | 'analysis' | 'agent'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -514,7 +605,8 @@ const tools: Array<{ label: string; value: ToolMode }> = [
   { label: '教学', value: 'teaching' },
   { label: '练习', value: 'practice' },
   { label: '资料', value: 'rag' },
-  { label: '分析', value: 'analysis' }
+  { label: '分析', value: 'analysis' },
+  { label: 'Agent', value: 'agent' }
 ]
 
 const knowledgeSubject = ref('Java')
@@ -556,6 +648,11 @@ const studyPlanForm = reactive({
   period: 'week',
   goal: ''
 })
+const agentSuggestions = ref<AgentSuggestion[]>([])
+const agentLoading = ref(false)
+const agentActionLoadingId = ref<number | null>(null)
+const agentTypeFilter = ref('all')
+const agentStatusFilter = ref('pending')
 
 const selectedKnowledgePoint = computed(() =>
   flattenKnowledgePoints(knowledgeTree.value).find((item) => item.id === selectedKnowledgePointId.value) || null
@@ -585,6 +682,9 @@ const emptyTitle = computed(() => {
   if (activeTool.value === 'analysis') {
     return '查看学习分析和计划'
   }
+  if (activeTool.value === 'agent') {
+    return '查看 Agent 主动建议'
+  }
   return '开始一次学习问答'
 })
 
@@ -610,7 +710,8 @@ onMounted(async () => {
       loadKnowledgeTree(),
       loadLearningRecordsFlow(),
       loadDocumentsFlow(),
-      loadAnalysisOverviewFlow()
+      loadAnalysisOverviewFlow(),
+      loadAgentSuggestionsFlow()
     ])
   } catch (error) {
     showError(error, '加载失败')
@@ -631,6 +732,10 @@ watch(selectedKnowledgePointId, async (value) => {
   if (value) {
     await loadQuestionsFlow()
   }
+})
+
+watch([agentTypeFilter, agentStatusFilter], async () => {
+  await loadAgentSuggestionsFlow()
 })
 
 function renderMarkdown(content: string) {
@@ -981,6 +1086,106 @@ async function generateStudyPlanFlow() {
   } finally {
     studyPlanLoading.value = false
   }
+}
+
+async function loadAgentSuggestionsFlow() {
+  agentLoading.value = true
+  try {
+    agentSuggestions.value = await listAgentSuggestions(
+      agentStatusFilter.value || undefined,
+      agentTypeFilter.value === 'all' ? undefined : agentTypeFilter.value
+    )
+  } catch (error) {
+    showError(error, '加载 Agent 建议失败')
+  } finally {
+    agentLoading.value = false
+  }
+}
+
+async function generateAgentSuggestionsFlow() {
+  agentLoading.value = true
+  try {
+    await generateAgentSuggestions(agentTypeFilter.value)
+    agentStatusFilter.value = 'pending'
+    await loadAgentSuggestionsFlow()
+    ElMessage.success('Agent 建议已生成')
+  } catch (error) {
+    showError(error, '生成 Agent 建议失败')
+  } finally {
+    agentLoading.value = false
+  }
+}
+
+async function confirmAgentSuggestionFlow(item: AgentSuggestion) {
+  agentActionLoadingId.value = item.id
+  try {
+    await confirmAgentSuggestion(item.id, '前端确认执行')
+    await loadAgentSuggestionsFlow()
+    ElMessage.success('建议已确认')
+  } catch (error) {
+    showError(error, '确认建议失败')
+  } finally {
+    agentActionLoadingId.value = null
+  }
+}
+
+async function completeAgentSuggestionFlow(item: AgentSuggestion) {
+  agentActionLoadingId.value = item.id
+  try {
+    await completeAgentSuggestion(item.id, '前端标记完成')
+    await loadAgentSuggestionsFlow()
+    ElMessage.success('建议已完成')
+  } catch (error) {
+    showError(error, '完成建议失败')
+  } finally {
+    agentActionLoadingId.value = null
+  }
+}
+
+async function dismissAgentSuggestionFlow(item: AgentSuggestion) {
+  agentActionLoadingId.value = item.id
+  try {
+    await dismissAgentSuggestion(item.id, '前端忽略建议')
+    await loadAgentSuggestionsFlow()
+    ElMessage.success('建议已忽略')
+  } catch (error) {
+    showError(error, '忽略建议失败')
+  } finally {
+    agentActionLoadingId.value = null
+  }
+}
+
+function agentTypeLabel(type: AgentSuggestion['agentType']) {
+  const labels: Record<AgentSuggestion['agentType'], string> = {
+    planning: '学习规划',
+    teaching: '教学',
+    practice: '练习',
+    analysis: '分析'
+  }
+  return labels[type] || type
+}
+
+function agentStatusLabel(status: AgentSuggestion['status']) {
+  const labels: Record<AgentSuggestion['status'], string> = {
+    pending: '待处理',
+    confirmed: '已确认',
+    completed: '已完成',
+    dismissed: '已忽略'
+  }
+  return labels[status] || status
+}
+
+function agentStatusTagType(status: AgentSuggestion['status']) {
+  if (status === 'confirmed') {
+    return 'warning'
+  }
+  if (status === 'completed') {
+    return 'success'
+  }
+  if (status === 'dismissed') {
+    return 'info'
+  }
+  return 'primary'
 }
 
 async function createRagConversation() {
