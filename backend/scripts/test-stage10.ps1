@@ -111,13 +111,14 @@ $generated = Invoke-JsonApi -Method POST -Path "/api/agents/suggestions/generate
     agentType = "all"
 }
 Assert-Code $generated 200 "generate agent suggestions"
-Assert-True (@($generated.data).Count -eq 4) "generated four agent suggestions"
-Assert-True ((@($generated.data) | Where-Object { $_.agentType -eq "planning" }).Count -eq 1) "planning agent generated"
-Assert-True ((@($generated.data) | Where-Object { $_.agentType -eq "teaching" }).Count -eq 1) "teaching agent generated"
-Assert-True ((@($generated.data) | Where-Object { $_.agentType -eq "practice" }).Count -eq 1) "practice agent generated"
-Assert-True ((@($generated.data) | Where-Object { $_.agentType -eq "analysis" }).Count -eq 1) "analysis agent generated"
+$generatedSuggestions = @($generated.data)
+Assert-True ($generatedSuggestions.Count -eq 4) "generated four agent suggestions"
+Assert-True (($generatedSuggestions | Where-Object { $_.agentType -eq "planning" } | Measure-Object).Count -eq 1) "planning agent generated"
+Assert-True (($generatedSuggestions | Where-Object { $_.agentType -eq "teaching" } | Measure-Object).Count -eq 1) "teaching agent generated"
+Assert-True (($generatedSuggestions | Where-Object { $_.agentType -eq "practice" } | Measure-Object).Count -eq 1) "practice agent generated"
+Assert-True (($generatedSuggestions | Where-Object { $_.agentType -eq "analysis" } | Measure-Object).Count -eq 1) "analysis agent generated"
 
-$confirmRequired = @($generated.data) | Where-Object { $_.requiresConfirmation -eq $true } | Select-Object -First 1
+$confirmRequired = $generatedSuggestions | Where-Object { $_.requiresConfirmation -eq $true } | Select-Object -First 1
 Assert-True ($null -ne $confirmRequired) "confirmation required suggestion exists"
 Assert-True ($confirmRequired.status -eq "pending") "generated suggestion pending"
 Assert-True (-not [string]::IsNullOrWhiteSpace($confirmRequired.actionPayload)) "generated action payload exists"
@@ -136,7 +137,7 @@ Assert-Code $completeBeforeConfirm 400 "complete before confirm"
 Write-Step "Checking Agent event log"
 $events = Invoke-JsonApi -Method GET -Path "/api/agents/suggestions/$($confirmRequired.id)/events" -Headers $authHeaders
 Assert-Code $events 200 "agent suggestion events"
-Assert-True ((@($events.data) | Where-Object { $_.eventType -eq "generated" }).Count -ge 1) "generated event exists"
+Assert-True ((@($events.data) | Where-Object { $_.eventType -eq "generated" } | Measure-Object).Count -ge 1) "generated event exists"
 
 Write-Step "Confirming and completing suggestion"
 $confirmed = Invoke-JsonApi -Method POST -Path "/api/agents/suggestions/$($confirmRequired.id)/confirm" -Headers $authHeaders -Body @{
