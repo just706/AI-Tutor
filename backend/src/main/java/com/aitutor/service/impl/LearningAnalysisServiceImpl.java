@@ -15,7 +15,9 @@ import com.aitutor.mapper.QuestionMapper;
 import com.aitutor.mapper.StudentProfileMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.LearningAnalysisService;
+import com.aitutor.vo.KnowledgePointProgressVO;
 import com.aitutor.vo.LearningAnalysisOverviewVO;
+import com.aitutor.vo.RecentAnswerAnalysisVO;
 import com.aitutor.vo.StudyPlanVO;
 import com.aitutor.vo.WeakKnowledgePointVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -80,6 +82,35 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         overview.setSuggestions(buildSuggestions(overview, data.profile));
         overview.setNextActions(buildNextActions(overview, data.profile));
         return overview;
+    }
+
+    @Override
+    public List<KnowledgePointProgressVO> knowledgePointProgress() {
+        Long userId = UserContext.getRequired().getId();
+        AnalysisData data = loadAnalysisData(userId);
+        Map<Long, LearningRecord> latestRecordMap = latestRecordMap(data.records);
+        Map<Long, PointAnswerStats> statsMap = buildPointAnswerStats(data.answers, data.questionMap);
+
+        // 明细行同时覆盖“教学产生的学习记录”和“只做过题但还没有教学记录”的知识点。
+        Set<Long> knowledgePointIds = new LinkedHashSet<>();
+        latestRecordMap.keySet().forEach(knowledgePointIds::add);
+        statsMap.keySet().forEach(knowledgePointIds::add);
+
+        return knowledgePointIds.stream()
+                .map(id -> toKnowledgePointProgress(id, data.knowledgePointMap, latestRecordMap.get(id), statsMap.get(id)))
+                .sorted(Comparator.comparingInt(this::progressSortScore)
+                        .thenComparing(KnowledgePointProgressVO::getKnowledgePointId))
+                .toList();
+    }
+
+    @Override
+    public List<RecentAnswerAnalysisVO> recentAnswers(Integer limit) {
+        Long userId = UserContext.getRequired().getId();
+        AnalysisData data = loadAnalysisData(userId);
+        return data.answers.stream()
+                .limit(normalizedLimit(limit))
+                .map(answer -> toRecentAnswerAnalysis(answer, data.questionMap, data.knowledgePointMap))
+                .toList();
     }
 
     @Override
@@ -251,6 +282,67 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         return statsMap;
     }
 
+    private Map<Long, LearningRecord> latestRecordMap(List<LearningRecord> records) {
+        Map<Long, LearningRecord> recordMap = new LinkedHashMap<>();
+        for (LearningRecord record : records) {
+            if (record.getKnowledgePointId() == null) {
+                continue;
+            }
+            recordMap.putIfAbsent(record.getKnowledgePointId(), record);
+        }
+        return recordMap;
+    }
+
+    private KnowledgePointProgressVO toKnowledgePointProgress(Long knowledgePointId,
+                                                              Map<Long, KnowledgePoint> knowledgePointMap,
+                                                              LearningRecord record,
+                                                              PointAnswerStats stats) {
+        KnowledgePoint point = knowledgePointMap.get(knowledgePointId);
+        KnowledgePointProgressVO progress = new KnowledgePointProgressVO();
+        progress.setKnowledgePointId(knowledgePointId);
+        progress.setKnowledgePointName(point == null ? "知识点#" + knowledgePointId : point.getName());
+        progress.setSubject(point == null ? null : point.getSubject());
+        progress.setLearningStatus(record == null ? "practiced" : record.getLearningStatus());
+        progress.setMasteryLevel(record == null ? 0 : safe(record.getMasteryLevel()));
+        progress.setStudyTime(record == null ? 0 : safe(record.getStudyTime()));
+        progress.setAnsweredQuestionCount(stats == null ? 0 : stats.answeredCount());
+        progress.setCorrectAnswerCount(stats == null ? 0 : stats.correctCount());
+        progress.setAnswerAccuracy(stats == null ? 0 : stats.accuracy());
+        progress.setAverageScore(stats == null ? 0 : stats.averageScore());
+        progress.setUpdateTime(record == null ? null : record.getUpdateTime());
+        return progress;
+    }
+
+    private RecentAnswerAnalysisVO toRecentAnswerAnalysis(AnswerRecord answer,
+                                                          Map<Long, Question> questionMap,
+                                                          Map<Long, KnowledgePoint> knowledgePointMap) {
+        Question question = questionMap.get(answer.getQuestionId());
+        KnowledgePoint point = question == null ? null : knowledgePointMap.get(question.getKnowledgePointId());
+
+        RecentAnswerAnalysisVO analysis = new RecentAnswerAnalysisVO();
+        analysis.setAnswerRecordId(answer.getId());
+        analysis.setQuestionId(answer.getQuestionId());
+        analysis.setKnowledgePointId(question == null ? null : question.getKnowledgePointId());
+        analysis.setKnowledgePointName(point == null ? null : point.getName());
+        analysis.setQuestionType(question == null ? null : question.getQuestionType());
+        analysis.setDifficulty(question == null ? null : question.getDifficulty());
+        analysis.setQuestionContent(question == null ? "" : previewText(question.getContent(), 160));
+        analysis.setUserAnswer(answer.getUserAnswer());
+        analysis.setCorrect(safe(answer.getIsCorrect()) == 1);
+        analysis.setScore(safe(answer.getScore()));
+        analysis.setFeedbackPreview(previewText(answer.getAiFeedback(), 180));
+        analysis.setCreateTime(answer.getCreateTime());
+        return analysis;
+    }
+
+    private int progressSortScore(KnowledgePointProgressVO progress) {
+        int mastery = progress.getMasteryLevel() == null ? 100 : progress.getMasteryLevel();
+        int accuracy = safe(progress.getAnsweredQuestionCount()) == 0
+                ? mastery
+                : safe(progress.getAnswerAccuracy());
+        return Math.min(mastery, accuracy);
+    }
+
     private WeakKnowledgePointVO toWeakKnowledgePoint(Long knowledgePointId,
                                                       Map<Long, KnowledgePoint> knowledgePointMap,
                                                       Integer masteryLevel,
@@ -388,6 +480,24 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                 .collect(Collectors.joining("、"));
     }
 
+    private String previewText(String value, int maxLength) {
+        if (isBlank(value)) {
+            return "";
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength);
+    }
+
+    private int normalizedLimit(Integer limit) {
+        if (limit == null) {
+            return 10;
+        }
+        return Math.max(1, Math.min(50, limit));
+    }
+
     private String profileGoal(StudentProfile profile) {
         return profile == null ? null : profile.getLearningGoal();
     }
@@ -443,6 +553,14 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                 return 0;
             }
             return Math.round((float) scoreSum / answered);
+        }
+
+        int answeredCount() {
+            return answered;
+        }
+
+        int correctCount() {
+            return correct;
         }
     }
 }

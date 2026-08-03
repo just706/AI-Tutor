@@ -591,6 +591,59 @@ textarea {
   line-height: 1.4;
 }
 
+.progress-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid #edf1f5;
+}
+
+.progress-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progress-title strong {
+  color: #263544;
+}
+
+.progress-title small {
+  color: #7b8796;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.answer-analysis-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid #edf1f5;
+}
+
+.answer-analysis-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.answer-analysis-head strong {
+  color: #263544;
+}
+
+.answer-analysis-item p {
+  margin: 0;
+  color: #536173;
+  line-height: 1.5;
+}
+
+.answer-analysis-item small {
+  color: #7b8796;
+  line-height: 1.4;
+}
+
 .plain-list {
   display: grid;
   gap: 8px;

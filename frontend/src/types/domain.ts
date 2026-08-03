@@ -175,6 +175,35 @@ export interface LearningAnalysisOverview {
   nextActions: string[]
 }
 
+export interface KnowledgePointProgress {
+  knowledgePointId: number
+  knowledgePointName: string
+  subject?: string
+  learningStatus?: string
+  masteryLevel: number
+  studyTime: number
+  answeredQuestionCount: number
+  correctAnswerCount: number
+  answerAccuracy: number
+  averageScore: number
+  updateTime?: string
+}
+
+export interface RecentAnswerAnalysis {
+  answerRecordId: number
+  questionId: number
+  knowledgePointId?: number
+  knowledgePointName?: string
+  questionType?: string
+  difficulty?: string
+  questionContent: string
+  userAnswer?: string
+  correct: boolean
+  score: number
+  feedbackPreview: string
+  createTime?: string
+}
+
 export interface StudyPlan {
   title: string
   period: 'week' | 'month'

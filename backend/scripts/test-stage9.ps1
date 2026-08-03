@@ -109,6 +109,8 @@ $authHeaders = @{ Authorization = "Bearer $token" }
 Write-Step "Checking protected analysis endpoint rejects missing token"
 $overviewNoToken = Invoke-JsonApi -Method GET -Path "/api/analysis/overview"
 Assert-Code $overviewNoToken 401 "analysis without token"
+$progressNoToken = Invoke-JsonApi -Method GET -Path "/api/analysis/knowledge-points"
+Assert-Code $progressNoToken 401 "knowledge point analysis without token"
 
 Write-Step "Saving learning profile"
 $profileBody = @{
@@ -127,6 +129,14 @@ Assert-True ($overview.data.learnedCount -eq 0) "initial learned count"
 Assert-True ($overview.data.averageMasteryLevel -eq 0) "initial mastery"
 Assert-True (@($overview.data.suggestions).Count -ge 1) "initial suggestions"
 Assert-True (@($overview.data.nextActions).Count -ge 1) "initial next actions"
+
+Write-Step "Checking initial analysis details"
+$initialProgress = Invoke-JsonApi -Method GET -Path "/api/analysis/knowledge-points" -Headers $authHeaders
+Assert-Code $initialProgress 200 "initial knowledge point progress"
+Assert-True (@($initialProgress.data).Count -eq 0) "initial progress empty"
+$initialRecentAnswers = Invoke-JsonApi -Method GET -Path "/api/analysis/recent-answers?limit=5" -Headers $authHeaders
+Assert-Code $initialRecentAnswers 200 "initial recent answers"
+Assert-True (@($initialRecentAnswers.data).Count -eq 0) "initial recent answers empty"
 
 Write-Step "Generating initial study plan"
 $initialPlanBody = @{
@@ -190,6 +200,20 @@ Assert-True (@($updatedOverview.data.weakKnowledgePoints).Count -ge 1) "weak kno
 $matchedWeakPoint = @($updatedOverview.data.weakKnowledgePoints) | Where-Object { $_.knowledgePointId -eq $targetPoint.id } | Select-Object -First 1
 Assert-True ($null -ne $matchedWeakPoint) "target weak knowledge point exists"
 Assert-True (@($updatedOverview.data.suggestions).Count -ge 1) "updated suggestions"
+
+Write-Step "Checking analysis details after answer"
+$updatedProgress = Invoke-JsonApi -Method GET -Path "/api/analysis/knowledge-points" -Headers $authHeaders
+Assert-Code $updatedProgress 200 "updated knowledge point progress"
+$matchedProgress = @($updatedProgress.data) | Where-Object { $_.knowledgePointId -eq $targetPoint.id } | Select-Object -First 1
+Assert-True ($null -ne $matchedProgress) "target progress exists"
+Assert-True ($matchedProgress.answeredQuestionCount -ge 1) "target progress answer count"
+Assert-True ($matchedProgress.answerAccuracy -eq 0) "target progress wrong answer accuracy"
+$recentAnswers = Invoke-JsonApi -Method GET -Path "/api/analysis/recent-answers?limit=3" -Headers $authHeaders
+Assert-Code $recentAnswers 200 "recent answer analysis"
+$matchedRecentAnswer = @($recentAnswers.data) | Where-Object { $_.questionId -eq $question.id } | Select-Object -First 1
+Assert-True ($null -ne $matchedRecentAnswer) "recent answer exists"
+Assert-True ($matchedRecentAnswer.correct -eq $false) "recent answer correctness"
+Assert-True ($matchedRecentAnswer.score -eq 0) "recent answer score"
 
 Write-Step "Generating study plan with weak point focus"
 $weakPlanBody = @{

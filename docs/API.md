@@ -912,7 +912,78 @@ GET /api/analysis/overview
 - `weakKnowledgePoints` 会综合掌握度和答题正确率，默认将低于 70% 的知识点视为薄弱项。
 - `suggestions` 和 `nextActions` 是规则生成的 MVP 版本，不调用 AI。
 
-### 11.2 生成学习计划
+### 11.2 查询知识点掌握明细
+
+```text
+GET /api/analysis/knowledge-points
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "knowledgePointId": 6,
+      "knowledgePointName": "HashMap",
+      "subject": "Java",
+      "learningStatus": "learning",
+      "masteryLevel": 55,
+      "studyTime": 12,
+      "answeredQuestionCount": 3,
+      "correctAnswerCount": 1,
+      "answerAccuracy": 33,
+      "averageScore": 40,
+      "updateTime": "2026-08-02 10:00:00"
+    }
+  ]
+}
+```
+
+说明：
+
+- 该接口会合并教学记录和答题记录，用于展示每个知识点的掌握度、学习时长和答题表现。
+- 排序优先展示掌握度或正确率较低的知识点，方便直接定位复习对象。
+
+### 11.3 查询近期答题分析
+
+```text
+GET /api/analysis/recent-answers?limit=10
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "answerRecordId": 8001,
+      "questionId": 7001,
+      "knowledgePointId": 6,
+      "knowledgePointName": "HashMap",
+      "questionType": "single_choice",
+      "difficulty": "medium",
+      "questionContent": "HashMap 的 key 有什么要求？",
+      "userAnswer": "A",
+      "correct": false,
+      "score": 0,
+      "feedbackPreview": "回答不正确。正确答案是 B...",
+      "createTime": "2026-08-02 10:00:00"
+    }
+  ]
+}
+```
+
+说明：
+
+- `limit` 默认为 10，最大 50。
+- 返回内容用于学习分析页展示最近错题和反馈摘要。
+
+### 11.4 生成学习计划
 
 ```text
 POST /api/study-plans/generate

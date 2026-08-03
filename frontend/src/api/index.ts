@@ -8,6 +8,7 @@ import type {
   DocumentChunk,
   DocumentUploadResult,
   KnowledgePoint,
+  KnowledgePointProgress,
   LearningDocument,
   LearningAnalysisOverview,
   LearningDocumentDetail,
@@ -15,6 +16,7 @@ import type {
   LoginResult,
   Question,
   RagChatResult,
+  RecentAnswerAnalysis,
   RegisterResult,
   StudentProfile,
   StudyPlan,
@@ -203,6 +205,21 @@ export function getLearningAnalysisOverview() {
   return request<LearningAnalysisOverview>({
     url: '/analysis/overview',
     method: 'GET'
+  })
+}
+
+export function listKnowledgePointProgress() {
+  return request<KnowledgePointProgress[]>({
+    url: '/analysis/knowledge-points',
+    method: 'GET'
+  })
+}
+
+export function listRecentAnswerAnalysis(limit = 10) {
+  return request<RecentAnswerAnalysis[]>({
+    url: '/analysis/recent-answers',
+    method: 'GET',
+    params: { limit }
   })
 }
 

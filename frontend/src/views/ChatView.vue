@@ -369,6 +369,40 @@
           </section>
 
           <section class="feature-block">
+            <div class="block-title">掌握明细</div>
+            <div v-if="knowledgeProgress.length === 0" class="muted-line">
+              暂无知识点学习明细
+            </div>
+            <div v-for="item in knowledgeProgress" :key="item.knowledgePointId" class="progress-row">
+              <div class="progress-title">
+                <strong>{{ item.knowledgePointName }}</strong>
+                <small>
+                  掌握 {{ item.masteryLevel }}% · 正确率 {{ item.answerAccuracy }}% · 已答 {{ item.answeredQuestionCount }} 题
+                </small>
+              </div>
+              <el-progress :percentage="item.masteryLevel" :stroke-width="8" :show-text="false" />
+            </div>
+          </section>
+
+          <section class="feature-block">
+            <div class="block-title">近期答题</div>
+            <div v-if="recentAnswers.length === 0" class="muted-line">
+              暂无答题记录
+            </div>
+            <div v-for="answer in recentAnswers" :key="answer.answerRecordId" class="answer-analysis-item">
+              <div class="answer-analysis-head">
+                <strong>{{ answer.knowledgePointName || '未知知识点' }}</strong>
+                <el-tag size="small" :type="answer.correct ? 'success' : 'danger'">
+                  {{ answer.correct ? '正确' : '待复盘' }} · {{ answer.score }} 分
+                </el-tag>
+              </div>
+              <p>{{ answer.questionContent || '题目内容为空' }}</p>
+              <small>你的答案：{{ answer.userAnswer || '空' }}</small>
+              <small v-if="answer.feedbackPreview">{{ answer.feedbackPreview }}</small>
+            </div>
+          </section>
+
+          <section class="feature-block">
             <div class="block-title">建议</div>
             <ul v-if="analysisOverview && analysisOverview.suggestions.length > 0" class="plain-list">
               <li v-for="suggestion in analysisOverview.suggestions" :key="suggestion">{{ suggestion }}</li>
@@ -429,10 +463,12 @@ import {
   generateQuestions,
   getDocument,
   getLearningAnalysisOverview,
+  listKnowledgePointProgress,
   listDocumentChunks,
   listDocuments,
   listKnowledgeTree,
   listLearningRecords,
+  listRecentAnswerAnalysis,
   listQuestions,
   reprocessDocument,
   sendRagChat,
@@ -447,12 +483,14 @@ import type {
   Conversation,
   DocumentChunk,
   KnowledgePoint,
+  KnowledgePointProgress,
   LearningAnalysisOverview,
   LearningDocument,
   LearningDocumentDetail,
   LearningRecord,
   Question,
   RagSource,
+  RecentAnswerAnalysis,
   StudyPlan
 } from '../types/domain'
 
@@ -509,6 +547,8 @@ const ragQuestion = ref('')
 const ragSources = ref<RagSource[]>([])
 const ragSending = ref(false)
 const analysisOverview = ref<LearningAnalysisOverview | null>(null)
+const knowledgeProgress = ref<KnowledgePointProgress[]>([])
+const recentAnswers = ref<RecentAnswerAnalysis[]>([])
 const analysisLoading = ref(false)
 const studyPlan = ref<StudyPlan | null>(null)
 const studyPlanLoading = ref(false)
@@ -915,7 +955,14 @@ async function deleteLearningDocument(documentId: number) {
 async function loadAnalysisOverviewFlow() {
   analysisLoading.value = true
   try {
-    analysisOverview.value = await getLearningAnalysisOverview()
+    const [overview, progress, answers] = await Promise.all([
+      getLearningAnalysisOverview(),
+      listKnowledgePointProgress(),
+      listRecentAnswerAnalysis(8)
+    ])
+    analysisOverview.value = overview
+    knowledgeProgress.value = progress
+    recentAnswers.value = answers
   } catch (error) {
     showError(error, '加载学习分析失败')
   } finally {
