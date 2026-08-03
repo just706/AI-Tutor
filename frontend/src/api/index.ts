@@ -8,12 +8,14 @@ import type {
   DocumentUploadResult,
   KnowledgePoint,
   LearningDocument,
+  LearningAnalysisOverview,
   LearningRecord,
   LoginResult,
   Question,
   RagChatResult,
   RegisterResult,
   StudentProfile,
+  StudyPlan,
   TeachingEvaluationResult,
   TeachingStartResult,
   User
@@ -164,5 +166,20 @@ export function sendRagChat(conversationId: number, question: string, documentId
     url: '/ai/rag/chat',
     method: 'POST',
     data: { conversationId, question, documentIds }
+  })
+}
+
+export function getLearningAnalysisOverview() {
+  return request<LearningAnalysisOverview>({
+    url: '/analysis/overview',
+    method: 'GET'
+  })
+}
+
+export function generateStudyPlan(period: string, goal?: string) {
+  return request<StudyPlan>({
+    url: '/study-plans/generate',
+    method: 'POST',
+    data: { period, goal }
   })
 }

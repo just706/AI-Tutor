@@ -294,6 +294,89 @@
             </div>
           </section>
         </el-tab-pane>
+
+        <el-tab-pane label="分析" name="analysis">
+          <section class="feature-block">
+            <div class="block-title">学习概览</div>
+            <div v-loading="analysisLoading" class="analysis-summary-grid">
+              <div class="summary-tile">
+                <span>已学知识点</span>
+                <strong>{{ analysisOverview?.learnedCount ?? 0 }}</strong>
+              </div>
+              <div class="summary-tile">
+                <span>平均掌握度</span>
+                <strong>{{ analysisOverview?.averageMasteryLevel ?? 0 }}%</strong>
+              </div>
+              <div class="summary-tile">
+                <span>答题正确率</span>
+                <strong>{{ analysisOverview?.answerAccuracy ?? 0 }}%</strong>
+              </div>
+              <div class="summary-tile">
+                <span>学习时长</span>
+                <strong>{{ analysisOverview?.totalStudyTime ?? 0 }} 分钟</strong>
+              </div>
+            </div>
+            <el-button class="full-action stacked-input" :loading="analysisLoading" @click="loadAnalysisOverviewFlow">
+              刷新分析
+            </el-button>
+          </section>
+
+          <section class="feature-block">
+            <div class="block-title">薄弱知识点</div>
+            <div v-if="!analysisOverview || analysisOverview.weakKnowledgePoints.length === 0" class="muted-line">
+              暂无明显薄弱项
+            </div>
+            <div v-for="point in analysisOverview?.weakKnowledgePoints || []" :key="point.knowledgePointId" class="weak-point">
+              <div>
+                <strong>{{ point.knowledgePointName }}</strong>
+                <small>{{ point.reason }}</small>
+              </div>
+              <el-tag size="small" type="warning">{{ point.masteryLevel ?? point.answerAccuracy ?? 0 }}%</el-tag>
+            </div>
+          </section>
+
+          <section class="feature-block">
+            <div class="block-title">建议</div>
+            <ul v-if="analysisOverview && analysisOverview.suggestions.length > 0" class="plain-list">
+              <li v-for="suggestion in analysisOverview.suggestions" :key="suggestion">{{ suggestion }}</li>
+            </ul>
+            <div v-else class="muted-line">暂无建议</div>
+          </section>
+
+          <section class="feature-block">
+            <div class="block-title">下一步行动</div>
+            <ul v-if="analysisOverview && analysisOverview.nextActions.length > 0" class="plain-list">
+              <li v-for="action in analysisOverview.nextActions" :key="action">{{ action }}</li>
+            </ul>
+            <div v-else class="muted-line">暂无行动建议</div>
+          </section>
+
+          <section class="feature-block">
+            <div class="block-title">学习计划</div>
+            <el-form label-position="top">
+              <el-form-item label="周期">
+                <el-select v-model="studyPlanForm.period">
+                  <el-option label="一周" value="week" />
+                  <el-option label="一个月" value="month" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="目标">
+                <el-input v-model.trim="studyPlanForm.goal" placeholder="不填则使用学习档案目标" />
+              </el-form-item>
+            </el-form>
+            <el-button class="full-action" type="primary" :loading="studyPlanLoading" @click="generateStudyPlanFlow">
+              生成计划
+            </el-button>
+            <div v-if="studyPlan" class="study-plan">
+              <h3>{{ studyPlan.title }}</h3>
+              <p>{{ studyPlan.goal }}</p>
+              <el-tag size="small">{{ studyPlan.estimatedDays }} 天</el-tag>
+              <ol>
+                <li v-for="step in studyPlan.steps" :key="step">{{ step }}</li>
+              </ol>
+            </div>
+          </section>
+        </el-tab-pane>
       </el-tabs>
     </aside>
   </main>
@@ -308,7 +391,9 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   evaluateTeaching,
+  generateStudyPlan,
   generateQuestions,
+  getLearningAnalysisOverview,
   listDocuments,
   listKnowledgeTree,
   listLearningRecords,
@@ -324,13 +409,15 @@ import type {
   AnswerResult,
   Conversation,
   KnowledgePoint,
+  LearningAnalysisOverview,
   LearningDocument,
   LearningRecord,
   Question,
-  RagSource
+  RagSource,
+  StudyPlan
 } from '../types/domain'
 
-type ToolMode = 'profile' | 'chat' | 'teaching' | 'practice' | 'rag'
+type ToolMode = 'profile' | 'chat' | 'teaching' | 'practice' | 'rag' | 'analysis'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -349,7 +436,8 @@ const tools: Array<{ label: string; value: ToolMode }> = [
   { label: '问答', value: 'chat' },
   { label: '教学', value: 'teaching' },
   { label: '练习', value: 'practice' },
-  { label: '资料', value: 'rag' }
+  { label: '资料', value: 'rag' },
+  { label: '分析', value: 'analysis' }
 ]
 
 const knowledgeSubject = ref('Java')
@@ -377,6 +465,14 @@ const uploadingDocument = ref(false)
 const ragQuestion = ref('')
 const ragSources = ref<RagSource[]>([])
 const ragSending = ref(false)
+const analysisOverview = ref<LearningAnalysisOverview | null>(null)
+const analysisLoading = ref(false)
+const studyPlan = ref<StudyPlan | null>(null)
+const studyPlanLoading = ref(false)
+const studyPlanForm = reactive({
+  period: 'week',
+  goal: ''
+})
 
 const selectedKnowledgePoint = computed(() =>
   flattenKnowledgePoints(knowledgeTree.value).find((item) => item.id === selectedKnowledgePointId.value) || null
@@ -403,6 +499,9 @@ const emptyTitle = computed(() => {
   if (activeTool.value === 'rag') {
     return '上传资料后开始问答'
   }
+  if (activeTool.value === 'analysis') {
+    return '查看学习分析和计划'
+  }
   return '开始一次学习问答'
 })
 
@@ -427,7 +526,8 @@ onMounted(async () => {
       workspaceStore.loadConversations(),
       loadKnowledgeTree(),
       loadLearningRecordsFlow(),
-      loadDocumentsFlow()
+      loadDocumentsFlow(),
+      loadAnalysisOverviewFlow()
     ])
   } catch (error) {
     showError(error, '加载失败')
@@ -588,6 +688,7 @@ async function startTeachingFlow() {
     await workspaceStore.loadConversations()
     await workspaceStore.selectConversation(result.conversationId)
     await loadLearningRecordsFlow()
+    await loadAnalysisOverviewFlow()
     activeTool.value = 'teaching'
     ElMessage.success('教学已开始')
   } catch (error) {
@@ -618,6 +719,7 @@ async function evaluateTeachingFlow() {
     teachingAnswer.value = ''
     await workspaceStore.selectConversation(result.conversationId)
     await loadLearningRecordsFlow()
+    await loadAnalysisOverviewFlow()
   } catch (error) {
     showError(error, '提交回答失败')
   } finally {
@@ -671,6 +773,7 @@ async function submitAnswerFlow(question: Question) {
   try {
     answerResults[question.id] = await submitAnswer(question.id, answer)
     await loadLearningRecordsFlow()
+    await loadAnalysisOverviewFlow()
   } catch (error) {
     showError(error, '提交答案失败')
   } finally {
@@ -700,6 +803,30 @@ async function loadDocumentsFlow() {
   documents.value = await listDocuments()
   if (selectedDocumentIds.value.length === 0 && documents.value.length > 0) {
     selectedDocumentIds.value = documents.value.map((item) => item.id)
+  }
+}
+
+async function loadAnalysisOverviewFlow() {
+  analysisLoading.value = true
+  try {
+    analysisOverview.value = await getLearningAnalysisOverview()
+  } catch (error) {
+    showError(error, '加载学习分析失败')
+  } finally {
+    analysisLoading.value = false
+  }
+}
+
+async function generateStudyPlanFlow() {
+  studyPlanLoading.value = true
+  try {
+    // Empty goal lets the backend fall back to the learning profile goal.
+    studyPlan.value = await generateStudyPlan(studyPlanForm.period, studyPlanForm.goal.trim() || undefined)
+    ElMessage.success('学习计划已生成')
+  } catch (error) {
+    showError(error, '生成学习计划失败')
+  } finally {
+    studyPlanLoading.value = false
   }
 }
 

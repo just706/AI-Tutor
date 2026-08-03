@@ -138,3 +138,37 @@ export interface RagChatResult {
   answer: string
   sources: RagSource[]
 }
+
+export interface WeakKnowledgePoint {
+  knowledgePointId: number
+  knowledgePointName: string
+  subject?: string
+  masteryLevel?: number
+  answerAccuracy?: number
+  reason: string
+}
+
+export interface LearningAnalysisOverview {
+  learnedCount: number
+  masteredCount: number
+  inProgressCount: number
+  averageMasteryLevel: number
+  totalStudyTime: number
+  answeredQuestionCount: number
+  correctAnswerCount: number
+  answerAccuracy: number
+  chatMessageCount: number
+  weakKnowledgePoints: WeakKnowledgePoint[]
+  suggestions: string[]
+  nextActions: string[]
+}
+
+export interface StudyPlan {
+  title: string
+  period: 'week' | 'month'
+  goal: string
+  estimatedDays: number
+  focusKnowledgePoints: string[]
+  steps: string[]
+  planContent: string
+}

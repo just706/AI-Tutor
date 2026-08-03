@@ -137,7 +137,7 @@ textarea {
 
 .tool-switch {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 0 14px 16px;
 }
@@ -467,6 +467,92 @@ textarea {
 .source-item p {
   margin: 6px 0 0;
   color: #536173;
+  line-height: 1.55;
+}
+
+.analysis-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summary-tile {
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid #e3e9ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.summary-tile span {
+  display: block;
+  color: #627083;
+  font-size: 12px;
+}
+
+.summary-tile strong {
+  display: block;
+  margin-top: 8px;
+  color: #263544;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.weak-point {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #edf1f5;
+}
+
+.weak-point strong {
+  display: block;
+  color: #263544;
+}
+
+.weak-point small {
+  display: block;
+  margin-top: 4px;
+  color: #7b8796;
+  line-height: 1.4;
+}
+
+.plain-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #536173;
+  line-height: 1.55;
+}
+
+.study-plan {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #d3e6db;
+  border-radius: 8px;
+  background: #f1f8f4;
+}
+
+.study-plan h3 {
+  margin: 0 0 6px;
+  color: #263544;
+  font-size: 15px;
+}
+
+.study-plan p {
+  margin: 0 0 8px;
+  color: #536173;
+  line-height: 1.5;
+}
+
+.study-plan ol {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-left: 18px;
   line-height: 1.55;
 }
 
