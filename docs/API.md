@@ -706,13 +706,20 @@ multipart/form-data
 ```json
 {
   "code": 200,
-  "message": "上传成功，正在处理",
+  "message": "上传成功",
   "data": {
     "documentId": 3001,
-    "processStatus": "pending"
+    "processStatus": "completed",
+    "chunkCount": 8
   }
 }
 ```
+
+说明：
+
+- 当前阶段支持 `txt`、`md`、`markdown` 文本资料。
+- 上传后同步完成文本解析和分块，分块存入 MySQL。
+- PDF、Office 和向量化检索后续阶段扩展。
 
 ### 10.2 查询文档列表
 
@@ -729,9 +736,10 @@ GET /api/documents
   "data": [
     {
       "id": 3001,
-      "fileName": "Java教材.pdf",
-      "fileType": "pdf",
+      "fileName": "java-note.md",
+      "fileType": "md",
       "processStatus": "completed",
+      "chunkCount": 8,
       "uploadTime": "2026-08-02 10:00:00"
     }
   ]
@@ -761,17 +769,26 @@ POST /api/ai/rag/chat
   "code": 200,
   "message": "success",
   "data": {
+    "conversationId": 1003,
     "answer": "根据你上传的教材内容，HashMap 是一种基于哈希表实现的键值对集合...",
     "sources": [
       {
         "documentId": 3001,
-        "fileName": "Java教材.pdf",
-        "chunkIndex": 5
+        "fileName": "java-note.md",
+        "chunkIndex": 5,
+        "snippet": "HashMap 是基于哈希表的键值对集合..."
       }
     ]
   }
 }
 ```
+
+说明：
+
+- `conversationId` 必须属于当前用户，且会话 `mode` 为 `rag`。
+- `documentIds` 可选；不传时检索当前用户所有已处理完成的文档。
+- 当前阶段使用 MySQL 文本 chunk 做关键词检索，返回 TopK 来源片段。
+- 如果资料中没有找到足够依据，接口会直接返回明确提示，不调用 AI 编造答案。
 
 ## 11. 学习分析接口
 

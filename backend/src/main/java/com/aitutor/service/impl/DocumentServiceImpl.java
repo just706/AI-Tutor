@@ -1,0 +1,236 @@
+package com.aitutor.service.impl;
+
+import com.aitutor.config.RagProperties;
+import com.aitutor.entity.DocumentChunk;
+import com.aitutor.entity.LearningDocument;
+import com.aitutor.exception.BusinessException;
+import com.aitutor.mapper.DocumentChunkMapper;
+import com.aitutor.mapper.LearningDocumentMapper;
+import com.aitutor.security.UserContext;
+import com.aitutor.service.DocumentService;
+import com.aitutor.vo.DocumentUploadVO;
+import com.aitutor.vo.DocumentVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+public class DocumentServiceImpl implements DocumentService {
+
+    private static final String STATUS_PENDING = "pending";
+    private static final String STATUS_COMPLETED = "completed";
+    private static final String STATUS_FAILED = "failed";
+    private static final String EMBEDDING_PLACEHOLDER = "mysql-keyword";
+    private static final Set<String> SUPPORTED_TYPES = Set.of("txt", "md", "markdown");
+
+    private final LearningDocumentMapper documentMapper;
+    private final DocumentChunkMapper documentChunkMapper;
+    private final RagProperties ragProperties;
+
+    public DocumentServiceImpl(LearningDocumentMapper documentMapper,
+                               DocumentChunkMapper documentChunkMapper,
+                               RagProperties ragProperties) {
+        this.documentMapper = documentMapper;
+        this.documentChunkMapper = documentChunkMapper;
+        this.ragProperties = ragProperties;
+    }
+
+    @Override
+    @Transactional
+    public DocumentUploadVO upload(MultipartFile file) {
+        Long userId = UserContext.getRequired().getId();
+        validateFile(file);
+
+        String originalFileName = sanitizeFileName(file.getOriginalFilename());
+        String fileType = fileType(originalFileName);
+        byte[] fileBytes = readFileBytes(file);
+        Path storagePath = saveFile(userId, fileBytes, originalFileName, fileType);
+
+        LearningDocument document = new LearningDocument();
+        document.setUserId(userId);
+        document.setFileName(originalFileName);
+        document.setFileType(fileType);
+        document.setStoragePath(storagePath.toString());
+        document.setProcessStatus(STATUS_PENDING);
+        documentMapper.insert(document);
+
+        try {
+            String text = parseText(fileBytes);
+            List<String> chunks = splitIntoChunks(text);
+            if (chunks.isEmpty()) {
+                throw new BusinessException(400, "Document content is empty");
+            }
+            saveChunks(document.getId(), chunks);
+            updateStatus(document.getId(), STATUS_COMPLETED);
+            return new DocumentUploadVO(document.getId(), STATUS_COMPLETED, chunks.size());
+        } catch (RuntimeException ex) {
+            updateStatus(document.getId(), STATUS_FAILED);
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<DocumentVO> listCurrentUserDocuments() {
+        Long userId = UserContext.getRequired().getId();
+        return documentMapper.selectList(new LambdaQueryWrapper<LearningDocument>()
+                        .eq(LearningDocument::getUserId, userId)
+                        .orderByDesc(LearningDocument::getUploadTime)
+                        .orderByDesc(LearningDocument::getId))
+                .stream()
+                .map(document -> DocumentVO.from(document, countChunks(document.getId())))
+                .toList();
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(400, "Document file is required");
+        }
+        Long maxFileBytes = ragProperties.getMaxFileBytes();
+        if (maxFileBytes != null && maxFileBytes > 0 && file.getSize() > maxFileBytes) {
+            throw new BusinessException(400, "Document file is too large");
+        }
+
+        String originalFileName = sanitizeFileName(file.getOriginalFilename());
+        String fileType = fileType(originalFileName);
+        if (!SUPPORTED_TYPES.contains(fileType)) {
+            throw new BusinessException(400, "Unsupported document type");
+        }
+    }
+
+    private byte[] readFileBytes(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException ex) {
+            throw new BusinessException(500, "Failed to read document file");
+        }
+    }
+
+    private Path saveFile(Long userId, byte[] fileBytes, String originalFileName, String fileType) {
+        try {
+            Path baseDir = Paths.get(ragProperties.getStorageDir()).toAbsolutePath().normalize();
+            Path userDir = baseDir.resolve(String.valueOf(userId)).normalize();
+            Files.createDirectories(userDir);
+
+            String storedFileName = UUID.randomUUID() + "-" + originalFileNameWithoutExtension(originalFileName) + "." + fileType;
+            Path target = userDir.resolve(storedFileName).normalize();
+            if (!target.startsWith(userDir)) {
+                throw new BusinessException(400, "Invalid document file name");
+            }
+            Files.write(target, fileBytes);
+            return target;
+        } catch (IOException ex) {
+            throw new BusinessException(500, "Failed to save document file");
+        }
+    }
+
+    private String parseText(byte[] fileBytes) {
+        String text = new String(fileBytes, StandardCharsets.UTF_8);
+        return normalizeText(text);
+    }
+
+    private List<String> splitIntoChunks(String text) {
+        int chunkSize = normalizedChunkSize();
+        int overlap = normalizedOverlap(chunkSize);
+        List<String> chunks = new ArrayList<>();
+        int start = 0;
+        while (start < text.length()) {
+            int end = Math.min(start + chunkSize, text.length());
+            String chunk = text.substring(start, end).trim();
+            if (!chunk.isEmpty()) {
+                chunks.add(chunk);
+            }
+            if (end == text.length()) {
+                break;
+            }
+            start = Math.max(end - overlap, start + 1);
+        }
+        return chunks;
+    }
+
+    private void saveChunks(Long documentId, List<String> chunks) {
+        for (int index = 0; index < chunks.size(); index++) {
+            DocumentChunk chunk = new DocumentChunk();
+            chunk.setDocumentId(documentId);
+            chunk.setChunkText(chunks.get(index));
+            chunk.setChunkIndex(index);
+            // Placeholder keeps the schema compatible with a later vector-database migration.
+            chunk.setEmbeddingId(EMBEDDING_PLACEHOLDER);
+            documentChunkMapper.insert(chunk);
+        }
+    }
+
+    private Integer countChunks(Long documentId) {
+        return documentChunkMapper.selectCount(new LambdaQueryWrapper<DocumentChunk>()
+                .eq(DocumentChunk::getDocumentId, documentId)).intValue();
+    }
+
+    private void updateStatus(Long documentId, String status) {
+        LearningDocument document = new LearningDocument();
+        document.setId(documentId);
+        document.setProcessStatus(status);
+        documentMapper.updateById(document);
+    }
+
+    private String normalizeText(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replaceAll("[\\t ]+", " ")
+                .trim();
+    }
+
+    private String sanitizeFileName(String fileName) {
+        String value = fileName == null || fileName.trim().isEmpty() ? "document.txt" : fileName.trim();
+        value = Paths.get(value).getFileName().toString();
+        value = value.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (value.length() > 120) {
+            value = value.substring(value.length() - 120);
+        }
+        return value;
+    }
+
+    private String originalFileNameWithoutExtension(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        String baseName = dotIndex <= 0 ? fileName : fileName.substring(0, dotIndex);
+        return baseName.isEmpty() ? "document" : baseName;
+    }
+
+    private String fileType(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex < 0 || dotIndex == fileName.length() - 1) {
+            return "txt";
+        }
+        return fileName.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private int normalizedChunkSize() {
+        Integer configured = ragProperties.getChunkSize();
+        if (configured == null || configured < 200) {
+            return 800;
+        }
+        return Math.min(configured, 4000);
+    }
+
+    private int normalizedOverlap(int chunkSize) {
+        Integer configured = ragProperties.getChunkOverlap();
+        if (configured == null || configured < 0) {
+            return 0;
+        }
+        return Math.min(configured, Math.max(chunkSize / 2, 1));
+    }
+}

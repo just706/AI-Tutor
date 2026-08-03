@@ -332,6 +332,11 @@ CREATE TABLE document_chunk (
 );
 ```
 
+说明：
+
+- 阶段 8 先将文本 chunk 存入 MySQL，`embedding_id` 暂写占位值。
+- 后续接入向量数据库后，`embedding_id` 用于关联外部向量。
+
 ## 13. 学习计划表 study_plan
 
 ### 13.1 字段设计

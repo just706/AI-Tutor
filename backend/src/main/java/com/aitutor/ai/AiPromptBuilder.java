@@ -185,6 +185,24 @@ public class AiPromptBuilder {
         );
     }
 
+    public String buildRagPrompt(String question, String sourceContext) {
+        return """
+                你是一个基于用户资料回答问题的 AI 学习助手。
+                请优先且只基于【资料片段】回答用户问题。
+
+                用户问题：%s
+
+                【资料片段】
+                %s
+
+                回答要求：
+                1. 如果资料片段足以回答，请用清晰、适合学习的方式回答。
+                2. 回答中不要编造资料片段不存在的事实。
+                3. 如果资料片段不足，请明确说明“资料中没有找到足够依据”，并建议用户补充资料或换个问法。
+                4. 可以在回答末尾用“参考来源”简短列出片段编号。
+                """.formatted(valueOrDefault(question), valueOrDefault(sourceContext));
+    }
+
     private String valueOrDefault(String value) {
         if (value == null || value.trim().isEmpty()) {
             return "未填写";

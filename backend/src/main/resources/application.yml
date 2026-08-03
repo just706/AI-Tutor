@@ -12,6 +12,10 @@ spring:
   jackson:
     time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss
+  servlet:
+    multipart:
+      max-file-size: ${RAG_MAX_FILE_SIZE:5MB}
+      max-request-size: ${RAG_MAX_REQUEST_SIZE:5MB}
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
@@ -26,6 +30,12 @@ app:
     secret: ${JWT_SECRET:dev-only-ai-tutor-jwt-secret-change-me}
     issuer: ${JWT_ISSUER:ai-tutor}
     expire-minutes: ${JWT_EXPIRE_MINUTES:120}
+  rag:
+    storage-dir: ${RAG_STORAGE_DIR:data/uploads}
+    max-file-bytes: ${RAG_MAX_FILE_BYTES:5242880}
+    chunk-size: ${RAG_CHUNK_SIZE:800}
+    chunk-overlap: ${RAG_CHUNK_OVERLAP:120}
+    top-k: ${RAG_TOP_K:4}
 
 ai:
   deepseek:
