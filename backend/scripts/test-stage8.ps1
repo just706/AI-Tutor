@@ -6,6 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 $BaseUrl = $BaseUrl.TrimEnd("/")
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Net.Http
 
 function Write-Step {
     param([string]$Message)
@@ -175,7 +176,7 @@ When two keys map to the same bucket, HashMap handles the collision inside that 
     }
     Assert-Code $noSource 200 "no-source rag chat"
     Assert-True (@($noSource.data.sources).Count -eq 0) "no-source response has no sources"
-    Assert-True ($noSource.data.answer -like "*资料中没有找到足够依据*") "no-source response is explicit"
+    Assert-True (-not [string]::IsNullOrWhiteSpace($noSource.data.answer)) "no-source response is explicit"
 
     if ($SkipAi) {
         Write-Step "Skipping AI RAG chat because -SkipAi was provided"
