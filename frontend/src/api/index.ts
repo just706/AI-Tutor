@@ -1,12 +1,21 @@
 import { request } from './http'
 import type {
   AiChatResult,
+  AnswerResult,
   ChatMessage,
   Conversation,
   ConversationCreateResult,
+  DocumentUploadResult,
+  KnowledgePoint,
+  LearningDocument,
+  LearningRecord,
   LoginResult,
+  Question,
+  RagChatResult,
   RegisterResult,
   StudentProfile,
+  TeachingEvaluationResult,
+  TeachingStartResult,
   User
 } from '../types/domain'
 
@@ -75,5 +84,85 @@ export function sendAiChat(conversationId: number, message: string) {
     url: '/ai/chat',
     method: 'POST',
     data: { conversationId, message }
+  })
+}
+
+export function listKnowledgeTree(subject = 'Java') {
+  return request<KnowledgePoint[]>({
+    url: '/knowledge-points/tree',
+    method: 'GET',
+    params: { subject }
+  })
+}
+
+export function startTeaching(knowledgePointId: number) {
+  return request<TeachingStartResult>({
+    url: '/teaching/start',
+    method: 'POST',
+    data: { knowledgePointId }
+  })
+}
+
+export function evaluateTeaching(conversationId: number, knowledgePointId: number, studentAnswer: string) {
+  return request<TeachingEvaluationResult>({
+    url: '/teaching/evaluate',
+    method: 'POST',
+    data: { conversationId, knowledgePointId, studentAnswer }
+  })
+}
+
+export function listLearningRecords() {
+  return request<LearningRecord[]>({
+    url: '/teaching/records',
+    method: 'GET'
+  })
+}
+
+export function generateQuestions(knowledgePointId: number, questionType: string, difficulty: string, count = 1) {
+  return request<Question[]>({
+    url: '/questions/generate',
+    method: 'POST',
+    data: { knowledgePointId, questionType, difficulty, count }
+  })
+}
+
+export function listQuestions(knowledgePointId?: number, questionType?: string, difficulty?: string) {
+  return request<Question[]>({
+    url: '/questions',
+    method: 'GET',
+    params: { knowledgePointId, questionType, difficulty }
+  })
+}
+
+export function submitAnswer(questionId: number, answer: string) {
+  return request<AnswerResult>({
+    url: `/questions/${questionId}/answer`,
+    method: 'POST',
+    data: { answer }
+  })
+}
+
+export function uploadDocument(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<DocumentUploadResult>({
+    url: '/documents/upload',
+    method: 'POST',
+    data: formData
+  })
+}
+
+export function listDocuments() {
+  return request<LearningDocument[]>({
+    url: '/documents',
+    method: 'GET'
+  })
+}
+
+export function sendRagChat(conversationId: number, question: string, documentIds?: number[]) {
+  return request<RagChatResult>({
+    url: '/ai/rag/chat',
+    method: 'POST',
+    data: { conversationId, question, documentIds }
   })
 }

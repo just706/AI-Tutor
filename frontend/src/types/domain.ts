@@ -48,3 +48,93 @@ export interface ChatMessage {
 export interface AiChatResult {
   answer: string
 }
+
+export interface KnowledgePoint {
+  id: number
+  subject: string
+  name: string
+  parentId: number
+  sortOrder: number
+  children: KnowledgePoint[]
+}
+
+export interface LearningRecord {
+  knowledgePointId: number
+  knowledgePointName?: string
+  subject?: string
+  learningStatus: string
+  masteryLevel: number
+  studyTime: number
+  updateTime: string
+}
+
+export interface TeachingStartResult {
+  conversationId: number
+  knowledgePointId: number
+  knowledgePointName: string
+  teachingContent: string
+  learningStatus: string
+  masteryLevel: number
+}
+
+export interface TeachingEvaluationResult {
+  conversationId: number
+  knowledgePointId: number
+  feedback: string
+  learningStatus: string
+  masteryLevel: number
+}
+
+export interface Question {
+  id: number
+  knowledgePointId: number
+  knowledgePointName?: string
+  questionType: 'single_choice' | 'true_false' | 'short_answer'
+  content: string
+  options: string[]
+  answer: string
+  analysis: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  source: string
+  createTime: string
+}
+
+export interface AnswerResult {
+  answerRecordId: number
+  questionId: number
+  correct: boolean
+  score: number
+  correctAnswer: string
+  analysis: string
+  feedback: string
+  learningStatus: string
+  masteryLevel: number
+}
+
+export interface LearningDocument {
+  id: number
+  fileName: string
+  fileType: string
+  processStatus: string
+  chunkCount: number
+  uploadTime: string
+}
+
+export interface DocumentUploadResult {
+  documentId: number
+  processStatus: string
+  chunkCount: number
+}
+
+export interface RagSource {
+  documentId: number
+  fileName: string
+  chunkIndex: number
+  snippet: string
+}
+
+export interface RagChatResult {
+  conversationId: number
+  answer: string
+  sources: RagSource[]
+}

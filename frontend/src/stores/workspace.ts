@@ -60,10 +60,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  async function addConversation(title = '新的学习会话') {
-    const result = await createConversation(title)
+  async function addConversation(title = '新的学习会话', mode = 'chat') {
+    const result = await createConversation(title, mode)
     await loadConversations()
     await selectConversation(result.conversationId)
+    return result.conversationId
   }
 
   async function selectConversation(conversationId: number) {
@@ -94,16 +95,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     sending.value = true
     try {
       const result = await sendAiChat(conversationId, content)
-      messages.value.push({
-        role: 'assistant',
-        messageContent: result.answer,
-        createTime: new Date().toISOString()
-      })
+      appendMessage('assistant', result.answer)
       await loadConversations()
       currentConversationId.value = conversationId
     } finally {
       sending.value = false
     }
+  }
+
+  function appendMessage(role: ChatMessage['role'], messageContent: string) {
+    messages.value.push({
+      role,
+      messageContent,
+      createTime: new Date().toISOString()
+    })
   }
 
   function reset() {
@@ -134,6 +139,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     addConversation,
     selectConversation,
     sendMessage,
+    appendMessage,
     reset
   }
 })
