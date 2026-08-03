@@ -436,6 +436,20 @@ textarea {
   margin-top: 12px;
 }
 
+.document-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e3e9ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.document-card.active {
+  border-color: #8dc2cc;
+  background: #eaf5f7;
+}
+
 .document-list .el-checkbox {
   min-height: 32px;
   align-items: flex-start;
@@ -446,6 +460,64 @@ textarea {
   display: block;
   color: #7b8796;
   font-size: 12px;
+}
+
+.document-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.document-actions .el-button {
+  margin-left: 0;
+}
+
+.document-detail {
+  padding: 12px;
+  border: 1px solid #e3e9ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.document-detail strong,
+.chunk-item strong {
+  display: block;
+  color: #263544;
+}
+
+.document-detail small {
+  display: block;
+  margin-top: 4px;
+  color: #7b8796;
+}
+
+.document-detail p {
+  margin: 10px 0 0;
+  color: #536173;
+  line-height: 1.55;
+}
+
+.chunk-list {
+  display: grid;
+  max-height: 300px;
+  gap: 8px;
+  margin-top: 10px;
+  overflow: auto;
+}
+
+.chunk-item {
+  padding: 10px;
+  border: 1px solid #e3e9ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.chunk-item p {
+  margin: 6px 0 0;
+  color: #536173;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .source-item {

@@ -120,6 +120,18 @@ export interface LearningDocument {
   uploadTime: string
 }
 
+export interface DocumentChunk {
+  id: number
+  documentId: number
+  chunkIndex: number
+  chunkText: string
+  createTime: string
+}
+
+export interface LearningDocumentDetail extends LearningDocument {
+  preview: string
+}
+
 export interface DocumentUploadResult {
   documentId: number
   processStatus: string

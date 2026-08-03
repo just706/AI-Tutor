@@ -717,9 +717,10 @@ multipart/form-data
 
 说明：
 
-- 当前阶段支持 `txt`、`md`、`markdown` 文本资料。
+- 当前阶段支持 `txt`、`md`、`markdown`、`pdf` 资料。
 - 上传后同步完成文本解析和分块，分块存入 MySQL。
-- PDF、Office 和向量化检索后续阶段扩展。
+- PDF 使用 PDFBox 提取文本；扫描版图片 PDF 可能无法提取有效内容。
+- Office 和向量化检索后续阶段扩展。
 
 ### 10.2 查询文档列表
 
@@ -746,7 +747,76 @@ GET /api/documents
 }
 ```
 
-### 10.3 知识库问答
+### 10.3 查询文档详情
+
+```text
+GET /api/documents/{documentId}
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": 3001,
+    "fileName": "java-note.md",
+    "fileType": "md",
+    "processStatus": "completed",
+    "chunkCount": 8,
+    "preview": "HashMap is a Java collection that stores key-value pairs...",
+    "uploadTime": "2026-08-02 10:00:00"
+  }
+}
+```
+
+### 10.4 查询文档切片
+
+```text
+GET /api/documents/{documentId}/chunks
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 9001,
+      "documentId": 3001,
+      "chunkIndex": 0,
+      "chunkText": "HashMap is a Java collection...",
+      "createTime": "2026-08-02 10:00:00"
+    }
+  ]
+}
+```
+
+### 10.5 重新处理文档
+
+```text
+POST /api/documents/{documentId}/reprocess
+```
+
+说明：
+
+- 会读取已保存的原始文件，删除旧 chunk 后重新解析和切片。
+- 如果原始文件不存在或解析失败，文档状态会更新为 `failed`。
+
+### 10.6 删除文档
+
+```text
+DELETE /api/documents/{documentId}
+```
+
+说明：
+
+- 删除当前用户自己的文档元数据、chunk 和本地存储文件。
+
+### 10.7 知识库问答
 
 ```text
 POST /api/ai/rag/chat

@@ -8,13 +8,18 @@ import com.aitutor.mapper.DocumentChunkMapper;
 import com.aitutor.mapper.LearningDocumentMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.DocumentService;
+import com.aitutor.vo.DocumentChunkVO;
+import com.aitutor.vo.DocumentDetailVO;
 import com.aitutor.vo.DocumentUploadVO;
 import com.aitutor.vo.DocumentVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -34,7 +39,7 @@ public class DocumentServiceImpl implements DocumentService {
     private static final String STATUS_COMPLETED = "completed";
     private static final String STATUS_FAILED = "failed";
     private static final String EMBEDDING_PLACEHOLDER = "mysql-keyword";
-    private static final Set<String> SUPPORTED_TYPES = Set.of("txt", "md", "markdown");
+    private static final Set<String> SUPPORTED_TYPES = Set.of("txt", "md", "markdown", "pdf");
 
     private final LearningDocumentMapper documentMapper;
     private final DocumentChunkMapper documentChunkMapper;
@@ -68,7 +73,7 @@ public class DocumentServiceImpl implements DocumentService {
         documentMapper.insert(document);
 
         try {
-            String text = parseText(fileBytes);
+            String text = parseText(fileBytes, fileType);
             List<String> chunks = splitIntoChunks(text);
             if (chunks.isEmpty()) {
                 throw new BusinessException(400, "Document content is empty");
@@ -92,6 +97,64 @@ public class DocumentServiceImpl implements DocumentService {
                 .stream()
                 .map(document -> DocumentVO.from(document, countChunks(document.getId())))
                 .toList();
+    }
+
+    @Override
+    public DocumentDetailVO getCurrentUserDocument(Long documentId) {
+        Long userId = UserContext.getRequired().getId();
+        LearningDocument document = requireOwnedDocument(userId, documentId);
+        List<DocumentChunk> chunks = listChunks(document.getId());
+        return DocumentDetailVO.from(document, chunks.size(), preview(chunks));
+    }
+
+    @Override
+    public List<DocumentChunkVO> listCurrentUserDocumentChunks(Long documentId) {
+        Long userId = UserContext.getRequired().getId();
+        LearningDocument document = requireOwnedDocument(userId, documentId);
+        return listChunks(document.getId()).stream()
+                .map(DocumentChunkVO::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional(noRollbackFor = BusinessException.class)
+    public DocumentUploadVO reprocess(Long documentId) {
+        Long userId = UserContext.getRequired().getId();
+        LearningDocument document = requireOwnedDocument(userId, documentId);
+        Path path = safeStoragePath(document);
+        if (!Files.exists(path)) {
+            throw new BusinessException(404, "Document file not found");
+        }
+
+        updateStatus(document.getId(), STATUS_PENDING);
+        deleteChunks(document.getId());
+        try {
+            byte[] fileBytes = Files.readAllBytes(path);
+            String text = parseText(fileBytes, document.getFileType());
+            List<String> chunks = splitIntoChunks(text);
+            if (chunks.isEmpty()) {
+                throw new BusinessException(400, "Document content is empty");
+            }
+            saveChunks(document.getId(), chunks);
+            updateStatus(document.getId(), STATUS_COMPLETED);
+            return new DocumentUploadVO(document.getId(), STATUS_COMPLETED, chunks.size());
+        } catch (IOException ex) {
+            updateStatus(document.getId(), STATUS_FAILED);
+            throw new BusinessException(500, "Failed to read document file");
+        } catch (RuntimeException ex) {
+            updateStatus(document.getId(), STATUS_FAILED);
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long documentId) {
+        Long userId = UserContext.getRequired().getId();
+        LearningDocument document = requireOwnedDocument(userId, documentId);
+        deleteChunks(document.getId());
+        documentMapper.deleteById(document.getId());
+        deleteStoredFile(document);
     }
 
     private void validateFile(MultipartFile file) {
@@ -136,9 +199,21 @@ public class DocumentServiceImpl implements DocumentService {
         }
     }
 
-    private String parseText(byte[] fileBytes) {
+    private String parseText(byte[] fileBytes, String fileType) {
+        if ("pdf".equals(fileType)) {
+            return parsePdfText(fileBytes);
+        }
         String text = new String(fileBytes, StandardCharsets.UTF_8);
         return normalizeText(text);
+    }
+
+    private String parsePdfText(byte[] fileBytes) {
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(fileBytes))) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            return normalizeText(stripper.getText(document));
+        } catch (IOException ex) {
+            throw new BusinessException(400, "Failed to parse PDF document");
+        }
     }
 
     private List<String> splitIntoChunks(String text) {
@@ -175,6 +250,57 @@ public class DocumentServiceImpl implements DocumentService {
     private Integer countChunks(Long documentId) {
         return documentChunkMapper.selectCount(new LambdaQueryWrapper<DocumentChunk>()
                 .eq(DocumentChunk::getDocumentId, documentId)).intValue();
+    }
+
+    private List<DocumentChunk> listChunks(Long documentId) {
+        return documentChunkMapper.selectList(new LambdaQueryWrapper<DocumentChunk>()
+                .eq(DocumentChunk::getDocumentId, documentId)
+                .orderByAsc(DocumentChunk::getChunkIndex)
+                .orderByAsc(DocumentChunk::getId));
+    }
+
+    private void deleteChunks(Long documentId) {
+        documentChunkMapper.delete(new LambdaQueryWrapper<DocumentChunk>()
+                .eq(DocumentChunk::getDocumentId, documentId));
+    }
+
+    private LearningDocument requireOwnedDocument(Long userId, Long documentId) {
+        LearningDocument document = documentMapper.selectOne(new LambdaQueryWrapper<LearningDocument>()
+                .eq(LearningDocument::getId, documentId)
+                .eq(LearningDocument::getUserId, userId)
+                .last("LIMIT 1"));
+        if (document == null) {
+            throw new BusinessException(404, "Document not found");
+        }
+        return document;
+    }
+
+    private String preview(List<DocumentChunk> chunks) {
+        if (chunks.isEmpty() || chunks.get(0).getChunkText() == null) {
+            return "";
+        }
+        String normalized = chunks.get(0).getChunkText().replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 300) {
+            return normalized;
+        }
+        return normalized.substring(0, 300);
+    }
+
+    private Path safeStoragePath(LearningDocument document) {
+        Path storagePath = Paths.get(document.getStoragePath()).toAbsolutePath().normalize();
+        Path baseDir = Paths.get(ragProperties.getStorageDir()).toAbsolutePath().normalize();
+        if (!storagePath.startsWith(baseDir)) {
+            throw new BusinessException(400, "Invalid document storage path");
+        }
+        return storagePath;
+    }
+
+    private void deleteStoredFile(LearningDocument document) {
+        try {
+            Files.deleteIfExists(safeStoragePath(document));
+        } catch (IOException ex) {
+            throw new BusinessException(500, "Failed to delete document file");
+        }
     }
 
     private void updateStatus(Long documentId, String status) {

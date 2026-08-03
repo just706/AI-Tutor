@@ -35,7 +35,7 @@ function Convert-BytesApiResponse {
 
 function Invoke-JsonApi {
     param(
-        [Parameter(Mandatory = $true)][ValidateSet("GET", "POST")][string]$Method,
+        [Parameter(Mandatory = $true)][ValidateSet("GET", "POST", "DELETE")][string]$Method,
         [Parameter(Mandatory = $true)][string]$Path,
         [hashtable]$Headers = @{},
         $Body = $null
@@ -71,7 +71,12 @@ function Invoke-MultipartApi {
     try {
         $client.DefaultRequestHeaders.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new("Bearer", $Token)
         $fileContent = [System.Net.Http.StreamContent]::new($fileStream)
-        $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("text/plain")
+        $contentType = if ([System.IO.Path]::GetExtension($FilePath).ToLowerInvariant() -eq ".pdf") {
+            "application/pdf"
+        } else {
+            "text/plain"
+        }
+        $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse($contentType)
         $form.Add($fileContent, "file", [System.IO.Path]::GetFileName($FilePath))
 
         $response = $client.PostAsync("$BaseUrl$Path", $form).Result
@@ -102,6 +107,41 @@ function Assert-True {
     }
 }
 
+function New-TestPdfFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Text
+    )
+
+    $safeText = $Text.Replace("\", "\\").Replace("(", "\(").Replace(")", "\)")
+    $objects = @(
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        "<< /Length PLACEHOLDER >>`nstream`nBT /F1 18 Tf 72 720 Td ($safeText) Tj ET`nendstream"
+    )
+    $contentStream = "BT /F1 18 Tf 72 720 Td ($safeText) Tj ET`n"
+    $objects[4] = $objects[4].Replace("PLACEHOLDER", ([System.Text.Encoding]::ASCII.GetByteCount($contentStream)).ToString())
+
+    $builder = [System.Text.StringBuilder]::new()
+    [void]$builder.Append("%PDF-1.4`n")
+    $offsets = New-Object System.Collections.Generic.List[int]
+    for ($i = 0; $i -lt $objects.Count; $i++) {
+        $offsets.Add([System.Text.Encoding]::ASCII.GetByteCount($builder.ToString()))
+        [void]$builder.Append("$($i + 1) 0 obj`n$($objects[$i])`nendobj`n")
+    }
+    $xrefOffset = [System.Text.Encoding]::ASCII.GetByteCount($builder.ToString())
+    [void]$builder.Append("xref`n0 6`n")
+    [void]$builder.Append("0000000000 65535 f `n")
+    foreach ($offset in $offsets) {
+        [void]$builder.Append(("{0:0000000000} 00000 n `n" -f $offset))
+    }
+    [void]$builder.Append("trailer`n<< /Size 6 /Root 1 0 R >>`nstartxref`n$xrefOffset`n%%EOF`n")
+
+    [System.IO.File]::WriteAllBytes($Path, [System.Text.Encoding]::ASCII.GetBytes($builder.ToString()))
+}
+
 Write-Step "Testing backend at $BaseUrl"
 
 $health = Invoke-JsonApi -Method GET -Path "/api/health"
@@ -111,6 +151,7 @@ $stamp = Get-Date -Format "yyyyMMddHHmmssfff"
 $username = "stage8_test_$stamp"
 $password = "123456"
 $tempFile = Join-Path ([System.IO.Path]::GetTempPath()) "ai-tutor-rag-$stamp.md"
+$tempPdfFile = Join-Path ([System.IO.Path]::GetTempPath()) "ai-tutor-rag-$stamp.pdf"
 
 try {
     Write-Step "Registering and logging in student"
@@ -159,6 +200,43 @@ When two keys map to the same bucket, HashMap handles the collision inside that 
     Assert-True ($null -ne $matchedDocument) "uploaded document appears in list"
     Assert-True ($matchedDocument.chunkCount -gt 0) "listed document chunk count"
 
+    Write-Step "Reading document detail and chunks"
+    $detail = Invoke-JsonApi -Method GET -Path "/api/documents/$documentId" -Headers $authHeaders
+    Assert-Code $detail 200 "document detail"
+    Assert-True ($detail.data.id -eq $documentId) "document detail id"
+    Assert-True (-not [string]::IsNullOrWhiteSpace($detail.data.preview)) "document preview exists"
+
+    $chunks = Invoke-JsonApi -Method GET -Path "/api/documents/$documentId/chunks" -Headers $authHeaders
+    Assert-Code $chunks 200 "document chunks"
+    Assert-True (@($chunks.data).Count -gt 0) "document chunks exist"
+
+    Write-Step "Reprocessing document"
+    $reprocess = Invoke-JsonApi -Method POST -Path "/api/documents/$documentId/reprocess" -Headers $authHeaders
+    Assert-Code $reprocess 200 "reprocess document"
+    Assert-True ($reprocess.data.processStatus -eq "completed") "reprocess completed"
+    Assert-True ($reprocess.data.chunkCount -gt 0) "reprocess chunks created"
+
+    Write-Step "Uploading PDF document"
+    New-TestPdfFile -Path $tempPdfFile -Text "HashMap PDF retrieval bucket collision"
+    $pdfUpload = Invoke-MultipartApi -Path "/api/documents/upload" -FilePath $tempPdfFile -Token $token
+    Assert-Code $pdfUpload 200 "upload pdf document"
+    $pdfDocumentId = $pdfUpload.data.documentId
+    Assert-True ($pdfDocumentId -gt 0) "uploaded pdf document id"
+    Assert-True ($pdfUpload.data.processStatus -eq "completed") "pdf process completed"
+
+    $pdfDetail = Invoke-JsonApi -Method GET -Path "/api/documents/$pdfDocumentId" -Headers $authHeaders
+    Assert-Code $pdfDetail 200 "pdf document detail"
+    Assert-True ($pdfDetail.data.fileType -eq "pdf") "pdf detail type"
+    Assert-True ($pdfDetail.data.preview -like "*HashMap*") "pdf preview text"
+
+    Write-Step "Deleting PDF document"
+    $deletePdf = Invoke-JsonApi -Method DELETE -Path "/api/documents/$pdfDocumentId" -Headers $authHeaders
+    Assert-Code $deletePdf 200 "delete pdf document"
+    $documentsAfterDelete = Invoke-JsonApi -Method GET -Path "/api/documents" -Headers $authHeaders
+    Assert-Code $documentsAfterDelete 200 "list documents after delete"
+    $deletedDocument = @($documentsAfterDelete.data) | Where-Object { $_.id -eq $pdfDocumentId } | Select-Object -First 1
+    Assert-True ($null -eq $deletedDocument) "deleted document no longer listed"
+
     Write-Step "Creating RAG conversation"
     $conversation = Invoke-JsonApi -Method POST -Path "/api/conversations" -Headers $authHeaders -Body @{
         title = "Stage8 RAG Test"
@@ -203,5 +281,8 @@ When two keys map to the same bucket, HashMap handles the collision inside that 
 } finally {
     if ([System.IO.File]::Exists($tempFile)) {
         [System.IO.File]::Delete($tempFile)
+    }
+    if ([System.IO.File]::Exists($tempPdfFile)) {
+        [System.IO.File]::Delete($tempPdfFile)
     }
 }

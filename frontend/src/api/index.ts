@@ -5,10 +5,12 @@ import type {
   ChatMessage,
   Conversation,
   ConversationCreateResult,
+  DocumentChunk,
   DocumentUploadResult,
   KnowledgePoint,
   LearningDocument,
   LearningAnalysisOverview,
+  LearningDocumentDetail,
   LearningRecord,
   LoginResult,
   Question,
@@ -158,6 +160,34 @@ export function listDocuments() {
   return request<LearningDocument[]>({
     url: '/documents',
     method: 'GET'
+  })
+}
+
+export function getDocument(documentId: number) {
+  return request<LearningDocumentDetail>({
+    url: `/documents/${documentId}`,
+    method: 'GET'
+  })
+}
+
+export function listDocumentChunks(documentId: number) {
+  return request<DocumentChunk[]>({
+    url: `/documents/${documentId}/chunks`,
+    method: 'GET'
+  })
+}
+
+export function reprocessDocument(documentId: number) {
+  return request<DocumentUploadResult>({
+    url: `/documents/${documentId}/reprocess`,
+    method: 'POST'
+  })
+}
+
+export function deleteDocument(documentId: number) {
+  return request<boolean | null>({
+    url: `/documents/${documentId}`,
+    method: 'DELETE'
   })
 }
 

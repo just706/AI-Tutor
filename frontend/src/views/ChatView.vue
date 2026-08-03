@@ -251,7 +251,7 @@
           <section class="feature-block">
             <div class="block-title">资料库</div>
             <el-upload
-              accept=".txt,.md,.markdown"
+              accept=".txt,.md,.markdown,.pdf"
               :show-file-list="false"
               :http-request="uploadLearningDocument"
             >
@@ -260,12 +260,45 @@
               </el-button>
             </el-upload>
             <el-checkbox-group v-model="selectedDocumentIds" class="document-list">
-              <el-checkbox v-for="document in documents" :key="document.id" :label="document.id">
-                {{ document.fileName }}
-                <small>{{ document.chunkCount }} chunks</small>
-              </el-checkbox>
+              <div
+                v-for="document in documents"
+                :key="document.id"
+                class="document-card"
+                :class="{ active: selectedDocumentDetail?.id === document.id }"
+              >
+                <el-checkbox :label="document.id">
+                  {{ document.fileName }}
+                  <small>{{ document.fileType }} · {{ document.chunkCount }} chunks · {{ document.processStatus }}</small>
+                </el-checkbox>
+                <div class="document-actions">
+                  <el-button size="small" @click.stop="loadDocumentDetailFlow(document.id)">
+                    详情
+                  </el-button>
+                  <el-button size="small" :loading="documentActionLoadingId === document.id" @click.stop="reprocessLearningDocument(document.id)">
+                    重处理
+                  </el-button>
+                  <el-button size="small" type="danger" :loading="documentActionLoadingId === document.id" @click.stop="deleteLearningDocument(document.id)">
+                    删除
+                  </el-button>
+                </div>
+              </div>
             </el-checkbox-group>
             <el-empty v-if="documents.length === 0" description="暂无资料" :image-size="80" />
+          </section>
+
+          <section v-if="selectedDocumentDetail" class="feature-block">
+            <div class="block-title">资料详情</div>
+            <div v-loading="loadingDocumentDetail" class="document-detail">
+              <strong>{{ selectedDocumentDetail.fileName }}</strong>
+              <small>{{ selectedDocumentDetail.fileType }} · {{ selectedDocumentDetail.chunkCount }} chunks</small>
+              <p>{{ selectedDocumentDetail.preview || '暂无预览内容' }}</p>
+            </div>
+            <div class="chunk-list">
+              <div v-for="chunk in documentChunks" :key="chunk.id" class="chunk-item">
+                <strong>#{{ chunk.chunkIndex }}</strong>
+                <p>{{ chunk.chunkText }}</p>
+              </div>
+            </div>
           </section>
 
           <section class="feature-block">
@@ -384,20 +417,24 @@
 
 <script setup lang="ts">
 import { Check, Plus, Promotion, SwitchButton, Upload } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadRequestOptions } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   evaluateTeaching,
+  deleteDocument,
   generateStudyPlan,
   generateQuestions,
+  getDocument,
   getLearningAnalysisOverview,
+  listDocumentChunks,
   listDocuments,
   listKnowledgeTree,
   listLearningRecords,
   listQuestions,
+  reprocessDocument,
   sendRagChat,
   startTeaching,
   submitAnswer,
@@ -408,9 +445,11 @@ import { useWorkspaceStore } from '../stores/workspace'
 import type {
   AnswerResult,
   Conversation,
+  DocumentChunk,
   KnowledgePoint,
   LearningAnalysisOverview,
   LearningDocument,
+  LearningDocumentDetail,
   LearningRecord,
   Question,
   RagSource,
@@ -462,6 +501,10 @@ const answerLoadingId = ref<number | null>(null)
 const documents = ref<LearningDocument[]>([])
 const selectedDocumentIds = ref<number[]>([])
 const uploadingDocument = ref(false)
+const selectedDocumentDetail = ref<LearningDocumentDetail | null>(null)
+const documentChunks = ref<DocumentChunk[]>([])
+const loadingDocumentDetail = ref(false)
+const documentActionLoadingId = ref<number | null>(null)
 const ragQuestion = ref('')
 const ragSources = ref<RagSource[]>([])
 const ragSending = ref(false)
@@ -787,6 +830,7 @@ async function uploadLearningDocument(options: UploadRequestOptions) {
     const result = await uploadDocument(options.file as File)
     await loadDocumentsFlow()
     selectedDocumentIds.value = [result.documentId]
+    await loadDocumentDetailFlow(result.documentId)
     ElMessage.success('资料已上传')
     options.onSuccess?.(result)
   } catch (error) {
@@ -803,6 +847,68 @@ async function loadDocumentsFlow() {
   documents.value = await listDocuments()
   if (selectedDocumentIds.value.length === 0 && documents.value.length > 0) {
     selectedDocumentIds.value = documents.value.map((item) => item.id)
+  }
+  if (selectedDocumentDetail.value && !documents.value.some((item) => item.id === selectedDocumentDetail.value?.id)) {
+    selectedDocumentDetail.value = null
+    documentChunks.value = []
+  }
+}
+
+async function loadDocumentDetailFlow(documentId: number) {
+  loadingDocumentDetail.value = true
+  try {
+    const [detail, chunks] = await Promise.all([
+      getDocument(documentId),
+      listDocumentChunks(documentId)
+    ])
+    selectedDocumentDetail.value = detail
+    documentChunks.value = chunks
+  } catch (error) {
+    showError(error, '加载资料详情失败')
+  } finally {
+    loadingDocumentDetail.value = false
+  }
+}
+
+async function reprocessLearningDocument(documentId: number) {
+  documentActionLoadingId.value = documentId
+  try {
+    await reprocessDocument(documentId)
+    await loadDocumentsFlow()
+    await loadDocumentDetailFlow(documentId)
+    ElMessage.success('资料已重新处理')
+  } catch (error) {
+    showError(error, '重新处理失败')
+  } finally {
+    documentActionLoadingId.value = null
+  }
+}
+
+async function deleteLearningDocument(documentId: number) {
+  try {
+    await ElMessageBox.confirm('删除后会同时移除资料切片，确认删除？', '删除资料', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+
+  documentActionLoadingId.value = documentId
+  try {
+    await deleteDocument(documentId)
+    selectedDocumentIds.value = selectedDocumentIds.value.filter((id) => id !== documentId)
+    if (selectedDocumentDetail.value?.id === documentId) {
+      selectedDocumentDetail.value = null
+      documentChunks.value = []
+    }
+    await loadDocumentsFlow()
+    ElMessage.success('资料已删除')
+  } catch (error) {
+    showError(error, '删除资料失败')
+  } finally {
+    documentActionLoadingId.value = null
   }
 }
 
