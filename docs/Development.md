@@ -280,6 +280,15 @@ MVP 阶段页面：
 - AI 调用失败。
 - 文件格式不支持。
 
+MVP 后端闭环可以使用脚本执行：
+
+```text
+cd D:/AI-Tutor/backend
+powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1
+```
+
+如果只验证非 AI 接口，可以加 `-SkipAi`。
+
 ### 9.3 AI 效果测试
 
 需要测试：

@@ -333,6 +333,21 @@ D:/AI-Tutor/data/logs
 - RAG 文档处理可以正常执行。
 - 日志文件正常生成。
 
+后端 MVP 阶段可以使用联调脚本验证核心闭环：
+
+```text
+cd D:/AI-Tutor/backend
+powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1
+```
+
+不调用 DeepSeek 的快速验证：
+
+```text
+powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1 -SkipAi
+```
+
+详细说明见 `docs/MVP-Test.md`。
+
 ## 14. 常见问题
 
 ### 14.1 后端无法连接数据库
