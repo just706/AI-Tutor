@@ -1,0 +1,2 @@
+-- Stage 9 does not add tables.
+-- Learning analysis reuses student_profile, learning_record, answer_record and chat_history.

@@ -805,12 +805,42 @@ GET /api/analysis/overview
   "code": 200,
   "message": "success",
   "data": {
-    "learnedCount": 12,
-    "weakKnowledgePoints": ["集合", "多线程"],
-    "averageMasteryLevel": 68
+    "learnedCount": 3,
+    "masteredCount": 1,
+    "inProgressCount": 2,
+    "averageMasteryLevel": 68,
+    "totalStudyTime": 42,
+    "answeredQuestionCount": 8,
+    "correctAnswerCount": 5,
+    "answerAccuracy": 63,
+    "chatMessageCount": 18,
+    "weakKnowledgePoints": [
+      {
+        "knowledgePointId": 6,
+        "knowledgePointName": "HashMap",
+        "subject": "Java",
+        "masteryLevel": 55,
+        "answerAccuracy": 50,
+        "reason": "掌握度低于 70%；答题正确率低于 70%"
+      }
+    ],
+    "suggestions": [
+      "优先复习：HashMap。",
+      "当前答题正确率低于 70%，建议先复盘错题解析，再做同知识点变式题。"
+    ],
+    "nextActions": [
+      "用教学模式重新学习：HashMap。",
+      "围绕 HashMap 各完成 2 道客观题和 1 道简答题。"
+    ]
   }
 }
 ```
+
+说明：
+
+- 当前阶段不新增学习分析表，接口从 `learning_record`、`answer_record`、`chat_history` 和 `student_profile` 实时汇总。
+- `weakKnowledgePoints` 会综合掌握度和答题正确率，默认将低于 70% 的知识点视为薄弱项。
+- `suggestions` 和 `nextActions` 是规则生成的 MVP 版本，不调用 AI。
 
 ### 11.2 生成学习计划
 
@@ -835,7 +865,21 @@ POST /api/study-plans/generate
   "message": "success",
   "data": {
     "title": "Java 提升计划",
-    "planContent": "1. 复习集合框架；2. 学习线程基础；3. 完成 20 道练习题。"
+    "period": "week",
+    "goal": "提升 Java 集合和多线程",
+    "estimatedDays": 7,
+    "focusKnowledgePoints": ["HashMap", "ArrayList"],
+    "steps": [
+      "第 1 天：明确目标「提升 Java 集合和多线程」，浏览 HashMap、ArrayList 的知识点结构。",
+      "第 2-3 天：使用教学模式重学 HashMap、ArrayList，把不懂的问题继续追问。"
+    ],
+    "planContent": "1. 第 1 天：明确目标「提升 Java 集合和多线程」，浏览 HashMap、ArrayList 的知识点结构。\n2. 第 2-3 天：使用教学模式重学 HashMap、ArrayList，把不懂的问题继续追问。"
   }
 }
 ```
+
+说明：
+
+- `period` 当前支持 `week` 和 `month`，其他值会按 `week` 处理。
+- `goal` 可不传；不传时优先使用学习档案中的 `learningGoal`。
+- 学习计划会优先围绕薄弱知识点生成；没有薄弱项时使用学习方向作为重点。
