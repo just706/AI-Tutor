@@ -80,31 +80,6 @@
       </footer>
     </section>
 
-    <aside class="chat-context panel">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Context</p>
-          <h2>上下文摘要</h2>
-        </div>
-      </div>
-
-      <div class="context-block">
-        <span>学习方向</span>
-        <strong>{{ workspaceStore.profile.learningDirection || '未填写' }}</strong>
-      </div>
-      <div class="context-block">
-        <span>当前目标</span>
-        <strong>{{ workspaceStore.profile.learningGoal || '未填写' }}</strong>
-      </div>
-      <div class="context-block">
-        <span>水平与偏好</span>
-        <p>{{ profileSummary }}</p>
-      </div>
-      <div class="context-note">
-        <strong>建议</strong>
-        <p>把当前卡住的点说清楚，AI Tutor 会结合档案和本轮对话给出更贴近你的解释。</p>
-      </div>
-    </aside>
   </div>
 </template>
 
@@ -131,15 +106,10 @@ const filteredConversations = computed(() => {
     `${item.title} ${modeLabel(item.mode)}`.toLowerCase().includes(keyword)
   )
 })
-const profileSummary = computed(() => {
-  const level = workspaceStore.profile.currentLevel || '未填写水平'
-  const preference = workspaceStore.profile.learningPreference || '未填写偏好'
-  return `${level} · ${preference}`
-})
 
 onMounted(async () => {
   try {
-    await Promise.all([workspaceStore.loadProfile(), workspaceStore.loadConversations()])
+    await workspaceStore.loadConversations()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载聊天失败')
   }

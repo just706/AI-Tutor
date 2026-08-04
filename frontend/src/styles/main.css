@@ -545,13 +545,12 @@ button {
   display: grid;
   min-height: 720px;
   height: 100%;
-  grid-template-columns: 220px minmax(0, 1fr) 240px;
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 16px;
 }
 
 .chat-thread-list,
-.chat-main,
-.chat-context {
+.chat-main {
   display: flex;
   min-height: 0;
   flex-direction: column;
@@ -654,10 +653,6 @@ button {
   padding: 16px 20px 20px;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
-}
-
-.chat-context {
-  gap: 14px;
 }
 
 .context-block {
@@ -1086,16 +1081,6 @@ button {
   .recent-answer-panel,
   .study-plan-panel {
     grid-column: auto;
-  }
-}
-
-@media (max-width: 1180px) {
-  .chat-workspace {
-    grid-template-columns: 260px minmax(0, 1fr);
-  }
-
-  .chat-context {
-    grid-column: 1 / -1;
   }
 }
 
