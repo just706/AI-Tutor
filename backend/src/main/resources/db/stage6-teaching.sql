@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 CREATE TABLE IF NOT EXISTS knowledge_point (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   subject VARCHAR(64) NOT NULL,
@@ -27,6 +29,22 @@ CREATE TABLE IF NOT EXISTS learning_record (
 
 INSERT IGNORE INTO knowledge_point (subject, name, parent_id, sort_order)
 VALUES ('Java', 'Java', 0, 1);
+
+-- Keep the seed tree readable if this script was imported before the UTF-8 client setting existed.
+UPDATE knowledge_point child
+JOIN knowledge_point root ON child.parent_id = root.id
+SET child.name = CASE child.sort_order
+  WHEN 10 THEN '基础语法'
+  WHEN 20 THEN '面向对象'
+  WHEN 30 THEN '集合框架'
+  WHEN 40 THEN '异常处理'
+  ELSE child.name
+END
+WHERE root.subject = 'Java'
+  AND root.name = 'Java'
+  AND root.parent_id = 0
+  AND child.subject = 'Java'
+  AND child.sort_order IN (10, 20, 30, 40);
 
 INSERT IGNORE INTO knowledge_point (subject, name, parent_id, sort_order)
 SELECT 'Java', '基础语法', root.id, 10
