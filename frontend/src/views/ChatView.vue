@@ -1,35 +1,50 @@
 <template>
-  <div class="chat-workspace">
-    <aside class="chat-thread-list panel">
-      <div class="section-head">
-        <div>
+  <div class="chat-workspace" :class="{ 'threads-collapsed': threadCollapsed }">
+    <aside class="chat-thread-list panel" :class="{ collapsed: threadCollapsed }">
+      <div class="thread-panel-head" :class="{ collapsed: threadCollapsed }">
+        <div v-if="!threadCollapsed">
           <p class="eyebrow">Conversations</p>
           <h2>学习会话</h2>
         </div>
-        <el-button :icon="Plus" circle @click="createNewConversation" />
+        <div class="thread-actions">
+          <el-tooltip :content="threadCollapsed ? '展开会话' : '收起会话'" placement="right">
+            <el-button
+              :aria-label="threadCollapsed ? '展开会话' : '收起会话'"
+              :icon="threadCollapsed ? ArrowRight : ArrowLeft"
+              circle
+              @click="toggleThreads"
+            />
+          </el-tooltip>
+          <el-tooltip content="新学习会话" placement="right">
+            <el-button aria-label="新学习会话" :icon="Plus" circle @click="createNewConversation" />
+          </el-tooltip>
+        </div>
       </div>
-      <el-input v-model.trim="threadQuery" class="chat-search" :prefix-icon="Search" placeholder="搜索会话..." />
 
-      <div v-loading="workspaceStore.loadingConversations" class="thread-scroll">
-        <button
-          v-for="conversation in filteredConversations"
-          :key="conversation.id"
-          class="conversation-row"
-          :class="{ active: workspaceStore.currentConversationId === conversation.id }"
-          type="button"
-          @click="workspaceStore.selectConversation(conversation.id)"
-        >
-          <span>
-            <strong>{{ conversation.title || '未命名会话' }}</strong>
-            <small>{{ modeLabel(conversation.mode) }} · {{ formatTime(conversation.updateTime) }}</small>
-          </span>
-        </button>
-        <el-empty
-          v-if="!workspaceStore.loadingConversations && filteredConversations.length === 0"
-          description="暂无会话"
-          :image-size="82"
-        />
-      </div>
+      <template v-if="!threadCollapsed">
+        <el-input v-model.trim="threadQuery" class="chat-search" :prefix-icon="Search" placeholder="搜索会话..." />
+
+        <div v-loading="workspaceStore.loadingConversations" class="thread-scroll">
+          <button
+            v-for="conversation in filteredConversations"
+            :key="conversation.id"
+            class="conversation-row"
+            :class="{ active: workspaceStore.currentConversationId === conversation.id }"
+            type="button"
+            @click="workspaceStore.selectConversation(conversation.id)"
+          >
+            <span>
+              <strong>{{ conversation.title || '未命名会话' }}</strong>
+              <small>{{ modeLabel(conversation.mode) }} · {{ formatTime(conversation.updateTime) }}</small>
+            </span>
+          </button>
+          <el-empty
+            v-if="!workspaceStore.loadingConversations && filteredConversations.length === 0"
+            description="暂无会话"
+            :image-size="82"
+          />
+        </div>
+      </template>
     </aside>
 
     <section class="chat-main panel">
@@ -85,7 +100,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Plus, Promotion, Search } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Plus, Promotion, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceStore } from '../stores/workspace'
 import { formatTime, modeLabel } from '../utils/format'
@@ -94,6 +109,7 @@ import { renderMarkdown } from '../utils/markdown'
 const workspaceStore = useWorkspaceStore()
 const draft = ref('')
 const threadQuery = ref('')
+const threadCollapsed = ref(false)
 const messageScroller = ref<HTMLElement | null>(null)
 
 const currentModeLabel = computed(() => modeLabel(workspaceStore.currentConversation?.mode || 'chat'))
@@ -131,6 +147,10 @@ async function createNewConversation() {
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '创建会话失败')
   }
+}
+
+function toggleThreads() {
+  threadCollapsed.value = !threadCollapsed.value
 }
 
 async function send() {

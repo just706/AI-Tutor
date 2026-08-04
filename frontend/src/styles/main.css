@@ -547,12 +547,51 @@ button {
   height: 100%;
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 16px;
+  transition: grid-template-columns 160ms ease;
+}
+
+.chat-workspace.threads-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .chat-thread-list,
 .chat-main {
   display: flex;
   min-height: 0;
+  flex-direction: column;
+}
+
+.chat-thread-list {
+  transition:
+    padding 160ms ease,
+    width 160ms ease;
+}
+
+.chat-thread-list.collapsed {
+  align-items: center;
+  padding: 10px;
+}
+
+.thread-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.thread-panel-head.collapsed {
+  justify-content: center;
+  margin-bottom: 0;
+}
+
+.thread-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.thread-panel-head.collapsed .thread-actions {
   flex-direction: column;
 }
 
