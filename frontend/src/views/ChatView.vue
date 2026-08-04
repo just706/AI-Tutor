@@ -53,10 +53,50 @@
           <p class="eyebrow">{{ currentModeLabel }}</p>
           <h2>{{ workspaceStore.currentConversation?.title || 'AI 学习问答' }}</h2>
         </div>
-        <el-tag v-if="workspaceStore.currentConversation" effect="plain">
-          {{ modeLabel(workspaceStore.currentConversation.mode) }}
-        </el-tag>
+        <div class="chat-head-actions">
+          <el-tag v-if="workspaceStore.currentConversation" effect="plain">
+            {{ modeLabel(workspaceStore.currentConversation.mode) }}
+          </el-tag>
+          <el-tooltip :content="historySearchOpen ? '关闭记录搜索' : '查找聊天记录'" placement="bottom">
+            <el-button
+              :aria-label="historySearchOpen ? '关闭记录搜索' : '查找聊天记录'"
+              :icon="Search"
+              circle
+              @click="toggleHistorySearch"
+            />
+          </el-tooltip>
+        </div>
       </header>
+
+      <section v-if="historySearchOpen" class="chat-history-search">
+        <div class="history-search-row">
+          <el-input
+            v-model.trim="historyQuery"
+            :prefix-icon="Search"
+            clearable
+            placeholder="搜索当前对话里的关键词..."
+            @keydown.enter.prevent="goToNextSearchResult"
+          />
+          <span class="history-result-count">{{ historySearchLabel }}</span>
+          <el-button :icon="ArrowUp" circle :disabled="historySearchResults.length === 0" @click="goToPreviousSearchResult" />
+          <el-button :icon="ArrowDown" circle :disabled="historySearchResults.length === 0" @click="goToNextSearchResult" />
+          <el-button :icon="Close" circle @click="closeHistorySearch" />
+        </div>
+
+        <div v-if="historyQuery && historySearchResults.length > 0" class="history-result-strip">
+          <button
+            v-for="result in historySearchResults"
+            :key="`${result.messageIndex}-${result.resultIndex}`"
+            class="history-result-item"
+            :class="{ active: activeResultIndex === result.resultIndex }"
+            type="button"
+            @click="goToSearchResult(result.resultIndex)"
+          >
+            <strong>{{ result.roleLabel }} · 第 {{ result.messageIndex + 1 }} 条</strong>
+            <span>{{ result.snippet }}</span>
+          </button>
+        </div>
+      </section>
 
       <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list wide">
         <div v-if="workspaceStore.messages.length === 0" class="empty-chat">
@@ -68,7 +108,14 @@
           v-for="(message, index) in workspaceStore.messages"
           :key="`${message.createTime}-${index}`"
           class="message"
-          :class="message.role"
+          :class="[
+            message.role,
+            {
+              'search-match': matchedMessageIndexes.has(index),
+              'active-search-match': activeMessageIndex === index
+            }
+          ]"
+          :data-message-index="index"
         >
           <div class="message-meta">{{ message.role === 'user' ? '你' : 'AI Tutor' }}</div>
           <div
@@ -100,7 +147,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { ArrowLeft, ArrowRight, Plus, Promotion, Search } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Close, Plus, Promotion, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceStore } from '../stores/workspace'
 import { formatTime, modeLabel } from '../utils/format'
@@ -110,7 +157,17 @@ const workspaceStore = useWorkspaceStore()
 const draft = ref('')
 const threadQuery = ref('')
 const threadCollapsed = ref(false)
+const historySearchOpen = ref(false)
+const historyQuery = ref('')
+const activeResultIndex = ref(0)
 const messageScroller = ref<HTMLElement | null>(null)
+
+interface HistorySearchResult {
+  resultIndex: number
+  messageIndex: number
+  roleLabel: string
+  snippet: string
+}
 
 const currentModeLabel = computed(() => modeLabel(workspaceStore.currentConversation?.mode || 'chat'))
 const filteredConversations = computed(() => {
@@ -121,6 +178,42 @@ const filteredConversations = computed(() => {
   return workspaceStore.conversations.filter((item) =>
     `${item.title} ${modeLabel(item.mode)}`.toLowerCase().includes(keyword)
   )
+})
+const normalizedHistoryQuery = computed(() => historyQuery.value.trim().toLowerCase())
+const historySearchResults = computed<HistorySearchResult[]>(() => {
+  const keyword = normalizedHistoryQuery.value
+  if (!keyword) {
+    return []
+  }
+
+  return workspaceStore.messages
+    .map((message, messageIndex) => ({
+      messageIndex,
+      roleLabel: message.role === 'user' ? '你' : 'AI Tutor',
+      snippet: buildSearchSnippet(message.messageContent, keyword),
+      matched: message.messageContent.toLowerCase().includes(keyword)
+    }))
+    .filter((result) => result.matched)
+    .map((result, resultIndex) => ({
+      resultIndex,
+      messageIndex: result.messageIndex,
+      roleLabel: result.roleLabel,
+      snippet: result.snippet
+    }))
+})
+const matchedMessageIndexes = computed(() =>
+  new Set(historySearchResults.value.map((result) => result.messageIndex))
+)
+const activeHistoryResult = computed(() => historySearchResults.value[activeResultIndex.value] || null)
+const activeMessageIndex = computed(() => activeHistoryResult.value?.messageIndex ?? -1)
+const historySearchLabel = computed(() => {
+  if (!normalizedHistoryQuery.value) {
+    return '输入关键词'
+  }
+  if (historySearchResults.value.length === 0) {
+    return '无匹配'
+  }
+  return `${activeResultIndex.value + 1} / ${historySearchResults.value.length}`
 })
 
 onMounted(async () => {
@@ -141,6 +234,22 @@ watch(
   }
 )
 
+watch(normalizedHistoryQuery, async (keyword) => {
+  activeResultIndex.value = 0
+  if (keyword && historySearchResults.value.length > 0) {
+    await nextTick()
+    scrollToActiveSearchResult()
+  }
+})
+
+watch(
+  () => workspaceStore.currentConversationId,
+  () => {
+    historyQuery.value = ''
+    activeResultIndex.value = 0
+  }
+)
+
 async function createNewConversation() {
   try {
     await workspaceStore.addConversation('新的学习会话', 'chat')
@@ -151,6 +260,66 @@ async function createNewConversation() {
 
 function toggleThreads() {
   threadCollapsed.value = !threadCollapsed.value
+}
+
+function toggleHistorySearch() {
+  historySearchOpen.value = !historySearchOpen.value
+  if (!historySearchOpen.value) {
+    historyQuery.value = ''
+    activeResultIndex.value = 0
+  }
+}
+
+function closeHistorySearch() {
+  historySearchOpen.value = false
+  historyQuery.value = ''
+  activeResultIndex.value = 0
+}
+
+async function goToPreviousSearchResult() {
+  if (historySearchResults.value.length === 0) {
+    return
+  }
+  activeResultIndex.value =
+    (activeResultIndex.value - 1 + historySearchResults.value.length) % historySearchResults.value.length
+  await nextTick()
+  scrollToActiveSearchResult()
+}
+
+async function goToNextSearchResult() {
+  if (historySearchResults.value.length === 0) {
+    return
+  }
+  activeResultIndex.value = (activeResultIndex.value + 1) % historySearchResults.value.length
+  await nextTick()
+  scrollToActiveSearchResult()
+}
+
+async function goToSearchResult(resultIndex: number) {
+  activeResultIndex.value = resultIndex
+  await nextTick()
+  scrollToActiveSearchResult()
+}
+
+function scrollToActiveSearchResult() {
+  if (!activeHistoryResult.value || !messageScroller.value) {
+    return
+  }
+  const target = messageScroller.value.querySelector<HTMLElement>(
+    `[data-message-index="${activeHistoryResult.value.messageIndex}"]`
+  )
+  target?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
+function buildSearchSnippet(content: string, keyword: string) {
+  const normalizedContent = content.replace(/\s+/g, ' ').trim()
+  const position = normalizedContent.toLowerCase().indexOf(keyword)
+  if (position < 0) {
+    return normalizedContent.slice(0, 90)
+  }
+  const start = Math.max(0, position - 28)
+  const end = Math.min(normalizedContent.length, position + keyword.length + 52)
+  return `${start > 0 ? '...' : ''}${normalizedContent.slice(start, end)}${end < normalizedContent.length ? '...' : ''}`
 }
 
 async function send() {

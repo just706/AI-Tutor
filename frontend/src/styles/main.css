@@ -626,6 +626,74 @@ button {
   font-size: 20px;
 }
 
+.chat-head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-history-search {
+  display: grid;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-border);
+  background: #fbfdff;
+}
+
+.history-search-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.history-result-count {
+  min-width: 72px;
+  color: var(--color-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.history-result-strip {
+  display: grid;
+  max-height: 132px;
+  gap: 8px;
+  overflow: auto;
+}
+
+.history-result-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e1e8ef;
+  border-radius: var(--radius);
+  color: inherit;
+  background: var(--color-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-result-item:hover,
+.history-result-item.active {
+  border-color: #9acbc4;
+  background: var(--color-primary-soft);
+}
+
+.history-result-item strong {
+  color: var(--color-primary);
+  font-size: 13px;
+}
+
+.history-result-item span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .message-list {
   min-height: 0;
   flex: 1;
@@ -686,6 +754,17 @@ button {
   border-color: var(--color-primary);
   color: #ffffff;
   background: var(--color-primary);
+}
+
+.message.search-match .message-bubble {
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.16);
+}
+
+.message.active-search-match .message-bubble {
+  border-color: var(--color-primary);
+  box-shadow:
+    0 0 0 3px rgba(15, 118, 110, 0.22),
+    0 12px 28px rgba(15, 23, 42, 0.10);
 }
 
 .composer {
@@ -1186,6 +1265,15 @@ button {
   .message-list.wide {
     padding-right: 16px;
     padding-left: 16px;
+  }
+
+  .history-search-row {
+    grid-template-columns: 1fr auto auto;
+  }
+
+  .history-result-count {
+    grid-column: 1 / -1;
+    text-align: left;
   }
 
   .composer {
