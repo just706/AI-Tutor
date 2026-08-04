@@ -86,11 +86,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
 
     const conversationId = currentConversationId.value
-    const now = new Date().toISOString()
     messages.value.push({
       role: 'user',
       messageContent: content,
-      createTime: now
+      createTime: new Date().toISOString()
     })
     sending.value = true
     try {

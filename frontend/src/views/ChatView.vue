@@ -1,65 +1,52 @@
 <template>
-  <main class="app-shell">
-    <aside class="sidebar">
-      <div class="sidebar-head">
+  <div class="chat-workspace">
+    <aside class="chat-thread-list panel">
+      <div class="section-head">
         <div>
-          <div class="product-name">AI Tutor</div>
-          <div class="user-line">{{ authStore.user?.nickname || authStore.user?.username }}</div>
+          <p class="eyebrow">Conversations</p>
+          <h2>学习会话</h2>
         </div>
-        <el-button :icon="SwitchButton" circle @click="logout" />
+        <el-button :icon="Plus" circle @click="createNewConversation" />
       </div>
+      <el-input v-model.trim="threadQuery" class="chat-search" :prefix-icon="Search" placeholder="搜索会话..." />
 
-      <div class="tool-switch">
+      <div v-loading="workspaceStore.loadingConversations" class="thread-scroll">
         <button
-          v-for="tool in tools"
-          :key="tool.value"
-          class="tool-button"
-          :class="{ active: activeTool === tool.value }"
-          @click="activeTool = tool.value"
-        >
-          {{ tool.label }}
-        </button>
-      </div>
-
-      <el-button class="new-conversation" type="primary" :icon="Plus" @click="createNewConversation">
-        新会话
-      </el-button>
-
-      <div v-loading="workspaceStore.loadingConversations" class="conversation-list">
-        <button
-          v-for="conversation in workspaceStore.conversations"
+          v-for="conversation in filteredConversations"
           :key="conversation.id"
-          class="conversation-item"
+          class="conversation-row"
           :class="{ active: workspaceStore.currentConversationId === conversation.id }"
-          @click="selectConversation(conversation)"
+          type="button"
+          @click="workspaceStore.selectConversation(conversation.id)"
         >
-          <span>{{ conversation.title || '未命名会话' }}</span>
-          <small>{{ modeLabel(conversation.mode) }} · {{ formatTime(conversation.updateTime) }}</small>
+          <span>
+            <strong>{{ conversation.title || '未命名会话' }}</strong>
+            <small>{{ modeLabel(conversation.mode) }} · {{ formatTime(conversation.updateTime) }}</small>
+          </span>
         </button>
-
         <el-empty
-          v-if="!workspaceStore.loadingConversations && workspaceStore.conversations.length === 0"
+          v-if="!workspaceStore.loadingConversations && filteredConversations.length === 0"
           description="暂无会话"
-          :image-size="80"
+          :image-size="82"
         />
       </div>
     </aside>
 
-    <section class="chat-panel">
-      <header class="chat-head">
+    <section class="chat-main panel">
+      <header class="chat-main-head">
         <div>
+          <p class="eyebrow">{{ currentModeLabel }}</p>
           <h2>{{ workspaceStore.currentConversation?.title || 'AI 学习问答' }}</h2>
-          <p>{{ headerSubtitle }}</p>
         </div>
-        <el-tag v-if="workspaceStore.currentConversation" size="large">
+        <el-tag v-if="workspaceStore.currentConversation" effect="plain">
           {{ modeLabel(workspaceStore.currentConversation.mode) }}
         </el-tag>
       </header>
 
-      <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list">
+      <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list wide">
         <div v-if="workspaceStore.messages.length === 0" class="empty-chat">
-          <h3>{{ emptyTitle }}</h3>
-          <p>{{ emptySubtitle }}</p>
+          <h3>把问题丢给 AI Tutor</h3>
+          <p>可以问概念、代码、学习路径，也可以让它按你的档案调整讲解方式。</p>
         </div>
 
         <article
@@ -68,7 +55,7 @@
           class="message"
           :class="message.role"
         >
-          <div class="message-meta">{{ message.role === 'user' ? '我' : 'AI Tutor' }}</div>
+          <div class="message-meta">{{ message.role === 'user' ? '你' : 'AI Tutor' }}</div>
           <div
             v-if="message.role === 'assistant'"
             class="message-bubble markdown-body"
@@ -84,637 +71,77 @@
           type="textarea"
           resize="none"
           :autosize="{ minRows: 2, maxRows: 5 }"
-          :placeholder="composerPlaceholder"
+          placeholder="问一个问题，或让 AI Tutor 继续解释当前知识点..."
           @keydown.enter.exact.prevent="send"
         />
-        <el-button type="primary" :icon="Promotion" :loading="workspaceStore.sending || ragSending" @click="send">
+        <el-button type="primary" :icon="Promotion" :loading="workspaceStore.sending" @click="send">
           发送
         </el-button>
       </footer>
     </section>
 
-    <aside class="workspace-panel">
-      <el-tabs v-model="activeTool" stretch>
-        <el-tab-pane label="档案" name="profile">
-          <div class="panel-head">
-            <h2>学习档案</h2>
-          </div>
+    <aside class="chat-context panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Context</p>
+          <h2>上下文摘要</h2>
+        </div>
+      </div>
 
-          <el-form v-loading="workspaceStore.loadingProfile" label-position="top" class="profile-form">
-            <el-form-item label="学习方向">
-              <el-input v-model="workspaceStore.profile.learningDirection" placeholder="Java / Python / 数学" />
-            </el-form-item>
-            <el-form-item label="学习目标">
-              <el-input v-model="workspaceStore.profile.learningGoal" placeholder="就业 / 考试 / 项目实践" />
-            </el-form-item>
-            <el-form-item label="当前水平">
-              <el-input v-model="workspaceStore.profile.currentLevel" placeholder="基础 / 进阶 / 熟练" />
-            </el-form-item>
-            <el-form-item label="学习偏好">
-              <el-input
-                v-model="workspaceStore.profile.learningPreference"
-                type="textarea"
-                resize="none"
-                :rows="4"
-                placeholder="例如：案例讲解、循序渐进"
-              />
-            </el-form-item>
-            <el-button class="full-action" type="primary" :icon="Check" @click="saveProfile">
-              保存档案
-            </el-button>
-          </el-form>
-        </el-tab-pane>
-
-        <el-tab-pane label="教学" name="teaching">
-          <section class="feature-block">
-            <div class="block-title">知识点</div>
-            <el-input v-model.trim="knowledgeSubject" class="subject-input" placeholder="学科" @change="loadKnowledgeTree" />
-            <el-tree
-              v-loading="loadingKnowledge"
-              class="knowledge-tree"
-              :data="knowledgeTree"
-              node-key="id"
-              default-expand-all
-              highlight-current
-              :props="{ label: 'name', children: 'children' }"
-              @node-click="selectKnowledgePoint"
-            />
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">教学模式</div>
-            <div class="selected-line">{{ selectedKnowledgePoint?.name || '未选择知识点' }}</div>
-            <el-button class="full-action" type="primary" :loading="teachingLoading" @click="startTeachingFlow">
-              开始教学
-            </el-button>
-            <el-input
-              v-model="teachingAnswer"
-              class="stacked-input"
-              type="textarea"
-              resize="none"
-              :rows="4"
-              placeholder="提交理解检查回答"
-            />
-            <el-button class="full-action" :loading="teachingLoading" @click="evaluateTeachingFlow">
-              提交回答
-            </el-button>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">学习记录</div>
-            <div v-if="learningRecords.length === 0" class="muted-line">暂无记录</div>
-            <div v-for="record in learningRecords" :key="record.knowledgePointId" class="record-row">
-              <span>{{ record.knowledgePointName || record.knowledgePointId }}</span>
-              <el-tag size="small">{{ record.masteryLevel }}%</el-tag>
-            </div>
-          </section>
-        </el-tab-pane>
-
-        <el-tab-pane label="练习" name="practice">
-          <section class="feature-block">
-            <div class="block-title">生成题目</div>
-            <div class="selected-line">{{ selectedKnowledgePoint?.name || '未选择知识点' }}</div>
-            <el-form label-position="top">
-              <el-form-item label="题型">
-                <el-select v-model="practiceForm.questionType">
-                  <el-option label="单选题" value="single_choice" />
-                  <el-option label="判断题" value="true_false" />
-                  <el-option label="简答题" value="short_answer" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="难度">
-                <el-select v-model="practiceForm.difficulty">
-                  <el-option label="简单" value="easy" />
-                  <el-option label="中等" value="medium" />
-                  <el-option label="困难" value="hard" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="数量">
-                <el-input-number v-model="practiceForm.count" :min="1" :max="5" />
-              </el-form-item>
-            </el-form>
-            <el-button class="full-action" type="primary" :loading="questionLoading" @click="generateQuestionFlow">
-              生成题目
-            </el-button>
-          </section>
-
-          <section class="question-list">
-            <article v-for="question in questions" :key="question.id" class="question-item">
-              <div class="question-head">
-                <el-tag size="small">{{ questionTypeLabel(question.questionType) }}</el-tag>
-                <span>{{ difficultyLabel(question.difficulty) }}</span>
-              </div>
-              <p class="question-content">{{ question.content }}</p>
-
-              <el-radio-group
-                v-if="question.questionType === 'single_choice'"
-                v-model="answerDrafts[question.id]"
-                class="option-group"
-              >
-                <el-radio v-for="option in question.options" :key="option" :label="choiceValue(option)">
-                  {{ option }}
-                </el-radio>
-              </el-radio-group>
-
-              <el-radio-group
-                v-else-if="question.questionType === 'true_false'"
-                v-model="answerDrafts[question.id]"
-                class="option-group"
-              >
-                <el-radio label="true">true</el-radio>
-                <el-radio label="false">false</el-radio>
-              </el-radio-group>
-
-              <el-input
-                v-else
-                v-model="answerDrafts[question.id]"
-                type="textarea"
-                resize="none"
-                :rows="3"
-                placeholder="输入你的答案"
-              />
-
-              <el-button class="full-action stacked-input" :loading="answerLoadingId === question.id" @click="submitAnswerFlow(question)">
-                提交答案
-              </el-button>
-
-              <div v-if="answerResults[question.id]" class="feedback-box">
-                <strong>{{ answerResults[question.id].score }} 分</strong>
-                <div class="markdown-body" v-html="renderMarkdown(answerResults[question.id].feedback)" />
-              </div>
-            </article>
-            <el-empty v-if="questions.length === 0" description="暂无题目" :image-size="80" />
-          </section>
-        </el-tab-pane>
-
-        <el-tab-pane label="资料" name="rag">
-          <section class="feature-block">
-            <div class="block-title">资料库</div>
-            <el-upload
-              accept=".txt,.md,.markdown,.pdf"
-              :show-file-list="false"
-              :http-request="uploadLearningDocument"
-            >
-              <el-button class="full-action" :icon="Upload" :loading="uploadingDocument">
-                上传资料
-              </el-button>
-            </el-upload>
-            <el-checkbox-group v-model="selectedDocumentIds" class="document-list">
-              <div
-                v-for="document in documents"
-                :key="document.id"
-                class="document-card"
-                :class="{ active: selectedDocumentDetail?.id === document.id }"
-              >
-                <el-checkbox :label="document.id">
-                  {{ document.fileName }}
-                  <small>{{ document.fileType }} · {{ document.chunkCount }} chunks · {{ document.processStatus }}</small>
-                </el-checkbox>
-                <div class="document-actions">
-                  <el-button size="small" @click.stop="loadDocumentDetailFlow(document.id)">
-                    详情
-                  </el-button>
-                  <el-button size="small" :loading="documentActionLoadingId === document.id" @click.stop="reprocessLearningDocument(document.id)">
-                    重处理
-                  </el-button>
-                  <el-button size="small" type="danger" :loading="documentActionLoadingId === document.id" @click.stop="deleteLearningDocument(document.id)">
-                    删除
-                  </el-button>
-                </div>
-              </div>
-            </el-checkbox-group>
-            <el-empty v-if="documents.length === 0" description="暂无资料" :image-size="80" />
-          </section>
-
-          <section v-if="selectedDocumentDetail" class="feature-block">
-            <div class="block-title">资料详情</div>
-            <div v-loading="loadingDocumentDetail" class="document-detail">
-              <strong>{{ selectedDocumentDetail.fileName }}</strong>
-              <small>{{ selectedDocumentDetail.fileType }} · {{ selectedDocumentDetail.chunkCount }} chunks</small>
-              <p>{{ selectedDocumentDetail.preview || '暂无预览内容' }}</p>
-            </div>
-            <div class="chunk-list">
-              <div v-for="chunk in documentChunks" :key="chunk.id" class="chunk-item">
-                <strong>#{{ chunk.chunkIndex }}</strong>
-                <p>{{ chunk.chunkText }}</p>
-              </div>
-            </div>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">资料问答</div>
-            <el-button class="full-action" type="primary" :loading="ragSending" @click="createRagConversation">
-              新建资料会话
-            </el-button>
-            <el-input
-              v-model="ragQuestion"
-              class="stacked-input"
-              type="textarea"
-              resize="none"
-              :rows="4"
-              placeholder="基于资料提问"
-            />
-            <el-button class="full-action" :loading="ragSending" @click="sendRagQuestion">
-              资料问答
-            </el-button>
-          </section>
-
-          <section v-if="ragSources.length > 0" class="feature-block">
-            <div class="block-title">来源</div>
-            <div v-for="source in ragSources" :key="`${source.documentId}-${source.chunkIndex}`" class="source-item">
-              <strong>{{ source.fileName }} · #{{ source.chunkIndex }}</strong>
-              <p>{{ source.snippet }}</p>
-            </div>
-          </section>
-        </el-tab-pane>
-
-        <el-tab-pane label="分析" name="analysis">
-          <section class="feature-block">
-            <div class="block-title">学习概览</div>
-            <div v-loading="analysisLoading" class="analysis-summary-grid">
-              <div class="summary-tile">
-                <span>已学知识点</span>
-                <strong>{{ analysisOverview?.learnedCount ?? 0 }}</strong>
-              </div>
-              <div class="summary-tile">
-                <span>平均掌握度</span>
-                <strong>{{ analysisOverview?.averageMasteryLevel ?? 0 }}%</strong>
-              </div>
-              <div class="summary-tile">
-                <span>答题正确率</span>
-                <strong>{{ analysisOverview?.answerAccuracy ?? 0 }}%</strong>
-              </div>
-              <div class="summary-tile">
-                <span>学习时长</span>
-                <strong>{{ analysisOverview?.totalStudyTime ?? 0 }} 分钟</strong>
-              </div>
-            </div>
-            <el-button class="full-action stacked-input" :loading="analysisLoading" @click="loadAnalysisOverviewFlow">
-              刷新分析
-            </el-button>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">薄弱知识点</div>
-            <div v-if="!analysisOverview || analysisOverview.weakKnowledgePoints.length === 0" class="muted-line">
-              暂无明显薄弱项
-            </div>
-            <div v-for="point in analysisOverview?.weakKnowledgePoints || []" :key="point.knowledgePointId" class="weak-point">
-              <div>
-                <strong>{{ point.knowledgePointName }}</strong>
-                <small>{{ point.reason }}</small>
-              </div>
-              <el-tag size="small" type="warning">{{ point.masteryLevel ?? point.answerAccuracy ?? 0 }}%</el-tag>
-            </div>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">掌握明细</div>
-            <div v-if="knowledgeProgress.length === 0" class="muted-line">
-              暂无知识点学习明细
-            </div>
-            <div v-for="item in knowledgeProgress" :key="item.knowledgePointId" class="progress-row">
-              <div class="progress-title">
-                <strong>{{ item.knowledgePointName }}</strong>
-                <small>
-                  掌握 {{ item.masteryLevel }}% · 正确率 {{ item.answerAccuracy }}% · 已答 {{ item.answeredQuestionCount }} 题
-                </small>
-              </div>
-              <el-progress :percentage="item.masteryLevel" :stroke-width="8" :show-text="false" />
-            </div>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">近期答题</div>
-            <div v-if="recentAnswers.length === 0" class="muted-line">
-              暂无答题记录
-            </div>
-            <div v-for="answer in recentAnswers" :key="answer.answerRecordId" class="answer-analysis-item">
-              <div class="answer-analysis-head">
-                <strong>{{ answer.knowledgePointName || '未知知识点' }}</strong>
-                <el-tag size="small" :type="answer.correct ? 'success' : 'danger'">
-                  {{ answer.correct ? '正确' : '待复盘' }} · {{ answer.score }} 分
-                </el-tag>
-              </div>
-              <p>{{ answer.questionContent || '题目内容为空' }}</p>
-              <small>你的答案：{{ answer.userAnswer || '空' }}</small>
-              <small v-if="answer.feedbackPreview">{{ answer.feedbackPreview }}</small>
-            </div>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">建议</div>
-            <ul v-if="analysisOverview && analysisOverview.suggestions.length > 0" class="plain-list">
-              <li v-for="suggestion in analysisOverview.suggestions" :key="suggestion">{{ suggestion }}</li>
-            </ul>
-            <div v-else class="muted-line">暂无建议</div>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">下一步行动</div>
-            <ul v-if="analysisOverview && analysisOverview.nextActions.length > 0" class="plain-list">
-              <li v-for="action in analysisOverview.nextActions" :key="action">{{ action }}</li>
-            </ul>
-            <div v-else class="muted-line">暂无行动建议</div>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">学习计划</div>
-            <el-form label-position="top">
-              <el-form-item label="周期">
-                <el-select v-model="studyPlanForm.period">
-                  <el-option label="一周" value="week" />
-                  <el-option label="一个月" value="month" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="目标">
-                <el-input v-model.trim="studyPlanForm.goal" placeholder="不填则使用学习档案目标" />
-              </el-form-item>
-            </el-form>
-            <el-button class="full-action" type="primary" :loading="studyPlanLoading" @click="generateStudyPlanFlow">
-              生成计划
-            </el-button>
-            <div v-if="studyPlan" class="study-plan">
-              <h3>{{ studyPlan.title }}</h3>
-              <p>{{ studyPlan.goal }}</p>
-              <el-tag size="small">{{ studyPlan.estimatedDays }} 天</el-tag>
-              <ol>
-                <li v-for="step in studyPlan.steps" :key="step">{{ step }}</li>
-              </ol>
-            </div>
-          </section>
-        </el-tab-pane>
-
-        <el-tab-pane label="Agent" name="agent">
-          <section class="feature-block">
-            <div class="block-title">Agent 建议</div>
-            <el-form label-position="top">
-              <el-form-item label="Agent 类型">
-                <el-select v-model="agentTypeFilter">
-                  <el-option label="全部" value="all" />
-                  <el-option label="学习规划" value="planning" />
-                  <el-option label="教学" value="teaching" />
-                  <el-option label="练习" value="practice" />
-                  <el-option label="分析" value="analysis" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="状态">
-                <el-select v-model="agentStatusFilter">
-                  <el-option label="待处理" value="pending" />
-                  <el-option label="已确认" value="confirmed" />
-                  <el-option label="已完成" value="completed" />
-                  <el-option label="已忽略" value="dismissed" />
-                  <el-option label="全部" value="" />
-                </el-select>
-              </el-form-item>
-            </el-form>
-            <el-button class="full-action" type="primary" :loading="agentLoading" @click="generateAgentSuggestionsFlow">
-              生成 Agent 建议
-            </el-button>
-            <el-button class="full-action stacked-input" :loading="agentLoading" @click="loadAgentSuggestionsFlow">
-              刷新建议
-            </el-button>
-          </section>
-
-          <section class="feature-block">
-            <div class="block-title">建议列表</div>
-            <div v-if="agentSuggestions.length === 0" class="muted-line">
-              暂无 Agent 建议
-            </div>
-            <div v-for="item in agentSuggestions" :key="item.id" class="agent-suggestion">
-              <div class="agent-suggestion-head">
-                <div>
-                  <strong>{{ item.title }}</strong>
-                  <small>{{ agentTypeLabel(item.agentType) }} · {{ item.actionType }}</small>
-                </div>
-                <el-tag size="small" :type="agentStatusTagType(item.status)">
-                  {{ agentStatusLabel(item.status) }}
-                </el-tag>
-              </div>
-              <p>{{ item.suggestion }}</p>
-              <small>{{ item.reason }}</small>
-              <div class="agent-meta">
-                <el-tag size="small">{{ item.impactLevel }}</el-tag>
-                <el-tag v-if="item.requiresConfirmation" size="small" type="warning">需要确认</el-tag>
-                <el-tag v-else size="small" type="success">可直接完成</el-tag>
-              </div>
-              <div class="agent-actions">
-                <el-button
-                  size="small"
-                  :disabled="item.status !== 'pending'"
-                  :loading="agentActionLoadingId === item.id"
-                  @click="confirmAgentSuggestionFlow(item)"
-                >
-                  确认
-                </el-button>
-                <el-button
-                  size="small"
-                  type="success"
-                  :disabled="item.status === 'completed' || item.status === 'dismissed' || (item.requiresConfirmation && item.status === 'pending')"
-                  :loading="agentActionLoadingId === item.id"
-                  @click="completeAgentSuggestionFlow(item)"
-                >
-                  完成
-                </el-button>
-                <el-button
-                  size="small"
-                  type="danger"
-                  :disabled="item.status === 'completed' || item.status === 'dismissed'"
-                  :loading="agentActionLoadingId === item.id"
-                  @click="dismissAgentSuggestionFlow(item)"
-                >
-                  忽略
-                </el-button>
-              </div>
-            </div>
-          </section>
-        </el-tab-pane>
-      </el-tabs>
+      <div class="context-block">
+        <span>学习方向</span>
+        <strong>{{ workspaceStore.profile.learningDirection || '未填写' }}</strong>
+      </div>
+      <div class="context-block">
+        <span>当前目标</span>
+        <strong>{{ workspaceStore.profile.learningGoal || '未填写' }}</strong>
+      </div>
+      <div class="context-block">
+        <span>水平与偏好</span>
+        <p>{{ profileSummary }}</p>
+      </div>
+      <div class="context-note">
+        <strong>建议</strong>
+        <p>把当前卡住的点说清楚，AI Tutor 会结合档案和本轮对话给出更贴近你的解释。</p>
+      </div>
     </aside>
-  </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { Check, Plus, Promotion, SwitchButton, Upload } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import type { UploadRequestOptions } from 'element-plus'
-import MarkdownIt from 'markdown-it'
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  completeAgentSuggestion,
-  confirmAgentSuggestion,
-  dismissAgentSuggestion,
-  evaluateTeaching,
-  deleteDocument,
-  generateAgentSuggestions,
-  generateStudyPlan,
-  generateQuestions,
-  getDocument,
-  getLearningAnalysisOverview,
-  listKnowledgePointProgress,
-  listDocumentChunks,
-  listDocuments,
-  listKnowledgeTree,
-  listLearningRecords,
-  listRecentAnswerAnalysis,
-  listAgentSuggestions,
-  listQuestions,
-  reprocessDocument,
-  sendRagChat,
-  startTeaching,
-  submitAnswer,
-  uploadDocument
-} from '../api'
-import { useAuthStore } from '../stores/auth'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { Plus, Promotion, Search } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useWorkspaceStore } from '../stores/workspace'
-import type {
-  AgentSuggestion,
-  AnswerResult,
-  Conversation,
-  DocumentChunk,
-  KnowledgePoint,
-  KnowledgePointProgress,
-  LearningAnalysisOverview,
-  LearningDocument,
-  LearningDocumentDetail,
-  LearningRecord,
-  Question,
-  RagSource,
-  RecentAnswerAnalysis,
-  StudyPlan
-} from '../types/domain'
+import { formatTime, modeLabel } from '../utils/format'
+import { renderMarkdown } from '../utils/markdown'
 
-type ToolMode = 'profile' | 'chat' | 'teaching' | 'practice' | 'rag' | 'analysis' | 'agent'
-
-const router = useRouter()
-const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
-const activeTool = ref<ToolMode>('profile')
 const draft = ref('')
+const threadQuery = ref('')
 const messageScroller = ref<HTMLElement | null>(null)
-const markdown = new MarkdownIt({
-  html: false,
-  linkify: true,
-  breaks: true
+
+const currentModeLabel = computed(() => modeLabel(workspaceStore.currentConversation?.mode || 'chat'))
+const filteredConversations = computed(() => {
+  const keyword = threadQuery.value.toLowerCase()
+  if (!keyword) {
+    return workspaceStore.conversations
+  }
+  return workspaceStore.conversations.filter((item) =>
+    `${item.title} ${modeLabel(item.mode)}`.toLowerCase().includes(keyword)
+  )
 })
-
-const tools: Array<{ label: string; value: ToolMode }> = [
-  { label: '档案', value: 'profile' },
-  { label: '问答', value: 'chat' },
-  { label: '教学', value: 'teaching' },
-  { label: '练习', value: 'practice' },
-  { label: '资料', value: 'rag' },
-  { label: '分析', value: 'analysis' },
-  { label: 'Agent', value: 'agent' }
-]
-
-const knowledgeSubject = ref('Java')
-const knowledgeTree = ref<KnowledgePoint[]>([])
-const selectedKnowledgePointId = ref<number | null>(null)
-const loadingKnowledge = ref(false)
-const learningRecords = ref<LearningRecord[]>([])
-const teachingAnswer = ref('')
-const teachingLoading = ref(false)
-
-const practiceForm = reactive({
-  questionType: 'single_choice',
-  difficulty: 'medium',
-  count: 1
-})
-const questions = ref<Question[]>([])
-const answerDrafts = reactive<Record<number, string>>({})
-const answerResults = reactive<Record<number, AnswerResult>>({})
-const questionLoading = ref(false)
-const answerLoadingId = ref<number | null>(null)
-
-const documents = ref<LearningDocument[]>([])
-const selectedDocumentIds = ref<number[]>([])
-const uploadingDocument = ref(false)
-const selectedDocumentDetail = ref<LearningDocumentDetail | null>(null)
-const documentChunks = ref<DocumentChunk[]>([])
-const loadingDocumentDetail = ref(false)
-const documentActionLoadingId = ref<number | null>(null)
-const ragQuestion = ref('')
-const ragSources = ref<RagSource[]>([])
-const ragSending = ref(false)
-const analysisOverview = ref<LearningAnalysisOverview | null>(null)
-const knowledgeProgress = ref<KnowledgePointProgress[]>([])
-const recentAnswers = ref<RecentAnswerAnalysis[]>([])
-const analysisLoading = ref(false)
-const studyPlan = ref<StudyPlan | null>(null)
-const studyPlanLoading = ref(false)
-const studyPlanForm = reactive({
-  period: 'week',
-  goal: ''
-})
-const agentSuggestions = ref<AgentSuggestion[]>([])
-const agentLoading = ref(false)
-const agentActionLoadingId = ref<number | null>(null)
-const agentTypeFilter = ref('all')
-const agentStatusFilter = ref('pending')
-
-const selectedKnowledgePoint = computed(() =>
-  flattenKnowledgePoints(knowledgeTree.value).find((item) => item.id === selectedKnowledgePointId.value) || null
-)
-
-const headerSubtitle = computed(() => {
-  const mode = workspaceStore.currentConversation?.mode || 'chat'
-  if (mode === 'teaching') {
-    return '围绕知识点进行讲解、检查和反馈'
-  }
-  if (mode === 'rag') {
-    return '基于上传资料检索来源并回答'
-  }
-  return '结合学习档案和当前会话上下文回答'
-})
-
-const emptyTitle = computed(() => {
-  if (activeTool.value === 'teaching') {
-    return '选择知识点开始教学'
-  }
-  if (activeTool.value === 'practice') {
-    return '生成题目后开始练习'
-  }
-  if (activeTool.value === 'rag') {
-    return '上传资料后开始问答'
-  }
-  if (activeTool.value === 'analysis') {
-    return '查看学习分析和计划'
-  }
-  if (activeTool.value === 'agent') {
-    return '查看 Agent 主动建议'
-  }
-  return '开始一次学习问答'
-})
-
-const emptySubtitle = computed(() => {
-  if (activeTool.value === 'profile') {
-    return '可以先在右侧补充学习档案'
-  }
-  return '消息会出现在这里'
-})
-
-const composerPlaceholder = computed(() => {
-  if (workspaceStore.currentConversation?.mode === 'rag') {
-    return '输入资料问答问题'
-  }
-  return '输入学习问题'
+const profileSummary = computed(() => {
+  const level = workspaceStore.profile.currentLevel || '未填写水平'
+  const preference = workspaceStore.profile.learningPreference || '未填写偏好'
+  return `${level} · ${preference}`
 })
 
 onMounted(async () => {
   try {
-    await Promise.all([
-      workspaceStore.loadProfile(),
-      workspaceStore.loadConversations(),
-      loadKnowledgeTree(),
-      loadLearningRecordsFlow(),
-      loadDocumentsFlow(),
-      loadAnalysisOverviewFlow(),
-      loadAgentSuggestionsFlow()
-    ])
+    await Promise.all([workspaceStore.loadProfile(), workspaceStore.loadConversations()])
   } catch (error) {
-    showError(error, '加载失败')
+    ElMessage.error(error instanceof Error ? error.message : '加载聊天失败')
   }
 })
 
@@ -728,88 +155,11 @@ watch(
   }
 )
 
-watch(selectedKnowledgePointId, async (value) => {
-  if (value) {
-    await loadQuestionsFlow()
-  }
-})
-
-watch([agentTypeFilter, agentStatusFilter], async () => {
-  await loadAgentSuggestionsFlow()
-})
-
-function renderMarkdown(content: string) {
-  return markdown.render(content || '')
-}
-
-function formatTime(value: string) {
-  if (!value) {
-    return ''
-  }
-  return value.replace('T', ' ').slice(0, 16)
-}
-
-function modeLabel(mode: string) {
-  if (mode === 'teaching') {
-    return '教学'
-  }
-  if (mode === 'rag') {
-    return '资料'
-  }
-  return '问答'
-}
-
-function questionTypeLabel(type: string) {
-  if (type === 'true_false') {
-    return '判断题'
-  }
-  if (type === 'short_answer') {
-    return '简答题'
-  }
-  return '单选题'
-}
-
-function difficultyLabel(difficulty: string) {
-  if (difficulty === 'easy') {
-    return '简单'
-  }
-  if (difficulty === 'hard') {
-    return '困难'
-  }
-  return '中等'
-}
-
-function choiceValue(option: string) {
-  const first = option.trim().charAt(0).toUpperCase()
-  return first >= 'A' && first <= 'D' ? first : option
-}
-
-async function selectConversation(conversation: Conversation) {
-  await workspaceStore.selectConversation(conversation.id)
-  if (conversation.mode === 'teaching') {
-    activeTool.value = 'teaching'
-  } else if (conversation.mode === 'rag') {
-    activeTool.value = 'rag'
-  } else {
-    activeTool.value = 'chat'
-  }
-}
-
 async function createNewConversation() {
   try {
     await workspaceStore.addConversation('新的学习会话', 'chat')
-    activeTool.value = 'chat'
   } catch (error) {
-    showError(error, '创建会话失败')
-  }
-}
-
-async function saveProfile() {
-  try {
-    await workspaceStore.saveProfile()
-    ElMessage.success('学习档案已保存')
-  } catch (error) {
-    showError(error, '保存失败')
+    ElMessage.error(error instanceof Error ? error.message : '创建会话失败')
   }
 }
 
@@ -818,426 +168,11 @@ async function send() {
   if (!content) {
     return
   }
-
-  if (workspaceStore.currentConversation?.mode === 'rag') {
-    ragQuestion.value = content
-    draft.value = ''
-    await sendRagQuestion()
-    return
-  }
-
   draft.value = ''
   try {
     await workspaceStore.sendMessage(content)
   } catch (error) {
-    showError(error, '发送失败')
+    ElMessage.error(error instanceof Error ? error.message : '发送失败')
   }
-}
-
-async function loadKnowledgeTree() {
-  loadingKnowledge.value = true
-  try {
-    knowledgeTree.value = await listKnowledgeTree(knowledgeSubject.value || 'Java')
-    if (!selectedKnowledgePointId.value) {
-      selectedKnowledgePointId.value = firstSelectableKnowledgePoint(knowledgeTree.value)?.id || null
-    }
-  } finally {
-    loadingKnowledge.value = false
-  }
-}
-
-function selectKnowledgePoint(point: KnowledgePoint) {
-  selectedKnowledgePointId.value = point.id
-}
-
-function flattenKnowledgePoints(points: KnowledgePoint[]) {
-  const result: KnowledgePoint[] = []
-  for (const point of points) {
-    result.push(point)
-    result.push(...flattenKnowledgePoints(point.children || []))
-  }
-  return result
-}
-
-function firstSelectableKnowledgePoint(points: KnowledgePoint[]) {
-  return flattenKnowledgePoints(points).find((point) => !point.children || point.children.length === 0)
-    || flattenKnowledgePoints(points)[0]
-}
-
-async function startTeachingFlow() {
-  if (!selectedKnowledgePoint.value) {
-    ElMessage.warning('请选择知识点')
-    return
-  }
-
-  teachingLoading.value = true
-  try {
-    const result = await startTeaching(selectedKnowledgePoint.value.id)
-    await workspaceStore.loadConversations()
-    await workspaceStore.selectConversation(result.conversationId)
-    await loadLearningRecordsFlow()
-    await loadAnalysisOverviewFlow()
-    activeTool.value = 'teaching'
-    ElMessage.success('教学已开始')
-  } catch (error) {
-    showError(error, '开始教学失败')
-  } finally {
-    teachingLoading.value = false
-  }
-}
-
-async function evaluateTeachingFlow() {
-  if (!selectedKnowledgePoint.value) {
-    ElMessage.warning('请选择知识点')
-    return
-  }
-  if (!workspaceStore.currentConversationId || workspaceStore.currentConversation?.mode !== 'teaching') {
-    ElMessage.warning('请先开始教学')
-    return
-  }
-  const answer = teachingAnswer.value.trim()
-  if (!answer) {
-    ElMessage.warning('请输入回答')
-    return
-  }
-
-  teachingLoading.value = true
-  try {
-    const result = await evaluateTeaching(workspaceStore.currentConversationId, selectedKnowledgePoint.value.id, answer)
-    teachingAnswer.value = ''
-    await workspaceStore.selectConversation(result.conversationId)
-    await loadLearningRecordsFlow()
-    await loadAnalysisOverviewFlow()
-  } catch (error) {
-    showError(error, '提交回答失败')
-  } finally {
-    teachingLoading.value = false
-  }
-}
-
-async function loadLearningRecordsFlow() {
-  learningRecords.value = await listLearningRecords()
-}
-
-async function generateQuestionFlow() {
-  if (!selectedKnowledgePoint.value) {
-    ElMessage.warning('请选择知识点')
-    return
-  }
-
-  questionLoading.value = true
-  try {
-    const generated = await generateQuestions(
-      selectedKnowledgePoint.value.id,
-      practiceForm.questionType,
-      practiceForm.difficulty,
-      practiceForm.count
-    )
-    questions.value = generated
-    ElMessage.success('题目已生成')
-  } catch (error) {
-    showError(error, '生成题目失败')
-  } finally {
-    questionLoading.value = false
-  }
-}
-
-async function loadQuestionsFlow() {
-  if (!selectedKnowledgePoint.value) {
-    questions.value = []
-    return
-  }
-  questions.value = await listQuestions(selectedKnowledgePoint.value.id)
-}
-
-async function submitAnswerFlow(question: Question) {
-  const answer = answerDrafts[question.id]?.trim()
-  if (!answer) {
-    ElMessage.warning('请输入答案')
-    return
-  }
-
-  answerLoadingId.value = question.id
-  try {
-    answerResults[question.id] = await submitAnswer(question.id, answer)
-    await loadLearningRecordsFlow()
-    await loadAnalysisOverviewFlow()
-  } catch (error) {
-    showError(error, '提交答案失败')
-  } finally {
-    answerLoadingId.value = null
-  }
-}
-
-async function uploadLearningDocument(options: UploadRequestOptions) {
-  uploadingDocument.value = true
-  try {
-    const result = await uploadDocument(options.file as File)
-    await loadDocumentsFlow()
-    selectedDocumentIds.value = [result.documentId]
-    await loadDocumentDetailFlow(result.documentId)
-    ElMessage.success('资料已上传')
-    options.onSuccess?.(result)
-  } catch (error) {
-    // Element Plus 的自定义上传需要主动通知组件失败状态。
-    const uploadError = error instanceof Error ? error : new Error(String(error))
-    options.onError?.(uploadError as Parameters<NonNullable<UploadRequestOptions['onError']>>[0])
-    showError(error, '上传失败')
-  } finally {
-    uploadingDocument.value = false
-  }
-}
-
-async function loadDocumentsFlow() {
-  documents.value = await listDocuments()
-  if (selectedDocumentIds.value.length === 0 && documents.value.length > 0) {
-    selectedDocumentIds.value = documents.value.map((item) => item.id)
-  }
-  if (selectedDocumentDetail.value && !documents.value.some((item) => item.id === selectedDocumentDetail.value?.id)) {
-    selectedDocumentDetail.value = null
-    documentChunks.value = []
-  }
-}
-
-async function loadDocumentDetailFlow(documentId: number) {
-  loadingDocumentDetail.value = true
-  try {
-    const [detail, chunks] = await Promise.all([
-      getDocument(documentId),
-      listDocumentChunks(documentId)
-    ])
-    selectedDocumentDetail.value = detail
-    documentChunks.value = chunks
-  } catch (error) {
-    showError(error, '加载资料详情失败')
-  } finally {
-    loadingDocumentDetail.value = false
-  }
-}
-
-async function reprocessLearningDocument(documentId: number) {
-  documentActionLoadingId.value = documentId
-  try {
-    await reprocessDocument(documentId)
-    await loadDocumentsFlow()
-    await loadDocumentDetailFlow(documentId)
-    ElMessage.success('资料已重新处理')
-  } catch (error) {
-    showError(error, '重新处理失败')
-  } finally {
-    documentActionLoadingId.value = null
-  }
-}
-
-async function deleteLearningDocument(documentId: number) {
-  try {
-    await ElMessageBox.confirm('删除后会同时移除资料切片，确认删除？', '删除资料', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消'
-    })
-  } catch {
-    return
-  }
-
-  documentActionLoadingId.value = documentId
-  try {
-    await deleteDocument(documentId)
-    selectedDocumentIds.value = selectedDocumentIds.value.filter((id) => id !== documentId)
-    if (selectedDocumentDetail.value?.id === documentId) {
-      selectedDocumentDetail.value = null
-      documentChunks.value = []
-    }
-    await loadDocumentsFlow()
-    ElMessage.success('资料已删除')
-  } catch (error) {
-    showError(error, '删除资料失败')
-  } finally {
-    documentActionLoadingId.value = null
-  }
-}
-
-async function loadAnalysisOverviewFlow() {
-  analysisLoading.value = true
-  try {
-    const [overview, progress, answers] = await Promise.all([
-      getLearningAnalysisOverview(),
-      listKnowledgePointProgress(),
-      listRecentAnswerAnalysis(8)
-    ])
-    analysisOverview.value = overview
-    knowledgeProgress.value = progress
-    recentAnswers.value = answers
-  } catch (error) {
-    showError(error, '加载学习分析失败')
-  } finally {
-    analysisLoading.value = false
-  }
-}
-
-async function generateStudyPlanFlow() {
-  studyPlanLoading.value = true
-  try {
-    // Empty goal lets the backend fall back to the learning profile goal.
-    studyPlan.value = await generateStudyPlan(studyPlanForm.period, studyPlanForm.goal.trim() || undefined)
-    ElMessage.success('学习计划已生成')
-  } catch (error) {
-    showError(error, '生成学习计划失败')
-  } finally {
-    studyPlanLoading.value = false
-  }
-}
-
-async function loadAgentSuggestionsFlow() {
-  agentLoading.value = true
-  try {
-    agentSuggestions.value = await listAgentSuggestions(
-      agentStatusFilter.value || undefined,
-      agentTypeFilter.value === 'all' ? undefined : agentTypeFilter.value
-    )
-  } catch (error) {
-    showError(error, '加载 Agent 建议失败')
-  } finally {
-    agentLoading.value = false
-  }
-}
-
-async function generateAgentSuggestionsFlow() {
-  agentLoading.value = true
-  try {
-    await generateAgentSuggestions(agentTypeFilter.value)
-    agentStatusFilter.value = 'pending'
-    await loadAgentSuggestionsFlow()
-    ElMessage.success('Agent 建议已生成')
-  } catch (error) {
-    showError(error, '生成 Agent 建议失败')
-  } finally {
-    agentLoading.value = false
-  }
-}
-
-async function confirmAgentSuggestionFlow(item: AgentSuggestion) {
-  agentActionLoadingId.value = item.id
-  try {
-    await confirmAgentSuggestion(item.id, '前端确认执行')
-    await loadAgentSuggestionsFlow()
-    ElMessage.success('建议已确认')
-  } catch (error) {
-    showError(error, '确认建议失败')
-  } finally {
-    agentActionLoadingId.value = null
-  }
-}
-
-async function completeAgentSuggestionFlow(item: AgentSuggestion) {
-  agentActionLoadingId.value = item.id
-  try {
-    await completeAgentSuggestion(item.id, '前端标记完成')
-    await loadAgentSuggestionsFlow()
-    ElMessage.success('建议已完成')
-  } catch (error) {
-    showError(error, '完成建议失败')
-  } finally {
-    agentActionLoadingId.value = null
-  }
-}
-
-async function dismissAgentSuggestionFlow(item: AgentSuggestion) {
-  agentActionLoadingId.value = item.id
-  try {
-    await dismissAgentSuggestion(item.id, '前端忽略建议')
-    await loadAgentSuggestionsFlow()
-    ElMessage.success('建议已忽略')
-  } catch (error) {
-    showError(error, '忽略建议失败')
-  } finally {
-    agentActionLoadingId.value = null
-  }
-}
-
-function agentTypeLabel(type: AgentSuggestion['agentType']) {
-  const labels: Record<AgentSuggestion['agentType'], string> = {
-    planning: '学习规划',
-    teaching: '教学',
-    practice: '练习',
-    analysis: '分析'
-  }
-  return labels[type] || type
-}
-
-function agentStatusLabel(status: AgentSuggestion['status']) {
-  const labels: Record<AgentSuggestion['status'], string> = {
-    pending: '待处理',
-    confirmed: '已确认',
-    completed: '已完成',
-    dismissed: '已忽略'
-  }
-  return labels[status] || status
-}
-
-function agentStatusTagType(status: AgentSuggestion['status']) {
-  if (status === 'confirmed') {
-    return 'warning'
-  }
-  if (status === 'completed') {
-    return 'success'
-  }
-  if (status === 'dismissed') {
-    return 'info'
-  }
-  return 'primary'
-}
-
-async function createRagConversation() {
-  ragSending.value = true
-  try {
-    await workspaceStore.addConversation('资料问答', 'rag')
-    activeTool.value = 'rag'
-  } catch (error) {
-    showError(error, '创建资料会话失败')
-  } finally {
-    ragSending.value = false
-  }
-}
-
-async function sendRagQuestion() {
-  const question = ragQuestion.value.trim()
-  if (!question) {
-    ElMessage.warning('请输入问题')
-    return
-  }
-
-  ragSending.value = true
-  try {
-    if (!workspaceStore.currentConversationId || workspaceStore.currentConversation?.mode !== 'rag') {
-      await workspaceStore.addConversation('资料问答', 'rag')
-    }
-    if (!workspaceStore.currentConversationId) {
-      return
-    }
-    const result = await sendRagChat(
-      workspaceStore.currentConversationId,
-      question,
-      selectedDocumentIds.value.length > 0 ? selectedDocumentIds.value : undefined
-    )
-    ragQuestion.value = ''
-    ragSources.value = result.sources || []
-    await workspaceStore.loadConversations()
-    await workspaceStore.selectConversation(result.conversationId)
-  } catch (error) {
-    showError(error, '资料问答失败')
-  } finally {
-    ragSending.value = false
-  }
-}
-
-async function logout() {
-  workspaceStore.reset()
-  authStore.logout()
-  await router.push('/login')
-}
-
-function showError(error: unknown, fallback: string) {
-  ElMessage.error(error instanceof Error ? error.message : fallback)
 }
 </script>

@@ -2,8 +2,9 @@
   <main class="auth-page">
     <section class="auth-panel">
       <div class="auth-brand">
+        <div class="brand-mark large">AI</div>
         <h1>AI Tutor</h1>
-        <p>登录后继续你的学习会话</p>
+        <p>登录后继续你的学习工作台</p>
       </div>
 
       <el-form class="auth-form" :model="form" label-position="top" @submit.prevent="submit">
@@ -52,7 +53,7 @@ async function submit() {
   }
   try {
     await authStore.login(form.username, form.password)
-    await router.push('/chat')
+    await router.push('/dashboard')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '登录失败')
   }

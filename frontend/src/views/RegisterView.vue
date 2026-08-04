@@ -2,6 +2,7 @@
   <main class="auth-page">
     <section class="auth-panel">
       <div class="auth-brand">
+        <div class="brand-mark large">AI</div>
         <h1>AI Tutor</h1>
         <p>创建账号后开始学习</p>
       </div>
@@ -52,7 +53,7 @@ async function submit() {
   }
   try {
     await authStore.register(form.username, form.password)
-    await router.push('/chat')
+    await router.push('/dashboard')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '注册失败')
   }

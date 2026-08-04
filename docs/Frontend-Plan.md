@@ -1,16 +1,14 @@
-# AI Tutor 前端 MVP 开发计划
+# AI Tutor 前端工作台改造计划
 
-## 1. 文档目标
+## 1. 当前目标
 
-本文档用于指导 AI Tutor 前端 MVP 开发。
-
-当前目标是把已经跑通的后端 MVP 闭环做成可操作界面：
+前端从单页功能集合升级为多页面学习工作台，先服务已经跑通的后端 MVP 闭环：
 
 ```text
-注册登录 → 学习档案 → 会话 → AI 聊天 → 历史消息
+注册登录 → 学习档案 → 会话聊天 → 教学模式 → 出题练习 → 资料问答 → 学习分析 → Agent 建议
 ```
 
-本阶段先保证功能可用、流程清晰、联调稳定。主题审美、视觉风格和更细的界面质感后续单独讨论确定。
+本阶段采用 Stitch 生成图作为视觉和布局参考，不照搬生成代码。主题审美先以 Lumina 浅色方案为主方向，Glacier 深色方案仅保留为后期夜间模式方向，具体配色细节和审美主题后续单独讨论确定。
 
 ## 2. 技术选型
 
@@ -22,43 +20,58 @@
 | 状态管理 | Pinia |
 | HTTP 请求 | Axios |
 | UI 组件 | Element Plus |
-| Markdown 展示 | Markdown 渲染组件 |
+| Markdown 展示 | MarkdownIt |
 
-## 3. MVP 页面范围
+## 3. 页面结构
 
-MVP 阶段只做以下页面：
+核心页面按学习工作台拆分：
 
-- 登录页。
-- 注册页。
-- 学习档案页。
-- AI 聊天主界面。
-- 会话列表。
-- 历史消息展示。
-
-暂不开发：
-
-- 主题审美细化。
-- 知识点教学。
-- AI 出题。
-- RAG 知识库。
-- 学习分析。
-- 管理员后台。
+- `Dashboard`：突出继续聊天、开始学习、查看建议 2-3 个高频动作，不做卡片墙。
+- `AI Chat`：作为主力页面，聊天区更宽，右侧只放上下文和档案摘要。
+- `Learning Path`：展示知识点路径，从知识点直接进入教学或练习。
+- `Practice`：围绕知识点生成题目、答题和查看反馈。
+- `Knowledge Library`：突出资料问答和资料来源可信度，不做成文件管理器。
+- `Learning Analysis`：展示学习概览、薄弱点、近期答题和学习计划。
+- `Agent Suggestions`：突出建议原因和影响，按钮保持克制。
+- `Profile`：维护学习方向、目标、水平和偏好。
 
 ## 4. API 对接范围
 
-前端 MVP 只对接当前后端已实现接口：
+只对接当前后端已实现接口：
 
-| 功能 | 接口 |
-|---|---|
-| 注册 | `POST /api/auth/register` |
-| 登录 | `POST /api/auth/login` |
-| 当前用户 | `GET /api/users/me` |
-| 查询学习档案 | `GET /api/profile` |
-| 保存学习档案 | `PUT /api/profile` |
-| 创建会话 | `POST /api/conversations` |
-| 会话列表 | `GET /api/conversations` |
-| 会话消息 | `GET /api/conversations/{conversationId}/messages` |
-| AI 聊天 | `POST /api/ai/chat` |
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/users/me`
+- `GET /api/profile`
+- `PUT /api/profile`
+- `POST /api/conversations`
+- `GET /api/conversations`
+- `GET /api/conversations/{conversationId}/messages`
+- `POST /api/ai/chat`
+- `GET /api/knowledge-points/tree`
+- `POST /api/teaching/start`
+- `POST /api/teaching/evaluate`
+- `GET /api/teaching/records`
+- `POST /api/questions/generate`
+- `GET /api/questions`
+- `POST /api/questions/{questionId}/answer`
+- `POST /api/documents/upload`
+- `GET /api/documents`
+- `GET /api/documents/{documentId}`
+- `GET /api/documents/{documentId}/chunks`
+- `POST /api/documents/{documentId}/reprocess`
+- `DELETE /api/documents/{documentId}`
+- `POST /api/ai/rag/chat`
+- `GET /api/analysis/overview`
+- `GET /api/analysis/knowledge-points`
+- `GET /api/analysis/recent-answers`
+- `POST /api/study-plans/generate`
+- `POST /api/agents/suggestions/generate`
+- `GET /api/agents/suggestions`
+- `GET /api/agents/suggestions/{suggestionId}/events`
+- `POST /api/agents/suggestions/{suggestionId}/confirm`
+- `POST /api/agents/suggestions/{suggestionId}/complete`
+- `POST /api/agents/suggestions/{suggestionId}/dismiss`
 
 认证方式：
 
@@ -66,81 +79,30 @@ MVP 阶段只做以下页面：
 Authorization: Bearer <token>
 ```
 
-后端地址建议通过环境变量配置：
-
-```text
-VITE_API_BASE_URL=http://localhost:8080/api
-```
-
 ## 5. 状态管理
 
-建议使用 Pinia 管理以下状态：
+继续使用 Pinia：
 
 - `auth`：Token、当前用户、登录状态。
-- `profile`：学习方向、学习目标、当前水平、学习偏好。
-- `conversation`：会话列表、当前会话 ID。
-- `chat`：当前会话消息、发送中状态、错误信息。
-
-Token 初期可以保存在 `localStorage`，请求拦截器自动附加到受保护接口。
+- `workspace`：学习档案、会话列表、当前会话、消息列表、发送状态。
+- 页面本地状态：知识点、教学、题目、资料、分析、Agent 建议先保留在对应页面内，后期出现跨页面共享需求再抽 store。
 
 ## 6. 开发顺序
 
-建议按以下顺序开发：
-
 ```text
-初始化 Vue3 项目
-  ↓
-配置路由、Pinia、Axios
-  ↓
-封装 API 请求和 Token 拦截器
-  ↓
-实现登录和注册
-  ↓
-实现学习档案维护
-  ↓
-实现会话列表和创建会话
-  ↓
-实现 AI 聊天和历史消息展示
-  ↓
-联调后端 MVP 测试脚本
+更新文档基准
+  → 拆出工作台布局和多页面路由
+  → 重构 Dashboard / AI Chat 主体验
+  → 接上 Learning Path 与 Practice
+  → 接上 Knowledge Library / Analysis / Agent
+  → 调整 Lumina 浅色样式
+  → 构建和浏览器预览验证
 ```
 
-## 7. 交互要求
+## 7. 暂不做
 
-MVP 阶段前端需要覆盖基础交互状态：
-
-- 登录失败、注册失败要展示错误提示。
-- 未登录访问业务页面时跳转登录页。
-- AI 回复等待期间展示发送中状态。
-- 会话为空时展示空状态。
-- 网络或 AI 调用失败时展示可理解错误。
-- 长回答使用 Markdown 展示，保证可阅读。
-
-## 8. 验收标准
-
-前端 MVP 完成后应满足：
-
-- 用户可以注册和登录。
-- 登录后可以保存和读取学习档案。
-- 用户可以创建会话并查看会话列表。
-- 用户可以在会话中发送问题并看到 AI 回复。
-- 用户可以刷新页面后继续使用已登录状态。
-- 用户可以查看当前会话历史消息。
-- 未登录用户不能进入业务页面。
-
-## 9. 联调方式
-
-后端启动后，可先运行后端 MVP 联调脚本确认接口正常：
-
-```text
-cd D:/AI-Tutor/backend
-powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1
-```
-
-前端联调时重点验证：
-
-- 登录后 Token 是否被保存。
-- Axios 是否自动带上 Authorization 请求头。
-- 学习档案保存后刷新是否仍能查询。
-- AI 聊天后消息是否写入历史记录。
-- 401 响应是否能引导用户重新登录。
+- 不接入新的后端能力。
+- 不实现管理员后台。
+- 不扩展复杂 RAG 检索设置。
+- 不做完整暗色主题，只保留 Glacier 后续方向。
+- 不提前定最终品牌视觉、插画、动效和主题审美。

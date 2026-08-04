@@ -1,0 +1,215 @@
+<template>
+  <div class="learning-page split-page">
+    <aside class="path-panel panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Path</p>
+          <h2>知识点路径</h2>
+        </div>
+        <el-button :icon="Refresh" circle :loading="loadingKnowledge" @click="loadKnowledgeTreeFlow" />
+      </div>
+      <el-input v-model.trim="knowledgeSubject" placeholder="学科，例如 Java" @change="loadKnowledgeTreeFlow" />
+      <el-tree
+        v-loading="loadingKnowledge"
+        class="knowledge-tree"
+        :data="knowledgeTree"
+        node-key="id"
+        default-expand-all
+        highlight-current
+        :props="{ label: 'name', children: 'children' }"
+        @node-click="selectKnowledgePoint"
+      />
+    </aside>
+
+    <section class="learning-main panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Selected Point</p>
+          <h2>{{ selectedKnowledgePoint?.name || '选择一个知识点' }}</h2>
+        </div>
+        <el-tag v-if="selectedRecord" effect="plain">{{ selectedRecord.masteryLevel }}% 掌握</el-tag>
+      </div>
+
+      <div class="learning-actions">
+        <el-button type="primary" :icon="Reading" :loading="teachingLoading" @click="startTeachingFlow">
+          开始教学
+        </el-button>
+        <el-button :icon="EditPen" @click="goPractice">进入练习</el-button>
+      </div>
+
+      <div v-if="teachingResult" class="teaching-box">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Teaching</p>
+            <h3>{{ teachingResult.knowledgePointName }}</h3>
+          </div>
+          <el-button text type="primary" @click="router.push({ name: 'chat' })">查看对话</el-button>
+        </div>
+        <div class="markdown-body" v-html="renderMarkdown(teachingResult.teachingContent)" />
+      </div>
+
+      <section class="answer-panel">
+        <h3>理解检查</h3>
+        <p>开始教学后，可以在这里提交你的理解，AI Tutor 会给出反馈并更新学习记录。</p>
+        <el-input
+          v-model="teachingAnswer"
+          type="textarea"
+          resize="none"
+          :rows="5"
+          placeholder="写下你的理解或答案..."
+        />
+        <el-button :loading="teachingLoading" @click="evaluateTeachingFlow">提交回答</el-button>
+        <div v-if="evaluationResult" class="feedback-box">
+          <strong>{{ evaluationResult.masteryLevel }}% 掌握 · {{ evaluationResult.learningStatus }}</strong>
+          <div class="markdown-body" v-html="renderMarkdown(evaluationResult.feedback)" />
+        </div>
+      </section>
+    </section>
+
+    <aside class="records-panel panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Records</p>
+          <h2>学习记录</h2>
+        </div>
+      </div>
+      <div v-if="learningRecords.length === 0" class="empty-line">暂无学习记录。</div>
+      <article v-for="record in learningRecords" :key="record.knowledgePointId" class="record-card">
+        <div>
+          <strong>{{ record.knowledgePointName || record.knowledgePointId }}</strong>
+          <small>{{ record.learningStatus }} · {{ formatTime(record.updateTime) }}</small>
+        </div>
+        <el-progress :percentage="record.masteryLevel" :stroke-width="8" />
+      </article>
+    </aside>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { EditPen, Reading, Refresh } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { evaluateTeaching, listKnowledgeTree, listLearningRecords, startTeaching } from '../api'
+import { useWorkspaceStore } from '../stores/workspace'
+import type {
+  KnowledgePoint,
+  LearningRecord,
+  TeachingEvaluationResult,
+  TeachingStartResult
+} from '../types/domain'
+import { firstSelectableKnowledgePoint, flattenKnowledgePoints } from '../utils/knowledge'
+import { formatTime } from '../utils/format'
+import { renderMarkdown } from '../utils/markdown'
+
+const router = useRouter()
+const workspaceStore = useWorkspaceStore()
+const knowledgeSubject = ref('Java')
+const knowledgeTree = ref<KnowledgePoint[]>([])
+const selectedKnowledgePointId = ref<number | null>(null)
+const loadingKnowledge = ref(false)
+const learningRecords = ref<LearningRecord[]>([])
+const teachingLoading = ref(false)
+const teachingAnswer = ref('')
+const teachingResult = ref<TeachingStartResult | null>(null)
+const evaluationResult = ref<TeachingEvaluationResult | null>(null)
+
+const selectedKnowledgePoint = computed(() =>
+  flattenKnowledgePoints(knowledgeTree.value).find((item) => item.id === selectedKnowledgePointId.value) || null
+)
+const selectedRecord = computed(() =>
+  learningRecords.value.find((item) => item.knowledgePointId === selectedKnowledgePointId.value) || null
+)
+
+onMounted(async () => {
+  await Promise.all([loadKnowledgeTreeFlow(), loadLearningRecordsFlow()])
+})
+
+async function loadKnowledgeTreeFlow() {
+  loadingKnowledge.value = true
+  try {
+    knowledgeTree.value = await listKnowledgeTree(knowledgeSubject.value || 'Java')
+    if (!selectedKnowledgePointId.value) {
+      selectedKnowledgePointId.value = firstSelectableKnowledgePoint(knowledgeTree.value)?.id || null
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载知识点失败')
+  } finally {
+    loadingKnowledge.value = false
+  }
+}
+
+async function loadLearningRecordsFlow() {
+  try {
+    learningRecords.value = await listLearningRecords()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载学习记录失败')
+  }
+}
+
+function selectKnowledgePoint(point: KnowledgePoint) {
+  selectedKnowledgePointId.value = point.id
+}
+
+async function startTeachingFlow() {
+  if (!selectedKnowledgePoint.value) {
+    ElMessage.warning('请选择知识点')
+    return
+  }
+
+  teachingLoading.value = true
+  try {
+    const result = await startTeaching(selectedKnowledgePoint.value.id)
+    teachingResult.value = result
+    evaluationResult.value = null
+    await workspaceStore.loadConversations()
+    await workspaceStore.selectConversation(result.conversationId)
+    await loadLearningRecordsFlow()
+    ElMessage.success('教学已开始')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '开始教学失败')
+  } finally {
+    teachingLoading.value = false
+  }
+}
+
+async function evaluateTeachingFlow() {
+  if (!selectedKnowledgePoint.value) {
+    ElMessage.warning('请选择知识点')
+    return
+  }
+  if (!workspaceStore.currentConversationId || workspaceStore.currentConversation?.mode !== 'teaching') {
+    ElMessage.warning('请先开始教学')
+    return
+  }
+  const answer = teachingAnswer.value.trim()
+  if (!answer) {
+    ElMessage.warning('请输入回答')
+    return
+  }
+
+  teachingLoading.value = true
+  try {
+    evaluationResult.value = await evaluateTeaching(
+      workspaceStore.currentConversationId,
+      selectedKnowledgePoint.value.id,
+      answer
+    )
+    teachingAnswer.value = ''
+    await workspaceStore.selectConversation(evaluationResult.value.conversationId)
+    await loadLearningRecordsFlow()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '提交回答失败')
+  } finally {
+    teachingLoading.value = false
+  }
+}
+
+async function goPractice() {
+  if (!selectedKnowledgePoint.value) {
+    ElMessage.warning('请选择知识点')
+    return
+  }
+  await router.push({ name: 'practice', query: { knowledgePointId: selectedKnowledgePoint.value.id } })
+}
+</script>

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import WorkspaceLayout from '../layouts/WorkspaceLayout.vue'
 import { useAuthStore } from '../stores/auth'
-import ChatView from '../views/ChatView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 
@@ -9,7 +9,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/chat'
+      redirect: '/dashboard'
     },
     {
       path: '/login',
@@ -22,23 +22,66 @@ const router = createRouter({
       component: RegisterView
     },
     {
-      path: '/chat',
-      name: 'chat',
-      component: ChatView,
-      meta: { requiresAuth: true }
+      path: '/',
+      component: WorkspaceLayout,
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('../views/DashboardView.vue')
+        },
+        {
+          path: 'chat',
+          name: 'chat',
+          component: () => import('../views/ChatView.vue')
+        },
+        {
+          path: 'learn',
+          name: 'learn',
+          component: () => import('../views/LearningPathView.vue')
+        },
+        {
+          path: 'practice',
+          name: 'practice',
+          component: () => import('../views/PracticeView.vue')
+        },
+        {
+          path: 'library',
+          name: 'library',
+          component: () => import('../views/KnowledgeLibraryView.vue')
+        },
+        {
+          path: 'analysis',
+          name: 'analysis',
+          component: () => import('../views/LearningAnalysisView.vue')
+        },
+        {
+          path: 'agent',
+          name: 'agent',
+          component: () => import('../views/AgentSuggestionsView.vue')
+        },
+        {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('../views/ProfileView.vue')
+        }
+      ]
     }
   ]
 })
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
+
+  if (requiresAuth && !authStore.isAuthenticated) {
     return '/login'
   }
   if ((to.name === 'login' || to.name === 'register') && authStore.isAuthenticated) {
-    return '/chat'
+    return '/dashboard'
   }
-  if (to.meta.requiresAuth && authStore.isAuthenticated && !authStore.user) {
+  if (requiresAuth && authStore.isAuthenticated && !authStore.user) {
     try {
       await authStore.loadCurrentUser()
     } catch {
