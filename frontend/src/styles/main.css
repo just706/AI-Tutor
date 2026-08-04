@@ -543,8 +543,9 @@ button {
 
 .chat-workspace {
   display: grid;
-  min-height: 720px;
-  height: 100%;
+  height: calc(100vh - 126px);
+  min-height: 0;
+  max-height: calc(100vh - 126px);
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 16px;
   transition: grid-template-columns 160ms ease;
@@ -559,6 +560,7 @@ button {
   display: flex;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .chat-thread-list {
@@ -602,6 +604,7 @@ button {
 .thread-scroll,
 .rag-history {
   min-height: 0;
+  flex: 1;
   overflow: auto;
 }
 
@@ -687,6 +690,7 @@ button {
 
 .composer {
   display: grid;
+  flex: 0 0 auto;
   grid-template-columns: minmax(0, 1fr) 96px;
   gap: 12px;
   padding: 16px 20px 20px;
@@ -1172,6 +1176,11 @@ button {
   .split-page,
   .library-page {
     min-height: auto;
+  }
+
+  .chat-workspace {
+    height: auto;
+    max-height: none;
   }
 
   .message-list.wide {
