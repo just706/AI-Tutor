@@ -51,7 +51,7 @@
       <header class="chat-main-head">
         <div>
           <p class="eyebrow">{{ currentModeLabel }}</p>
-          <h2>{{ workspaceStore.currentConversation?.title || 'AI 学习问答' }}</h2>
+          <h2>{{ currentChatTitle }}</h2>
         </div>
         <div class="chat-head-actions">
           <el-tag v-if="workspaceStore.currentConversation" effect="plain">
@@ -170,6 +170,12 @@ interface HistorySearchResult {
 }
 
 const currentModeLabel = computed(() => modeLabel(workspaceStore.currentConversation?.mode || 'chat'))
+const currentChatTitle = computed(() => {
+  if (workspaceStore.currentConversation?.title) {
+    return workspaceStore.currentConversation.title
+  }
+  return workspaceStore.draftConversation ? '输入第一句后自动命名' : 'AI 学习问答'
+})
 const filteredConversations = computed(() => {
   const keyword = threadQuery.value.toLowerCase()
   if (!keyword) {
@@ -251,11 +257,7 @@ watch(
 )
 
 async function createNewConversation() {
-  try {
-    await workspaceStore.addConversation('新的学习会话', 'chat')
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '创建会话失败')
-  }
+  workspaceStore.startDraftConversation()
 }
 
 function toggleThreads() {

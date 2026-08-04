@@ -20,6 +20,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const conversations = ref<Conversation[]>([])
   const currentConversationId = ref<number | null>(null)
   const messages = ref<ChatMessage[]>([])
+  const draftConversation = ref(false)
   const loadingProfile = ref(false)
   const loadingConversations = ref(false)
   const loadingMessages = ref(false)
@@ -52,7 +53,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     loadingConversations.value = true
     try {
       conversations.value = await listConversations()
-      if (!currentConversationId.value && conversations.value.length > 0) {
+      if (!currentConversationId.value && !draftConversation.value && conversations.value.length > 0) {
         await selectConversation(conversations.value[0].id)
       }
     } finally {
@@ -69,6 +70,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function selectConversation(conversationId: number) {
     currentConversationId.value = conversationId
+    draftConversation.value = false
     loadingMessages.value = true
     try {
       messages.value = await listMessages(conversationId)
@@ -79,7 +81,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function sendMessage(content: string) {
     if (!currentConversationId.value) {
-      await addConversation('AI 学习问答')
+      await addConversation(createConversationTitle(content))
     }
     if (!currentConversationId.value) {
       return
@@ -110,6 +112,26 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     })
   }
 
+  function startDraftConversation() {
+    currentConversationId.value = null
+    messages.value = []
+    draftConversation.value = true
+  }
+
+  function createConversationTitle(content: string) {
+    const cleaned = content
+      .replace(/[`*_>#()[\]{}]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (!cleaned) {
+      return '学习问答'
+    }
+
+    const firstSentence = cleaned.split(/[。！？!?]/)[0]?.trim() || cleaned
+    return firstSentence.length > 24 ? `${firstSentence.slice(0, 24)}...` : firstSentence
+  }
+
   function reset() {
     profile.value = {
       learningDirection: '',
@@ -120,6 +142,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     conversations.value = []
     currentConversationId.value = null
     messages.value = []
+    draftConversation.value = false
   }
 
   return {
@@ -128,6 +151,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     currentConversationId,
     currentConversation,
     messages,
+    draftConversation,
     loadingProfile,
     loadingConversations,
     loadingMessages,
@@ -139,6 +163,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     selectConversation,
     sendMessage,
     appendMessage,
+    startDraftConversation,
     reset
   }
 })

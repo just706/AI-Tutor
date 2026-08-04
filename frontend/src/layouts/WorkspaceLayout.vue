@@ -118,12 +118,8 @@ onMounted(async () => {
 })
 
 async function newStudySession() {
-  try {
-    await workspaceStore.addConversation('新的学习会话', 'chat')
-    await router.push({ name: 'chat' })
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '创建会话失败')
-  }
+  workspaceStore.startDraftConversation()
+  await router.push({ name: 'chat' })
 }
 
 async function logout() {

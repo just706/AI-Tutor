@@ -5,7 +5,7 @@
         <el-icon><ChatDotRound /></el-icon>
         <span>
           <strong>继续聊天</strong>
-          <small>{{ latestConversation?.title || '开启一次新的学习问答' }}</small>
+          <small>{{ latestConversation?.title || '输入第一句后自动命名' }}</small>
         </span>
       </button>
       <button class="hero-action" type="button" @click="router.push({ name: 'learn' })">
@@ -199,7 +199,7 @@ async function continueChat() {
     if (latestConversation.value) {
       await workspaceStore.selectConversation(latestConversation.value.id)
     } else {
-      await workspaceStore.addConversation('新的学习会话', 'chat')
+      workspaceStore.startDraftConversation()
     }
     await router.push({ name: 'chat' })
   } catch (error) {
