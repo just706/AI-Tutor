@@ -16,6 +16,7 @@ import type {
   LearningDocumentDetail,
   LearningRecord,
   LoginResult,
+  OrchestratorChatResult,
   Question,
   RagChatResult,
   RecentAnswerAnalysis,
@@ -90,6 +91,14 @@ export function listMessages(conversationId: number) {
 export function sendAiChat(conversationId: number, message: string) {
   return request<AiChatResult>({
     url: '/ai/chat',
+    method: 'POST',
+    data: { conversationId, message }
+  })
+}
+
+export function sendOrchestratorChat(conversationId: number, message: string) {
+  return request<OrchestratorChatResult>({
+    url: '/ai/orchestrator/chat',
     method: 'POST',
     data: { conversationId, message }
   })

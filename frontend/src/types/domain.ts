@@ -43,10 +43,28 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   messageContent: string
   createTime: string
+  intent?: string
+  actions?: TutorAction[]
 }
 
 export interface AiChatResult {
   answer: string
+}
+
+export interface TutorAction {
+  actionType: string
+  title: string
+  description: string
+  label: string
+  routeName: string
+  impactLevel: 'low' | 'medium' | 'high'
+  payload?: Record<string, unknown>
+}
+
+export interface OrchestratorChatResult extends AiChatResult {
+  intent: string
+  matchedKnowledgePoint?: KnowledgePoint | null
+  actions: TutorAction[]
 }
 
 export interface KnowledgePoint {

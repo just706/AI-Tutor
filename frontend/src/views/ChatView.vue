@@ -124,6 +124,22 @@
             v-html="renderMarkdown(message.messageContent)"
           />
           <div v-else class="message-bubble">{{ message.messageContent }}</div>
+          <div v-if="message.role === 'assistant' && message.actions?.length" class="message-actions">
+            <button
+              v-for="action in message.actions"
+              :key="`${message.createTime}-${action.actionType}-${action.routeName}`"
+              class="message-action-card"
+              :data-impact="action.impactLevel"
+              type="button"
+              @click="runTutorAction(action)"
+            >
+              <span>
+                <strong>{{ action.title }}</strong>
+                <small>{{ action.description }}</small>
+              </span>
+              <em>{{ action.label }}</em>
+            </button>
+          </div>
         </article>
       </div>
 
@@ -147,13 +163,16 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Close, Plus, Promotion, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceStore } from '../stores/workspace'
+import type { TutorAction } from '../types/domain'
 import { formatTime, modeLabel } from '../utils/format'
 import { renderMarkdown } from '../utils/markdown'
 
 const workspaceStore = useWorkspaceStore()
+const router = useRouter()
 const draft = ref('')
 const threadQuery = ref('')
 const threadCollapsed = ref(false)
@@ -339,6 +358,24 @@ function buildSearchSnippet(content: string, keyword: string) {
   const start = Math.max(0, position - 28)
   const end = Math.min(normalizedContent.length, position + keyword.length + 52)
   return `${start > 0 ? '...' : ''}${normalizedContent.slice(start, end)}${end < normalizedContent.length ? '...' : ''}`
+}
+
+async function runTutorAction(action: TutorAction) {
+  if (!action.routeName) {
+    return
+  }
+
+  // 动作卡片只负责把用户带到对应页面，真正的教学/出题仍由目标页面显式触发。
+  const query: Record<string, string> = {}
+  const payload = action.payload || {}
+  if (payload.knowledgePointId) {
+    query.knowledgePointId = String(payload.knowledgePointId)
+  }
+  if (payload.subject) {
+    query.subject = String(payload.subject)
+  }
+
+  await router.push({ name: action.routeName, query })
 }
 
 async function send() {

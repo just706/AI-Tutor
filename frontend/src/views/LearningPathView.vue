@@ -86,8 +86,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { EditPen, Reading, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { evaluateTeaching, listKnowledgeTree, listLearningRecords, startTeaching } from '../api'
@@ -98,11 +98,12 @@ import type {
   TeachingEvaluationResult,
   TeachingStartResult
 } from '../types/domain'
-import { firstSelectableKnowledgePoint, flattenKnowledgePoints } from '../utils/knowledge'
+import { findKnowledgePoint, firstSelectableKnowledgePoint, flattenKnowledgePoints } from '../utils/knowledge'
 import { formatTime } from '../utils/format'
 import { renderMarkdown } from '../utils/markdown'
 
 const router = useRouter()
+const route = useRoute()
 const workspaceStore = useWorkspaceStore()
 const knowledgeSubject = ref('Java')
 const knowledgeTree = ref<KnowledgePoint[]>([])
@@ -123,7 +124,15 @@ const selectedRecord = computed(() =>
 
 onMounted(async () => {
   await Promise.all([loadKnowledgeTreeFlow(), loadLearningRecordsFlow()])
+  await applyRouteSelection()
 })
+
+watch(
+  () => [route.query.subject, route.query.knowledgePointId],
+  async () => {
+    await applyRouteSelection()
+  }
+)
 
 async function loadKnowledgeTreeFlow() {
   loadingKnowledge.value = true
@@ -149,6 +158,20 @@ async function loadLearningRecordsFlow() {
 
 function selectKnowledgePoint(point: KnowledgePoint) {
   selectedKnowledgePointId.value = point.id
+}
+
+async function applyRouteSelection() {
+  const subject = String(route.query.subject || '').trim()
+  if (subject && subject !== knowledgeSubject.value) {
+    knowledgeSubject.value = subject
+    selectedKnowledgePointId.value = null
+    await loadKnowledgeTreeFlow()
+  }
+
+  const queryId = Number(route.query.knowledgePointId)
+  if (queryId && findKnowledgePoint(knowledgeTree.value, queryId)) {
+    selectedKnowledgePointId.value = queryId
+  }
 }
 
 async function startTeachingFlow() {

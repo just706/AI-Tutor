@@ -306,6 +306,65 @@ POST /api/ai/chat/stream
 - 可以使用 SSE 或 WebSocket 实现。
 - MVP 阶段可先实现普通非流式接口。
 
+### 5.3 发送编排型聊天消息
+
+```text
+POST /api/ai/orchestrator/chat
+```
+
+请求参数：
+
+```json
+{
+  "conversationId": 1001,
+  "message": "我想学 HashMap，讲完以后给我出两道题"
+}
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "answer": "HashMap 是 Java 中常用的键值对集合...",
+    "intent": "practice",
+    "matchedKnowledgePoint": {
+      "id": 6,
+      "subject": "Java",
+      "name": "HashMap",
+      "parentId": 4,
+      "sortOrder": 10,
+      "children": []
+    },
+    "actions": [
+      {
+        "actionType": "open_practice",
+        "title": "围绕 HashMap 练习",
+        "description": "进入练习页，使用当前知识点生成针对性题目。",
+        "label": "进入练习",
+        "routeName": "practice",
+        "impactLevel": "medium",
+        "payload": {
+          "knowledgePointId": 6,
+          "knowledgePointName": "HashMap",
+          "subject": "Java"
+        }
+      }
+    ]
+  }
+}
+```
+
+说明：
+
+- 该接口复用普通聊天回答逻辑，会保存用户消息和 AI 回复。
+- `intent` 当前由规则识别，支持 `chat`、`learn`、`practice`、`path`、`analysis`。
+- `matchedKnowledgePoint` 来自 `knowledge_point` 表，优先匹配最长知识点名称。
+- `actions` 是建议动作，不会自动替用户开始教学、生成题目或修改数据。
+- 前端可根据 `routeName` 和 `payload.knowledgePointId` 跳转到学习路径、练习、分析或 Agent 建议页面。
+
 ## 6. AI 教学模式接口
 
 ### 6.1 开始教学

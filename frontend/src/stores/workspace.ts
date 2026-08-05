@@ -6,9 +6,9 @@ import {
   listConversations,
   listMessages,
   saveProfile as saveProfileApi,
-  sendAiChat
+  sendOrchestratorChat
 } from '../api'
-import type { ChatMessage, Conversation, StudentProfile } from '../types/domain'
+import type { ChatMessage, Conversation, StudentProfile, TutorAction } from '../types/domain'
 
 export const useWorkspaceStore = defineStore('workspace', () => {
   const profile = ref<StudentProfile>({
@@ -95,8 +95,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     })
     sending.value = true
     try {
-      const result = await sendAiChat(conversationId, content)
-      appendMessage('assistant', result.answer)
+      const result = await sendOrchestratorChat(conversationId, content)
+      appendMessage('assistant', result.answer, result.actions, result.intent)
       await loadConversations()
       currentConversationId.value = conversationId
     } finally {
@@ -104,11 +104,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  function appendMessage(role: ChatMessage['role'], messageContent: string) {
+  function appendMessage(
+    role: ChatMessage['role'],
+    messageContent: string,
+    actions: TutorAction[] = [],
+    intent?: string
+  ) {
     messages.value.push({
       role,
       messageContent,
-      createTime: new Date().toISOString()
+      createTime: new Date().toISOString(),
+      actions,
+      intent
     })
   }
 
