@@ -38,9 +38,38 @@
           如果没有自动定位，说明它还没有对应的数据库知识点。
         </p>
         <div class="handoff-actions">
-          <el-button type="primary" @click="router.push({ name: 'chat' })">回到 Chat 继续学</el-button>
+          <el-button type="primary" :loading="aiPathLoading" @click="generateAiPathFlow">生成 AI 路径</el-button>
+          <el-button @click="router.push({ name: 'chat' })">回到 Chat 继续学</el-button>
           <el-button @click="router.push({ name: 'library', query: { topic: chatTopic } })">用资料补充来源</el-button>
         </div>
+      </section>
+
+      <section v-if="aiGeneratedPath" class="ai-path-panel">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">AI Generated Path</p>
+            <h3>{{ aiGeneratedPath.topic }}</h3>
+          </div>
+          <el-tag effect="plain">AI 生成</el-tag>
+        </div>
+        <p v-if="aiGeneratedPath.summary" class="ai-path-summary">{{ aiGeneratedPath.summary }}</p>
+        <article v-for="step in aiGeneratedPath.steps" :key="step.orderIndex" class="ai-path-step">
+          <div class="ai-path-step-index">{{ step.orderIndex }}</div>
+          <div>
+            <h4>{{ step.title }}</h4>
+            <p>{{ step.goal }}</p>
+            <small v-if="step.explanation">{{ step.explanation }}</small>
+            <div v-if="step.keyPoints.length" class="ai-path-tags">
+              <el-tag v-for="point in step.keyPoints" :key="point" size="small" effect="plain">
+                {{ point }}
+              </el-tag>
+            </div>
+            <ul v-if="step.actions.length">
+              <li v-for="action in step.actions" :key="action">{{ action }}</li>
+            </ul>
+          </div>
+          <span v-if="step.estimatedTime" class="ai-path-time">{{ step.estimatedTime }}</span>
+        </article>
       </section>
 
       <div class="learning-actions">
@@ -109,9 +138,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { EditPen, Reading, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { evaluateTeaching, listKnowledgeTree, listLearningRecords, startTeaching } from '../api'
+import { evaluateTeaching, generateAiPath, listKnowledgeTree, listLearningRecords, startTeaching } from '../api'
 import { useWorkspaceStore } from '../stores/workspace'
 import type {
+  AiGeneratedPath,
   KnowledgePoint,
   LearningRecord,
   TeachingEvaluationResult,
@@ -130,9 +160,11 @@ const selectedKnowledgePointId = ref<number | null>(null)
 const loadingKnowledge = ref(false)
 const learningRecords = ref<LearningRecord[]>([])
 const teachingLoading = ref(false)
+const aiPathLoading = ref(false)
 const teachingAnswer = ref('')
 const teachingResult = ref<TeachingStartResult | null>(null)
 const evaluationResult = ref<TeachingEvaluationResult | null>(null)
+const aiGeneratedPath = ref<AiGeneratedPath | null>(null)
 
 const selectedKnowledgePoint = computed(() =>
   flattenKnowledgePoints(knowledgeTree.value).find((item) => item.id === selectedKnowledgePointId.value) || null
@@ -153,6 +185,10 @@ watch(
     await applyRouteSelection()
   }
 )
+
+watch(chatTopic, () => {
+  aiGeneratedPath.value = null
+})
 
 async function loadKnowledgeTreeFlow() {
   loadingKnowledge.value = true
@@ -197,6 +233,23 @@ async function applyRouteSelection() {
   // Chat 跳过来的非标准主题不要默认选中 Java 的第一个知识点，避免用户误以为已生成了路径。
   if (chatTopic.value) {
     selectedKnowledgePointId.value = null
+  }
+}
+
+async function generateAiPathFlow() {
+  if (!chatTopic.value) {
+    ElMessage.warning('缺少 Chat 主题')
+    return
+  }
+
+  aiPathLoading.value = true
+  try {
+    aiGeneratedPath.value = await generateAiPath(chatTopic.value)
+    ElMessage.success('AI 路径已生成')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '生成 AI 路径失败')
+  } finally {
+    aiPathLoading.value = false
   }
 }
 

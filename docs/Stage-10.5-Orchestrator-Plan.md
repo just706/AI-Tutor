@@ -12,6 +12,7 @@
 - 匹配数据库中的 `knowledge_point`，优先把动作绑定到标准知识点 ID。
 - 前端 Chat 展示动作卡片，并支持跳转到对应页面。
 - Learning Path 支持通过 `knowledgePointId` query 定位知识点。
+- Learning Path 在 Chat 主题未命中标准知识库时，可调用 AI 生成临时个人路径。
 
 ## 3. 暂不做
 
@@ -21,6 +22,7 @@
 - 不接入向量数据库。
 - 不自动创建个人学习路径表。
 - 不把 Learning Path / Practice / Analysis 页面删除。
+- 不把 AI 生成路径直接写入 `knowledge_point`。
 
 ## 4. 接口设计
 
@@ -76,4 +78,4 @@ POST /api/ai/orchestrator/chat
 - 前端构建通过。
 - Chat 中普通问题仍可正常得到 AI 答案。
 - 命中知识点时，动作卡片可跳转到 Learning Path 或 Practice。
-- 未命中知识点时，动作卡片携带 Chat `topic`，目标页提示该主题尚未进入标准知识库。
+- 未命中知识点时，动作卡片携带 Chat `topic`，Learning Path 可生成 `ai_generated` 临时路径。

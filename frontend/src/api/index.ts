@@ -2,6 +2,7 @@ import { request } from './http'
 import type {
   AgentEventLog,
   AgentSuggestion,
+  AiGeneratedPath,
   AiChatResult,
   AnswerResult,
   ChatMessage,
@@ -239,6 +240,14 @@ export function generateStudyPlan(period: string, goal?: string) {
     url: '/study-plans/generate',
     method: 'POST',
     data: { period, goal }
+  })
+}
+
+export function generateAiPath(topic: string, level?: string, goal?: string, preference?: string) {
+  return request<AiGeneratedPath>({
+    url: '/ai/path/generate',
+    method: 'POST',
+    data: { topic, level, goal, preference }
   })
 }
 

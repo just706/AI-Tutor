@@ -367,6 +367,56 @@ POST /api/ai/orchestrator/chat
 - 前端可根据 `routeName`、`payload.knowledgePointId` 和 `payload.topic` 跳转到学习路径、练习、分析或 Agent 建议页面。
 - 如果没有命中标准知识点，`payload` 只会携带 `topic`，目标页面需要提示该主题尚未进入标准知识库。
 
+### 5.4 生成 AI 个人学习路径
+
+```text
+POST /api/ai/path/generate
+```
+
+请求参数：
+
+```json
+{
+  "topic": "高中数学集合",
+  "level": "基础",
+  "goal": "掌握集合题常见解法",
+  "preference": "循序渐进，先例题后练习"
+}
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "topic": "高中数学集合",
+    "source": "ai_generated",
+    "level": "基础",
+    "goal": "掌握集合题常见解法",
+    "summary": "先理解集合语言，再进入运算和题型。",
+    "steps": [
+      {
+        "orderIndex": 1,
+        "title": "集合的基本概念",
+        "goal": "理解元素、集合、属于和不属于",
+        "explanation": "这是后续集合运算和题目理解的语言基础。",
+        "estimatedTime": "20-30 分钟",
+        "keyPoints": ["元素", "集合", "属于符号"],
+        "actions": ["看 2 个概念例子", "完成 3 道判断题"]
+      }
+    ]
+  }
+}
+```
+
+说明：
+
+- 该接口用于数据库没有对应 `knowledge_point` 时生成临时个人路径。
+- 返回结果不写入 `knowledge_point`，`source` 固定为 `ai_generated`。
+- 生成路径不能直接产生掌握度；用户完成标准教学或练习后才会进入学习记录和分析。
+
 ## 6. AI 教学模式接口
 
 ### 6.1 开始教学

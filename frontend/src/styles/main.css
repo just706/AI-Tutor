@@ -957,6 +957,80 @@ button {
   margin: 0;
 }
 
+.ai-path-panel {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #d8e3ec;
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.ai-path-summary {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.ai-path-step {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid #edf2f7;
+}
+
+.ai-path-step-index {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.ai-path-step h4 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.ai-path-step p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.ai-path-step small {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.ai-path-step ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.ai-path-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-path-time {
+  align-self: start;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .answer-panel h3,
 .study-plan h3 {
   margin: 0 0 8px;

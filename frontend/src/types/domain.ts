@@ -232,6 +232,25 @@ export interface StudyPlan {
   planContent: string
 }
 
+export interface AiGeneratedPathStep {
+  orderIndex: number
+  title: string
+  goal: string
+  explanation?: string
+  estimatedTime?: string
+  keyPoints: string[]
+  actions: string[]
+}
+
+export interface AiGeneratedPath {
+  topic: string
+  source: 'ai_generated'
+  level?: string
+  goal?: string
+  summary?: string
+  steps: AiGeneratedPathStep[]
+}
+
 export interface AgentSuggestion {
   id: number
   agentType: 'planning' | 'teaching' | 'practice' | 'analysis'
