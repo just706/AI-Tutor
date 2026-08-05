@@ -103,6 +103,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
                 actions.add(openPractice(point));
                 actions.add(openTeaching(point));
             } else {
+                actions.add(openTopicPractice(topic));
                 actions.add(openLearningPath(null, topic));
             }
             actions.add(openAnalysis(topic));
@@ -116,6 +117,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
                 actions.add(openLearningPath(point, topic));
             } else {
                 actions.add(openLearningPath(null, topic));
+                actions.add(openTopicPractice(topic));
                 actions.add(openProfile());
             }
             return actions;
@@ -165,6 +167,18 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
                 "practice",
                 "medium",
                 pointPayload(point, point.getName())
+        );
+    }
+
+    private OrchestratorActionVO openTopicPractice(String topic) {
+        return action(
+                "open_topic_practice",
+                isBlank(topic) ? "生成临时练习" : "围绕 " + topic + " 练习",
+                "进入练习页，让 AI 按当前 Chat 主题生成临时题目；这类练习暂不计入标准掌握度。",
+                "生成练习",
+                "practice",
+                "medium",
+                topicPayload(topic)
         );
     }
 

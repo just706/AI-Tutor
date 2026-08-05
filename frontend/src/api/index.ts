@@ -3,6 +3,7 @@ import type {
   AgentEventLog,
   AgentSuggestion,
   AiGeneratedPath,
+  AiPractice,
   AiChatResult,
   AnswerResult,
   ChatMessage,
@@ -248,6 +249,14 @@ export function generateAiPath(topic: string, level?: string, goal?: string, pre
     url: '/ai/path/generate',
     method: 'POST',
     data: { topic, level, goal, preference }
+  })
+}
+
+export function generateAiPractice(topic: string, questionType: string, difficulty: string, count = 1) {
+  return request<AiPractice>({
+    url: '/ai/practice/generate',
+    method: 'POST',
+    data: { topic, questionType, difficulty, count }
   })
 }
 

@@ -39,6 +39,9 @@
         </p>
         <div class="handoff-actions">
           <el-button type="primary" :loading="aiPathLoading" @click="generateAiPathFlow">生成 AI 路径</el-button>
+          <el-button @click="router.push({ name: 'practice', query: { topic: chatTopic, source: 'chat' } })">
+            生成练习
+          </el-button>
           <el-button @click="router.push({ name: 'chat' })">回到 Chat 继续学</el-button>
           <el-button @click="router.push({ name: 'library', query: { topic: chatTopic } })">用资料补充来源</el-button>
         </div>

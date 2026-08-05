@@ -903,6 +903,20 @@ button {
   background: var(--color-surface-soft);
 }
 
+.topic-search-box {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #d8e3ec;
+  border-radius: var(--radius);
+  background: #fbfdff;
+}
+
+.topic-search-box .el-button {
+  justify-self: start;
+}
+
 .learning-actions,
 .practice-toolbar,
 .filter-row,

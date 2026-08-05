@@ -251,6 +251,25 @@ export interface AiGeneratedPath {
   steps: AiGeneratedPathStep[]
 }
 
+export interface AiPracticeQuestion {
+  temporaryId: number
+  topic: string
+  questionType: 'single_choice' | 'true_false' | 'short_answer'
+  difficulty: 'easy' | 'medium' | 'hard'
+  content: string
+  options: string[]
+  answer: string
+  analysis: string
+}
+
+export interface AiPractice {
+  topic: string
+  source: 'ai_generated'
+  questionType: 'single_choice' | 'true_false' | 'short_answer'
+  difficulty: 'easy' | 'medium' | 'hard'
+  questions: AiPracticeQuestion[]
+}
+
 export interface AgentSuggestion {
   id: number
   agentType: 'planning' | 'teaching' | 'practice' | 'analysis'

@@ -417,6 +417,56 @@ POST /api/ai/path/generate
 - 返回结果不写入 `knowledge_point`，`source` 固定为 `ai_generated`。
 - 生成路径不能直接产生掌握度；用户完成标准教学或练习后才会进入学习记录和分析。
 
+### 5.5 生成 AI 临时练习
+
+```text
+POST /api/ai/practice/generate
+```
+
+请求参数：
+
+```json
+{
+  "topic": "高等数学导数",
+  "questionType": "single_choice",
+  "difficulty": "medium",
+  "count": 3
+}
+```
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "topic": "高等数学导数",
+    "source": "ai_generated",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "questions": [
+      {
+        "temporaryId": 1,
+        "topic": "高等数学导数",
+        "questionType": "single_choice",
+        "difficulty": "medium",
+        "content": "题目内容",
+        "options": ["A. 选项一", "B. 选项二", "C. 选项三", "D. 选项四"],
+        "answer": "A",
+        "analysis": "答案解析"
+      }
+    ]
+  }
+}
+```
+
+说明：
+
+- 该接口用于数据库没有对应 `knowledge_point` 时生成临时题目。
+- 返回结果不写入 `question`，不会产生 `answer_record` 或 `learning_record`。
+- 客观题可由前端本地判分；简答题 MVP 先展示参考答案和解析。
+
 ## 6. AI 教学模式接口
 
 ### 6.1 开始教学
