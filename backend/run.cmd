@@ -4,6 +4,12 @@ setlocal
 set "BASE_DIR=%~dp0"
 cd /d "%BASE_DIR%"
 
+if exist "%BASE_DIR%.env" (
+    for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%BASE_DIR%.env") do (
+        if not defined %%A set "%%A=%%B"
+    )
+)
+
 if not defined JAVA_HOME (
     for /d %%J in ("C:\Program Files\Eclipse Adoptium\jdk-*") do if exist "%%~fJ\bin\java.exe" set "JAVA_HOME=%%~fJ"
 )
