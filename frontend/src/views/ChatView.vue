@@ -232,11 +232,20 @@ onMounted(async () => {
 
 watch(
   () => workspaceStore.messages.length,
-  async () => {
+  async (newLength, oldLength) => {
     await nextTick()
-    if (messageScroller.value) {
-      messageScroller.value.scrollTop = messageScroller.value.scrollHeight
+    if (!messageScroller.value || newLength === 0) {
+      return
     }
+
+    const lastMessage = workspaceStore.messages[newLength - 1]
+    const isSingleNewMessage = newLength === oldLength + 1
+    if (isSingleNewMessage && workspaceStore.sending && lastMessage?.role === 'assistant') {
+      scrollToMessageStart(newLength - 1)
+      return
+    }
+
+    messageScroller.value.scrollTop = messageScroller.value.scrollHeight
   }
 )
 
@@ -311,6 +320,14 @@ function scrollToActiveSearchResult() {
     `[data-message-index="${activeHistoryResult.value.messageIndex}"]`
   )
   target?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
+function scrollToMessageStart(messageIndex: number) {
+  if (!messageScroller.value) {
+    return
+  }
+  const target = messageScroller.value.querySelector<HTMLElement>(`[data-message-index="${messageIndex}"]`)
+  target?.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
 
 function buildSearchSnippet(content: string, keyword: string) {
