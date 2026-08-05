@@ -349,7 +349,8 @@ POST /api/ai/orchestrator/chat
         "payload": {
           "knowledgePointId": 6,
           "knowledgePointName": "HashMap",
-          "subject": "Java"
+          "subject": "Java",
+          "topic": "HashMap"
         }
       }
     ]
@@ -363,7 +364,8 @@ POST /api/ai/orchestrator/chat
 - `intent` 当前由规则识别，支持 `chat`、`learn`、`practice`、`path`、`analysis`。
 - `matchedKnowledgePoint` 来自 `knowledge_point` 表，优先匹配最长知识点名称。
 - `actions` 是建议动作，不会自动替用户开始教学、生成题目或修改数据。
-- 前端可根据 `routeName` 和 `payload.knowledgePointId` 跳转到学习路径、练习、分析或 Agent 建议页面。
+- 前端可根据 `routeName`、`payload.knowledgePointId` 和 `payload.topic` 跳转到学习路径、练习、分析或 Agent 建议页面。
+- 如果没有命中标准知识点，`payload` 只会携带 `topic`，目标页面需要提示该主题尚未进入标准知识库。
 
 ## 6. AI 教学模式接口
 

@@ -374,6 +374,10 @@ async function runTutorAction(action: TutorAction) {
   if (payload.subject) {
     query.subject = String(payload.subject)
   }
+  if (payload.topic) {
+    query.topic = String(payload.topic)
+    query.source = 'chat'
+  }
 
   await router.push({ name: action.routeName, query })
 }

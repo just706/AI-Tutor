@@ -22,6 +22,21 @@
       </div>
     </section>
 
+    <section v-if="chatTopic" class="handoff-panel analysis-handoff">
+      <p class="eyebrow">From Chat</p>
+      <h3>{{ chatTopic }}</h3>
+      <p>
+        学习分析只统计已经产生学习记录、答题记录的标准知识点。
+        这个 Chat 主题会先作为学习计划目标使用；完成教学检查或练习后，掌握度和薄弱点才会逐步出现。
+      </p>
+      <div class="handoff-actions">
+        <el-button type="primary" @click="generateStudyPlanFlow">按这个主题生成计划</el-button>
+        <el-button @click="router.push({ name: 'learn', query: { topic: chatTopic, source: 'chat' } })">
+          查看学习路径承接
+        </el-button>
+      </div>
+    </section>
+
     <section class="analysis-grid">
       <div class="panel mastery-panel">
         <div class="section-head">
@@ -119,7 +134,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   generateStudyPlan,
@@ -135,6 +151,8 @@ import type {
 } from '../types/domain'
 import { formatMinutes } from '../utils/format'
 
+const route = useRoute()
+const router = useRouter()
 const analysisOverview = ref<LearningAnalysisOverview | null>(null)
 const knowledgeProgress = ref<KnowledgePointProgress[]>([])
 const recentAnswers = ref<RecentAnswerAnalysis[]>([])
@@ -145,8 +163,20 @@ const studyPlanForm = reactive({
   period: 'week',
   goal: ''
 })
+const chatTopic = computed(() => String(route.query.topic || '').trim())
 
-onMounted(loadAnalysisOverviewFlow)
+onMounted(async () => {
+  applyChatTopicGoal()
+  await loadAnalysisOverviewFlow()
+})
+
+watch(chatTopic, applyChatTopicGoal)
+
+function applyChatTopicGoal() {
+  if (chatTopic.value && !studyPlanForm.goal) {
+    studyPlanForm.goal = chatTopic.value
+  }
+}
 
 async function loadAnalysisOverviewFlow() {
   analysisLoading.value = true

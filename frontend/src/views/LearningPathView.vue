@@ -25,16 +25,35 @@
       <div class="section-head">
         <div>
           <p class="eyebrow">Selected Point</p>
-          <h2>{{ selectedKnowledgePoint?.name || '选择一个知识点' }}</h2>
+          <h2>{{ selectedKnowledgePoint?.name || chatTopic || '选择一个知识点' }}</h2>
         </div>
         <el-tag v-if="selectedRecord" effect="plain">{{ selectedRecord.masteryLevel }}% 掌握</el-tag>
       </div>
 
+      <section v-if="chatTopic" class="handoff-panel">
+        <p class="eyebrow">From Chat</p>
+        <h3>{{ chatTopic }}</h3>
+        <p>
+          这个主题来自 AI Chat。当前学习路径只展示已经进入标准知识库的知识点；
+          如果没有自动定位，说明它还没有对应的数据库知识点。
+        </p>
+        <div class="handoff-actions">
+          <el-button type="primary" @click="router.push({ name: 'chat' })">回到 Chat 继续学</el-button>
+          <el-button @click="router.push({ name: 'library', query: { topic: chatTopic } })">用资料补充来源</el-button>
+        </div>
+      </section>
+
       <div class="learning-actions">
-        <el-button type="primary" :icon="Reading" :loading="teachingLoading" @click="startTeachingFlow">
+        <el-button
+          type="primary"
+          :icon="Reading"
+          :loading="teachingLoading"
+          :disabled="!selectedKnowledgePoint"
+          @click="startTeachingFlow"
+        >
           开始教学
         </el-button>
-        <el-button :icon="EditPen" @click="goPractice">进入练习</el-button>
+        <el-button :icon="EditPen" :disabled="!selectedKnowledgePoint" @click="goPractice">进入练习</el-button>
       </div>
 
       <div v-if="teachingResult" class="teaching-box">
@@ -121,6 +140,7 @@ const selectedKnowledgePoint = computed(() =>
 const selectedRecord = computed(() =>
   learningRecords.value.find((item) => item.knowledgePointId === selectedKnowledgePointId.value) || null
 )
+const chatTopic = computed(() => String(route.query.topic || '').trim())
 
 onMounted(async () => {
   await Promise.all([loadKnowledgeTreeFlow(), loadLearningRecordsFlow()])
@@ -128,7 +148,7 @@ onMounted(async () => {
 })
 
 watch(
-  () => [route.query.subject, route.query.knowledgePointId],
+  () => [route.query.subject, route.query.knowledgePointId, route.query.topic],
   async () => {
     await applyRouteSelection()
   }
@@ -138,7 +158,7 @@ async function loadKnowledgeTreeFlow() {
   loadingKnowledge.value = true
   try {
     knowledgeTree.value = await listKnowledgeTree(knowledgeSubject.value || 'Java')
-    if (!selectedKnowledgePointId.value) {
+    if (!selectedKnowledgePointId.value && !chatTopic.value) {
       selectedKnowledgePointId.value = firstSelectableKnowledgePoint(knowledgeTree.value)?.id || null
     }
   } catch (error) {
@@ -171,6 +191,12 @@ async function applyRouteSelection() {
   const queryId = Number(route.query.knowledgePointId)
   if (queryId && findKnowledgePoint(knowledgeTree.value, queryId)) {
     selectedKnowledgePointId.value = queryId
+    return
+  }
+
+  // Chat 跳过来的非标准主题不要默认选中 Java 的第一个知识点，避免用户误以为已生成了路径。
+  if (chatTopic.value) {
+    selectedKnowledgePointId.value = null
   }
 }
 

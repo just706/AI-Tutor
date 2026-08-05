@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,7 +56,8 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
         AiChatVO chat = aiChatService.chat(request);
         KnowledgePoint matchedPoint = findMatchedKnowledgePoint(request.getMessage());
         String intent = detectIntent(request.getMessage(), matchedPoint);
-        List<OrchestratorActionVO> actions = buildActions(intent, matchedPoint);
+        String topic = extractTopic(request.getMessage(), matchedPoint);
+        List<OrchestratorActionVO> actions = buildActions(intent, matchedPoint, topic);
         KnowledgePointVO pointVO = matchedPoint == null ? null : KnowledgePointVO.from(matchedPoint);
         return new OrchestratorChatVO(chat.getAnswer(), intent, pointVO, actions);
     }
@@ -94,16 +96,16 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
         return INTENT_CHAT;
     }
 
-    private List<OrchestratorActionVO> buildActions(String intent, KnowledgePoint point) {
+    private List<OrchestratorActionVO> buildActions(String intent, KnowledgePoint point, String topic) {
         List<OrchestratorActionVO> actions = new ArrayList<>();
         if (INTENT_PRACTICE.equals(intent)) {
             if (point != null) {
                 actions.add(openPractice(point));
                 actions.add(openTeaching(point));
             } else {
-                actions.add(openLearningPath(null));
+                actions.add(openLearningPath(null, topic));
             }
-            actions.add(openAnalysis());
+            actions.add(openAnalysis(topic));
             return actions;
         }
 
@@ -111,24 +113,24 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
             if (point != null) {
                 actions.add(openTeaching(point));
                 actions.add(openPractice(point));
-                actions.add(openLearningPath(point));
+                actions.add(openLearningPath(point, topic));
             } else {
-                actions.add(openLearningPath(null));
+                actions.add(openLearningPath(null, topic));
                 actions.add(openProfile());
             }
             return actions;
         }
 
         if (INTENT_PATH.equals(intent)) {
-            actions.add(openLearningPath(point));
-            actions.add(openAnalysis());
-            actions.add(openAgent());
+            actions.add(openLearningPath(point, topic));
+            actions.add(openAnalysis(topic));
+            actions.add(openAgent(topic));
             return actions;
         }
 
         if (INTENT_ANALYSIS.equals(intent)) {
-            actions.add(openAnalysis());
-            actions.add(openAgent());
+            actions.add(openAnalysis(topic));
+            actions.add(openAgent(topic));
             if (point != null) {
                 actions.add(openPractice(point));
             }
@@ -136,7 +138,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
         }
 
         if (point != null) {
-            actions.add(openLearningPath(point));
+            actions.add(openLearningPath(point, topic));
             actions.add(openPractice(point));
         }
         return actions;
@@ -150,7 +152,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
                 "开始教学",
                 "learn",
                 "medium",
-                pointPayload(point)
+                pointPayload(point, point.getName())
         );
     }
 
@@ -162,35 +164,37 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
                 "进入练习",
                 "practice",
                 "medium",
-                pointPayload(point)
+                pointPayload(point, point.getName())
         );
     }
 
-    private OrchestratorActionVO openLearningPath(KnowledgePoint point) {
+    private OrchestratorActionVO openLearningPath(KnowledgePoint point, String topic) {
         return action(
                 "open_learning_path",
                 point == null ? "查看学习路径" : "定位到 " + point.getName(),
-                point == null ? "回到标准知识点地图，选择下一步学习内容。" : "在学习地图中查看它所在的位置和掌握记录。",
+                point == null
+                        ? "带着当前 Chat 主题查看标准知识库；如果还没有对应知识点，需要先补知识库或继续在 Chat 学。"
+                        : "在学习地图中查看它所在的位置和掌握记录。",
                 "查看路径",
                 "learn",
                 "low",
-                point == null ? Map.of() : pointPayload(point)
+                point == null ? topicPayload(topic) : pointPayload(point, topic)
         );
     }
 
-    private OrchestratorActionVO openAnalysis() {
+    private OrchestratorActionVO openAnalysis(String topic) {
         return action(
                 "open_analysis",
                 "查看学习分析",
-                "查看掌握度、近期错题和薄弱知识点，再决定下一步。",
+                "查看已产生的掌握度、近期错题和薄弱点；当前 Chat 主题会作为计划目标带过去。",
                 "查看分析",
                 "analysis",
                 "low",
-                Map.of()
+                topicPayload(topic)
         );
     }
 
-    private OrchestratorActionVO openAgent() {
+    private OrchestratorActionVO openAgent(String topic) {
         return action(
                 "open_agent",
                 "查看下一步建议",
@@ -198,7 +202,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
                 "查看建议",
                 "agent",
                 "low",
-                Map.of()
+                topicPayload(topic)
         );
     }
 
@@ -224,12 +228,40 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
         return new OrchestratorActionVO(actionType, title, description, label, routeName, impactLevel, payload);
     }
 
-    private Map<String, Object> pointPayload(KnowledgePoint point) {
-        return Map.of(
-                "knowledgePointId", point.getId(),
-                "knowledgePointName", point.getName(),
-                "subject", point.getSubject()
-        );
+    private Map<String, Object> pointPayload(KnowledgePoint point, String topic) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("knowledgePointId", point.getId());
+        payload.put("knowledgePointName", point.getName());
+        payload.put("subject", point.getSubject());
+        payload.put("topic", isBlank(topic) ? point.getName() : topic);
+        return payload;
+    }
+
+    private Map<String, Object> topicPayload(String topic) {
+        if (isBlank(topic)) {
+            return Map.of();
+        }
+        return Map.of("topic", topic);
+    }
+
+    private String extractTopic(String message, KnowledgePoint matchedPoint) {
+        if (matchedPoint != null) {
+            return matchedPoint.getName();
+        }
+        if (message == null) {
+            return "";
+        }
+
+        String cleaned = message
+                .replaceAll("[\\r\\n]+", " ")
+                .replaceAll("我想|请|帮我|给我|讲一下|解释|学习|练习|出题|题目|查看|分析|怎么学|一下|几道|一些", " ")
+                .replaceAll("[，。！？!?、：:；;]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (cleaned.length() > 40) {
+            return cleaned.substring(0, 40);
+        }
+        return cleaned;
     }
 
     private boolean containsAny(String normalized, List<String> keywords) {

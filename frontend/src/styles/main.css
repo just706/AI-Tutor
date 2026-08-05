@@ -926,6 +926,37 @@ button {
   background: #f2faf7;
 }
 
+.handoff-panel {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 18px;
+  padding: 16px;
+  border: 1px solid #cfe2dc;
+  border-radius: var(--radius);
+  background: #f2faf7;
+}
+
+.handoff-panel h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.handoff-panel p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.handoff-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.analysis-handoff {
+  margin: 0;
+}
+
 .answer-panel h3,
 .study-plan h3 {
   margin: 0 0 8px;

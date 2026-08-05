@@ -62,7 +62,8 @@ POST /api/ai/orchestrator/chat
       "payload": {
         "knowledgePointId": 6,
         "knowledgePointName": "HashMap",
-        "subject": "Java"
+        "subject": "Java",
+        "topic": "HashMap"
       }
     }
   ]
@@ -75,4 +76,4 @@ POST /api/ai/orchestrator/chat
 - 前端构建通过。
 - Chat 中普通问题仍可正常得到 AI 答案。
 - 命中知识点时，动作卡片可跳转到 Learning Path 或 Practice。
-- 未命中知识点时，动作卡片引导用户查看学习路径或完善档案。
+- 未命中知识点时，动作卡片携带 Chat `topic`，目标页提示该主题尚未进入标准知识库。
