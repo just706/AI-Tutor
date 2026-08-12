@@ -143,6 +143,12 @@ SPRING_DATASOURCE_PASSWORD=your_mysql_password
 DEEPSEEK_API_KEY=your_api_key
 ```
 
+本地前端开发服务默认允许任意 `localhost` 端口，避免 Vite 在默认端口被占用时自动换端口后出现 CORS 403。生产环境应通过 `CORS_ALLOWED_ORIGINS` 配置实际前端来源，例如：
+
+```text
+CORS_ALLOWED_ORIGINS=https://tutor.example.com
+```
+
 也可以在 PowerShell 中临时设置：
 
 ```text
