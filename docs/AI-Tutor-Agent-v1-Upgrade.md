@@ -1,108 +1,369 @@
-# AI-Tutor Agent v1 Upgrade
+# AI-Tutor Agent v1 升级方案
 
-## 1. Positioning
+## 1. 项目定位
 
-AI-Tutor v1 is a Chat-first personalized learning Agent.
-
-The product is not a Java interview drill tool and not a general education platform. The v1 goal is to build an extensible learning Agent core, then use Java backend learning as the first subject pack to prove the loop.
-
-The core loop is:
+AI-Tutor v1 的定位是：
 
 ```text
-user message
--> Tutor Agent
--> intent detection
--> ChatSession context
--> LearningSession state
--> learning action suggestion
--> response
--> step record
+以 Chat 为入口的个性化学习 Agent
 ```
 
-## 2. Phase Plan
+它不是 Java 面试刷题工具，也不是通用教育平台。v1 的目标是先实现一个可扩展的学习 Agent Core，再用 Java 后端学习作为第一个样板场景，证明学习闭环可以跑通。
 
-### Phase 0: Documentation and Stability
+核心闭环：
 
-Deliverables:
+```text
+用户输入
+-> Tutor Agent
+-> 意图识别
+-> ChatSession 对话上下文
+-> LearningSession 学习状态
+-> 学习行动建议
+-> Agent 回复
+-> Step 记录
+```
 
-- Add this upgrade document as the single v1 master plan.
-- Keep detailed frontend, backend, API, and database docs factual instead of creating separate planning documents for every change.
-- Fix visible Chinese mojibake encountered during implementation.
-- Verify frontend build and backend compile/test where the local environment allows it.
-- Preserve existing uncommitted changes.
+v1 的核心原则：
 
-### Phase 1: ChatSession and LearningSession Minimum Loop
+```text
+少做组件，多做闭环。
+```
 
-Deliverables:
+现阶段不追求做一个“AI 技术展览馆”，而是优先证明：
 
-- Keep `conversation` and `chat_history` as ChatSession storage.
-- Add `learning_session` for one goal-oriented learning task.
-- Add `learning_session_step` for each Agent decision and response in that task.
-- Add `POST /api/tutor-agent/chat`.
-- Let Chat UI show the active LearningSession status, goal, strategy placeholder, and next action.
+```text
+系统能理解用户当前学习任务，
+能创建或复用学习会话，
+能记录学习过程，
+能根据反馈维持上下文并调整下一步动作。
+```
 
-Phase 1 intentionally does not implement full Teaching Strategy, long-term Memory, deep Knowledge Map/RAG decisioning, full Evaluation, multi-Agent frameworks, MQ, Redis, or microservices.
+## 2. 当前阶段状态
 
-### Phase 2: Teaching Strategy Layer
+| 阶段 | 状态 | 说明 |
+|---|---|---|
+| Phase 0 | 已完成 | 文档落地、启动方式稳定、构建方式验证、知识图谱当前实现移除并延后重规划 |
+| Phase 1 | 已完成 | ChatSession 与 LearningSession 最小闭环已实现并提交 |
+| Phase 2 | 未开始 | 下一步建议实现 Teaching Strategy Layer MVP |
+| Phase 3 | 未开始 | Knowledge Map 与 RAG 决策能力重新规划 |
+| Phase 4 | 未开始 | Memory 生命周期 |
+| Phase 5 | 未开始 | Evaluation 与工程治理 |
 
-Teach the Agent how to choose a teaching method, not only identify what the user does not know.
+Phase 1 提交记录：
 
-Reserved strategy names:
+```text
+1fc526f feat: add chat-first learning session loop
+```
 
-- `concept_first`
-- `example_first`
-- `source_code_first`
-- `prerequisite_first`
-- `practice_first`
-- `debug_misconception`
-- `summary_review`
+## 3. Phase Plan
 
-Each strategy decision must include `strategySource` evidence.
+### Phase 0：文档落地与项目稳定
 
-### Phase 3: Knowledge Map and RAG Decision Participation
+目标：
 
-The earlier standalone Knowledge Graph implementation is intentionally removed from Phase 1 and should be redesigned before reintroduction.
+```text
+先把升级方向写清楚，同时处理影响后续开发的本地运行和文档稳定问题。
+```
 
-The future Knowledge Map should become the learning path map. It must influence prerequisite checks, path recommendation, and next-step decisions instead of being only a visualization page.
+交付内容：
 
-RAG is positioned as Learning Knowledge Retrieval. It supports explanation, examples, correction, summaries, and citations. It is not the main product surface in v1.
+- 新增本文件，作为 v1 总升级方案文档。
+- 不为前端、后端、接口、数据库分别创建大量独立计划文档。
+- 前端、后端、API、数据库文档只在真实实现发生变化后更新。
+- 检查并稳定前后端构建方式。
+- 明确 Windows 本地后端启动方式使用 `backend/run.cmd`。
+- Maven Wrapper 默认使用项目内依赖缓存 `backend/.m2/repository`。
+- 前端启动方式写入联调文档。
+- 知识图谱当前实现从 Phase 1 中移除，后续重新规划为 Knowledge Map。
 
-### Phase 4: Memory Lifecycle
+当前状态：
 
-Memory remains lightweight in v1 and is limited to:
+```text
+已完成。
+```
 
-- `preference`
-- `difficulty_pattern`
-- `misconception`
+验证结果：
 
-Memory must support creation, update, confidence changes, expiration, suppression, and deletion.
+- 后端编译已通过。
+- 前端构建已通过。
+- 后端本地启动方式已文档化。
+- 前端启动方式已文档化。
+- Phase 1 提交前工作区已清理为稳定快照。
 
-### Phase 5: Evaluation and Engineering Governance
+相关文档：
 
-Add Agent quality, learning effect, and user experience evaluation.
+- `docs/Deployment.md`
+- `docs/MVP-Test.md`
+- `docs/API.md`
+- `docs/Architecture.md`
+- `docs/Database.md`
 
-Key metrics:
+说明：
 
-- Agent quality: strategy selection accuracy, tool selection accuracy, decision validity, recovery success rate.
-- Learning effect: knowledge gain, retention, transfer.
-- UX: user acceptance, helpful feedback, session completion.
+数据库或终端里偶发的中文显示乱码，主要与 Windows PowerShell / MySQL 客户端编码有关，不等同于项目源码或前端页面乱码。后续如果发现具体页面或文件乱码，再按具体文件修复。
 
-## 3. Architecture Decisions
+### Phase 1：ChatSession 与 LearningSession 最小闭环
 
-### ChatSession
+目标：
 
-ChatSession is the conversation context. In the current codebase it maps to:
+```text
+明确 Chat 和 Learning Session 的边界，
+让 Chat 从普通 AI 问答入口升级为学习 Agent 的交互入口。
+```
+
+交付内容：
+
+- 保留 `conversation` 和 `chat_history` 作为 ChatSession 存储。
+- 新增 `learning_session` 表，用于表示一次有目标、有状态的学习任务。
+- 新增 `learning_session_step` 表，用于记录每一步 Agent 决策和回复。
+- 新增 `POST /api/tutor-agent/chat`。
+- 新增 active LearningSession 查询接口。
+- Chat 前端展示当前 active LearningSession 的目标、状态、策略占位和下一步行动。
+- 修复反馈型消息覆盖 topic 的问题，例如 `我还是不懂` 不再把 topic 覆盖成 `我`。
+
+Phase 1 明确不做：
+
+- 不实现完整 Teaching Strategy Layer。
+- 不实现长期 Memory 生命周期。
+- 不深化 Knowledge Map / RAG 决策能力。
+- 不实现完整 Evaluation 系统。
+- 不引入 LangGraph / CrewAI / 多 Agent 框架。
+- 不做 Redis、MQ、微服务拆分。
+
+当前状态：
+
+```text
+已完成，并已提交。
+```
+
+核心验收结果：
+
+- 用户输入 `我想学习 HashMap` 可以创建 LearningSession。
+- 用户输入 `我还是不懂` 可以复用同一个 LearningSession。
+- 第二次反馈后 topic 仍保持 `HashMap`。
+- LearningSessionStep 能记录两次交互步骤。
+- `/api/tutor-agent/chat` 返回结构化结果，而不是纯文本。
+- 后端编译通过。
+- 前端构建通过。
+
+### Phase 2：Teaching Strategy Layer
+
+目标：
+
+```text
+让 Agent 不只是知道用户哪里不会，
+还要知道应该怎么教。
+```
+
+Phase 2 的重点不是增加很多页面，而是把教学策略选择从 `TutorAgentServiceImpl` 中抽出来，形成独立的 Teaching Strategy Layer。
+
+建议新增：
+
+```text
+TeachingStrategyService
+```
+
+输入：
+
+- intent
+- 用户输入
+- LearningSession
+- 当前 topic
+- 最近 LearningSessionStep
+- 用户反馈信号
+
+输出：
+
+- teachingStrategy
+- strategySource
+- nextAction
+
+预留策略类型：
+
+- `concept_first`：概念优先
+- `example_first`：案例优先
+- `source_code_first`：源码优先
+- `prerequisite_first`：前置知识补齐
+- `practice_first`：练习优先
+- `debug_misconception`：误区纠正
+- `summary_review`：总结复盘
+
+每次策略选择都必须输出 `strategySource`，说明为什么选择这个策略。
+
+示例：
+
+```json
+{
+  "teachingStrategy": "prerequisite_first",
+  "strategySource": [
+    "用户连续两次反馈仍不理解",
+    "当前主题为 HashMap",
+    "可能存在并发基础或 Map 数据结构前置知识缺口"
+  ],
+  "nextAction": "先补齐必要前置知识，再重新解释 HashMap 当前问题"
+}
+```
+
+Phase 2 不做：
+
+- 不做 Memory 生命周期。
+- 不做 Knowledge Map 决策。
+- 不做 RAG 检索优化。
+- 不做完整 Evaluation。
+- 不引入多 Agent 框架。
+- 不引入 Redis / MQ / 微服务。
+
+### Phase 3：Knowledge Map 与 RAG 决策参与
+
+当前说明：
+
+```text
+之前独立的 Knowledge Graph 实现已经从 Phase 1 中移除。
+```
+
+移除原因：
+
+- 当前知识图谱更像一个展示页面。
+- 它没有真正影响 Agent 的诊断、教学策略和学习路径决策。
+- 继续保留会让项目显得功能多但闭环弱。
+
+后续重新规划方向：
+
+```text
+不要重做一个“知识图谱页面”，
+而是做一个能参与 Agent 决策的 Knowledge Map。
+```
+
+未来 Knowledge Map 应该参与：
+
+- 前置知识判断
+- 学习路径推荐
+- 下一步学习决策
+- 知识点依赖解释
+- Teaching Strategy 选择依据
+
+RAG 的定位：
+
+```text
+Learning Knowledge Retrieval
+```
+
+RAG 服务于：
+
+- 教学解释
+- 举例
+- 纠错
+- 总结
+- 引用来源
+
+RAG 不应该喧宾夺主，也不应该把项目变成知识库问答系统。
+
+### Phase 4：Memory 生命周期
+
+目标：
+
+```text
+让 Agent 能长期理解用户，但避免长期记忆污染决策。
+```
+
+v1 Memory 只保留三类长期记忆：
+
+- `preference`：学习偏好
+- `difficulty_pattern`：困难模式
+- `misconception`：长期误解
+
+Memory 必须支持：
+
+- 产生
+- 更新
+- 置信度变化
+- 过期
+- 抑制
+- 删除
+
+Phase 4 不应该一开始就做复杂记忆系统。重点是记忆生命周期和可控性。
+
+### Phase 5：Evaluation 与工程治理
+
+目标：
+
+```text
+证明 Agent 不只是能跑，
+还要能评估、能观察、能持续优化。
+```
+
+评估维度：
+
+- Agent 质量
+- 学习效果
+- 用户体验
+- 系统稳定性
+
+Agent 质量指标：
+
+- 策略选择准确率
+- 工具选择准确率
+- 决策有效性
+- 失败恢复成功率
+
+学习效果指标：
+
+- 知识增益
+- 保持率
+- 迁移能力
+- 复习效果
+
+用户体验指标：
+
+- 用户接受率
+- 反馈有用率
+- Session 完成率
+- 持续使用率
+
+工程治理指标：
+
+- AI 调用耗时
+- AI 调用失败率
+- 成本统计
+- 接口错误率
+- 慢请求
+
+## 4. 核心架构决策
+
+### 4.1 ChatSession
+
+ChatSession 表示用户和 AI 的对话上下文。
+
+在当前代码中，它由以下表承载：
 
 - `conversation`
 - `chat_history`
 
-It stores dialogue continuity, not the learning task lifecycle.
+ChatSession 负责保存对话连续性，但不负责学习任务生命周期。
 
-### LearningSession
+### 4.2 LearningSession
 
-LearningSession is one learning task with a goal, status, topic, next action, and step history.
+LearningSession 表示一次具体学习任务。
 
-Status values:
+例如：
+
+- 学习 HashMap
+- 复习 JVM GC
+- 准备 Spring 事务
+- 完成某个知识点练习
+
+LearningSession 需要记录：
+
+- 当前学习目标
+- 当前主题
+- 当前状态
+- 当前步骤类型
+- 教学策略
+- 下一步行动建议
+- 已执行步骤
+- 用户反馈
+
+状态值：
 
 ```text
 CREATED
@@ -114,30 +375,49 @@ REFLECTION
 COMPLETED
 ```
 
-Phase 1 may also use `CLOSED` for user-closed sessions if a close endpoint is added later.
+后续如果新增关闭接口，可以增加：
 
-### LearnerModelService
+```text
+CLOSED
+```
 
-LearnerModelService is an aggregation service, not a database table.
+### 4.3 LearnerModelService
 
-It will build a learner snapshot from profile, chat history, learning records, practice results, the future Knowledge Map, and later Memory. Phase 1 only reserves the interface shape through response fields and session records.
+LearnerModelService 是聚合服务，不是数据库表。
 
-### Tutor Agent
+它后续应该从以下数据中构建学习者快照：
 
-In Phase 1, Tutor Agent is a thin orchestration layer:
+- 用户 Profile
+- Chat 历史
+- 学习记录
+- 练习结果
+- 后续 Knowledge Map
+- 后续 Memory
 
-- Reuses existing AI chat and orchestrator behavior.
-- Creates or reuses an active LearningSession.
-- Records the Agent step.
-- Returns structured output for future phases.
+Phase 1 只通过返回结构和会话记录预留接口形态，不提前新增 `learner_model` 表。
 
-It must not become a large rules engine in Phase 1.
+### 4.4 Tutor Agent
 
-## 4. Public Interface
+Phase 1 中 Tutor Agent 是轻量编排层：
 
-### POST /api/tutor-agent/chat
+- 复用现有 AI Chat 和 Orchestrator。
+- 创建或复用 active LearningSession。
+- 记录 Agent Step。
+- 返回结构化输出。
 
-Request:
+它现在不是完整自主 Agent，也不应该在 Phase 1 变成大型规则系统。
+
+Phase 2 开始，Tutor Agent 应该逐步把教学策略选择委托给 Teaching Strategy Layer。
+
+## 5. 当前已实现接口
+
+### 5.1 Tutor Agent Chat
+
+```text
+POST /api/tutor-agent/chat
+```
+
+请求示例：
 
 ```json
 {
@@ -147,9 +427,14 @@ Request:
 }
 ```
 
-`learningSessionId` is optional. If omitted, the backend should reuse the active session for the conversation when available.
+说明：
 
-Response:
+- `conversationId` 必填。
+- `message` 必填。
+- `learningSessionId` 可选。
+- 如果不传 `learningSessionId`，后端优先复用当前 conversation 下的 active LearningSession。
+
+响应示例：
 
 ```json
 {
@@ -169,7 +454,8 @@ Response:
   "teachingStrategy": "debug_misconception",
   "strategySource": [
     "Phase 1 uses intent-based fallback strategy",
-    "User message indicates concept difficulty"
+    "Current topic: HashMap",
+    "User message indicates unresolved understanding"
   ],
   "toolTraces": [
     "orchestrator_chat",
@@ -181,9 +467,24 @@ Response:
 }
 ```
 
-### Later LearningSession Interfaces
+### 5.2 查询当前 active LearningSession
 
-Reserved for later phases:
+```text
+GET /api/learning-sessions/active?conversationId=1
+```
+
+用途：
+
+- 前端切换 ChatSession 后恢复当前 active LearningSession。
+- Chat 页面展示当前学习任务状态。
+
+没有 active LearningSession 时返回 `null`。
+
+## 6. 后续预留接口
+
+### 6.1 LearningSession 后续接口
+
+保留到后续阶段：
 
 ```text
 GET  /api/learning-sessions/{id}
@@ -192,9 +493,9 @@ POST /api/learning-sessions/{id}/close
 GET  /api/learning-sessions/{id}/report
 ```
 
-### Later Memory Interfaces
+### 6.2 Memory 后续接口
 
-Reserved for Phase 4:
+保留到 Phase 4：
 
 ```text
 GET    /api/learner-memories
@@ -202,16 +503,114 @@ PATCH  /api/learner-memories/{id}/suppress
 DELETE /api/learner-memories/{id}
 ```
 
-## 5. Phase 1 Acceptance
+## 7. Phase 1 验收标准
 
-The Phase 1 loop is accepted when:
+Phase 1 满足以下条件即可验收：
 
-- A Chat message can create or reuse an active LearningSession.
-- Feedback-only messages such as `我还是不懂` reuse the active LearningSession topic and must not overwrite it with weak pronouns.
-- LearningSession and LearningSessionStep are persisted.
-- `/api/tutor-agent/chat` returns structured Agent output, not only text.
-- Chat UI displays active session goal, status, strategy placeholder, and next action.
-- Existing Chat, knowledge library, question, and learning record work are not broken.
-- Frontend build passes.
-- Backend compile/test is run or the blocking local environment issue is documented.
-- Windows local backend startup uses `backend/run.cmd`, with Maven dependencies cached under `backend/.m2/repository`.
+- Chat 消息可以创建或复用 active LearningSession。
+- `我还是不懂` 这类反馈型消息沿用 active LearningSession 的 topic，不覆盖成弱代词。
+- LearningSession 和 LearningSessionStep 能持久化。
+- `/api/tutor-agent/chat` 返回结构化 Agent 输出，而不是纯文本。
+- Chat UI 展示 active LearningSession 的目标、状态、策略占位和下一步行动。
+- 现有 Chat、知识资料库、题库、学习记录功能不被破坏。
+- 前端 build 通过。
+- 后端 compile/test 已执行，或明确记录本地环境阻塞原因。
+- Windows 本地后端启动使用 `backend/run.cmd`。
+- Maven 依赖缓存使用 `backend/.m2/repository`。
+
+当前状态：
+
+```text
+已验收。
+```
+
+## 8. 本地运行方式
+
+### 8.1 执行数据库脚本
+
+Phase 1 需要执行：
+
+```text
+backend/src/main/resources/db/stage12-learning-session.sql
+```
+
+PowerShell 示例：
+
+```powershell
+Get-Content -Raw "D:\AI-Tutor\backend\src\main\resources\db\stage12-learning-session.sql" | & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -uroot -p ai_tutor
+```
+
+说明：
+
+PowerShell 不支持传统 CMD 的 `<` 输入重定向写法，因此推荐使用 `Get-Content -Raw ... | mysql`。
+
+### 8.2 启动后端
+
+推荐将本地配置写入 `backend/.env`：
+
+```text
+SPRING_DATASOURCE_PASSWORD=your_mysql_password
+DEEPSEEK_API_KEY=your_deepseek_api_key
+```
+
+启动：
+
+```powershell
+cd D:\AI-Tutor\backend
+.\run.cmd
+```
+
+说明：
+
+- `run.cmd` 会读取 `backend/.env`。
+- `run.cmd` 会使用项目内 Maven 缓存。
+- Windows 本地开发不推荐优先使用 `spring-boot:run`。
+
+### 8.3 启动前端
+
+```powershell
+cd D:\AI-Tutor\frontend
+npm install
+npm run dev
+```
+
+如果 PowerShell 执行策略拦截 `npm.ps1`，可以使用：
+
+```powershell
+npm.cmd run dev
+```
+
+默认访问地址：
+
+```text
+http://localhost:5173
+```
+
+## 9. 下一步建议
+
+下一步进入 Phase 2：
+
+```text
+Teaching Strategy Layer MVP
+```
+
+推荐只做以下内容：
+
+- 新增 `TeachingStrategyService`。
+- 支持 7 种基础教学策略。
+- TutorAgentServiceImpl 调用 TeachingStrategyService。
+- `strategySource` 必须可解释。
+- 连续反馈 `我还是不懂` 时切换到 `prerequisite_first`。
+- Chat 前端展示教学策略和策略原因。
+- 更新必要文档。
+- 验证不破坏 Phase 1 LearningSession 闭环。
+
+不要在 Phase 2 中做：
+
+- Memory 生命周期
+- Knowledge Map 重新实现
+- RAG 优化
+- Evaluation 系统
+- Redis / MQ
+- 多 Agent 框架
+- 微服务拆分
