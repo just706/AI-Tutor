@@ -486,6 +486,8 @@ CREATE TABLE agent_event_log (
 - `user` 与 `student_profile` 是一对一关系。
 - `user` 与 `conversation` 是一对多关系。
 - `conversation` 与 `chat_history` 是一对多关系。
+- `conversation` 与 `learning_session` 是一对多关系。
+- `learning_session` 与 `learning_session_step` 是一对多关系。
 - `knowledge_point` 支持父子层级结构。
 - `knowledge_point` 与 `question` 是一对多关系。
 - `user` 与 `learning_record` 是一对多关系。
@@ -547,3 +549,56 @@ CREATE TABLE agent_event_log (
 | confirmed | 已确认 |
 | completed | 已完成 |
 | dismissed | 已忽略 |
+
+## 19. 学习会话表 learning_session
+
+### 19.1 字段设计
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | 主键 |
+| user_id | BIGINT | 用户 ID |
+| conversation_id | BIGINT | ChatSession ID |
+| goal | VARCHAR(255) | 本次学习目标 |
+| topic | VARCHAR(128) | 当前主题 |
+| intent | VARCHAR(64) | 最近一次意图 |
+| status | VARCHAR(32) | 学习会话状态 |
+| current_step_type | VARCHAR(64) | 当前步骤类型 |
+| teaching_strategy | VARCHAR(64) | Phase 1 策略占位 |
+| next_action | VARCHAR(255) | 下一步建议 |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+| complete_time | DATETIME | 完成时间 |
+
+### 19.2 状态枚举
+
+| 值 | 说明 |
+|---|---|
+| CREATED | 已创建 |
+| DIAGNOSING | 诊断中 |
+| PLANNING | 规划中 |
+| TEACHING | 教学中 |
+| PRACTICE | 练习中 |
+| REFLECTION | 复盘中 |
+| COMPLETED | 已完成 |
+
+## 20. 学习会话步骤表 learning_session_step
+
+### 20.1 字段设计
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | 主键 |
+| session_id | BIGINT | LearningSession ID |
+| user_id | BIGINT | 用户 ID |
+| conversation_id | BIGINT | ChatSession ID |
+| step_type | VARCHAR(64) | 步骤类型 |
+| status_from | VARCHAR(32) | 流转前状态 |
+| status_to | VARCHAR(32) | 流转后状态 |
+| intent | VARCHAR(64) | Agent 意图 |
+| teaching_strategy | VARCHAR(64) | 教学策略 |
+| user_message | TEXT | 用户输入 |
+| agent_response | TEXT | Agent 回复 |
+| strategy_source | TEXT | 策略证据 JSON |
+| actions_snapshot | TEXT | 动作快照 JSON |
+| create_time | DATETIME | 创建时间 |

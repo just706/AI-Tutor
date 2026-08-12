@@ -38,7 +38,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
             "学习路径", "路线", "路径", "计划", "安排", "怎么学", "从哪学", "roadmap", "plan"
     );
     private static final List<String> LEARN_KEYWORDS = List.of(
-            "学习", "学", "讲", "解释", "教学", "入门", "不懂", "learn", "explain"
+            "学习", "学", "讲", "解释", "教学", "入门", "不懂", "不会", "不理解", "learn", "explain"
     );
 
     private final AiChatService aiChatService;
@@ -52,7 +52,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
 
     @Override
     public OrchestratorChatVO chat(AiChatRequest request) {
-        // MVP 编排层先复用普通 AI 聊天，再追加可确认的学习动作，避免在 Chat 中自动改写学习数据。
+        // MVP orchestration reuses normal AI chat, then adds confirmable learning actions.
         AiChatVO chat = aiChatService.chat(request);
         KnowledgePoint matchedPoint = findMatchedKnowledgePoint(request.getMessage());
         String intent = detectIntent(request.getMessage(), matchedPoint);
@@ -74,7 +74,6 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
         return points.stream()
                 .filter(point -> !isBlank(point.getName()))
                 .filter(point -> normalizedMessage.contains(normalize(point.getName())))
-                // Prefer the most specific point, so "HashMap" wins over "Java".
                 .max(Comparator.comparingInt(point -> point.getName().length()))
                 .orElse(null);
     }
@@ -188,7 +187,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
                 point == null ? "查看学习路径" : "定位到 " + point.getName(),
                 point == null
                         ? "带着当前 Chat 主题查看标准知识库；如果还没有对应知识点，需要先补知识库或继续在 Chat 学。"
-                        : "在学习地图中查看它所在的位置和掌握记录。",
+                        : "在学习地图中查看它的位置和掌握记录。",
                 "查看路径",
                 "learn",
                 "low",
@@ -268,7 +267,7 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
 
         String cleaned = message
                 .replaceAll("[\\r\\n]+", " ")
-                .replaceAll("我想|请|帮我|给我|讲一下|解释|学习|练习|出题|题目|查看|分析|怎么学|一下|几道|一些", " ")
+                .replaceAll("我想|请|帮我|给我|讲一下|解释|学习|练习|出题|题目|查看|分析|怎么学|一下|几道|一些|还是|不理解|不会|不懂", " ")
                 .replaceAll("[，。！？!?、：:；;]+", " ")
                 .replaceAll("\\s+", " ")
                 .trim();

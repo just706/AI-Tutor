@@ -13,6 +13,7 @@ import type {
   DocumentUploadResult,
   KnowledgePoint,
   KnowledgePointProgress,
+  LearningSession,
   LearningDocument,
   LearningAnalysisOverview,
   LearningDocumentDetail,
@@ -27,6 +28,7 @@ import type {
   StudyPlan,
   TeachingEvaluationResult,
   TeachingStartResult,
+  TutorAgentChatResult,
   User
 } from '../types/domain'
 
@@ -103,6 +105,22 @@ export function sendOrchestratorChat(conversationId: number, message: string) {
     url: '/ai/orchestrator/chat',
     method: 'POST',
     data: { conversationId, message }
+  })
+}
+
+export function sendTutorAgentChat(conversationId: number, message: string, learningSessionId?: number) {
+  return request<TutorAgentChatResult>({
+    url: '/tutor-agent/chat',
+    method: 'POST',
+    data: { conversationId, message, learningSessionId }
+  })
+}
+
+export function getActiveLearningSession(conversationId: number) {
+  return request<LearningSession | null>({
+    url: '/learning-sessions/active',
+    method: 'GET',
+    params: { conversationId }
   })
 }
 

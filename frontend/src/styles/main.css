@@ -641,6 +641,35 @@ button {
   background: #fbfdff;
 }
 
+.learning-session-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #cfe2dc;
+  background: #f3fbf9;
+}
+
+.learning-session-strip h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.learning-session-strip p {
+  margin: 5px 0 0;
+  color: var(--color-muted);
+  line-height: 1.45;
+}
+
+.learning-session-meta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .history-search-row {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto auto auto auto;

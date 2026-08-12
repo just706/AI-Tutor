@@ -134,11 +134,19 @@ backend/src/main/resources/db/stage4-ai-chat.sql
 
 ### 6.3 启动后端
 
-进入后端目录，使用项目内 Maven Wrapper 打包并启动 Spring Boot 服务。
+进入后端目录，优先使用项目内启动脚本。脚本会读取 `backend/.env`，使用项目内 Maven 缓存 `backend/.m2/repository`，然后打包并启动 Spring Boot 服务。
 
-调用 DeepSeek 前需要先设置 API Key，例如在 PowerShell 中：
+建议复制 `backend/.env.example` 为 `backend/.env`，至少填写数据库密码和 DeepSeek API Key：
 
 ```text
+SPRING_DATASOURCE_PASSWORD=your_mysql_password
+DEEPSEEK_API_KEY=your_api_key
+```
+
+也可以在 PowerShell 中临时设置：
+
+```text
+$env:SPRING_DATASOURCE_PASSWORD="your_mysql_password"
 $env:DEEPSEEK_API_KEY="your_api_key"
 ```
 
@@ -147,12 +155,14 @@ cd D:/AI-Tutor/backend
 .\run.cmd
 ```
 
-也可以只执行 Maven Wrapper 命令：
+如果需要手动拆分执行，使用：
 
 ```text
 .\mvnw.cmd package -DskipTests
 java -jar target/ai-tutor-backend-0.0.1-SNAPSHOT.jar
 ```
+
+本项目在 Windows 本地开发时以 `run.cmd` 作为标准启动方式。`spring-boot:run` 不是当前推荐路径，避免环境差异导致类路径或依赖缓存问题。
 
 默认访问地址：
 

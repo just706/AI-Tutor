@@ -67,6 +67,41 @@ export interface OrchestratorChatResult extends AiChatResult {
   actions: TutorAction[]
 }
 
+export type LearningSessionStatus =
+  | 'CREATED'
+  | 'DIAGNOSING'
+  | 'PLANNING'
+  | 'TEACHING'
+  | 'PRACTICE'
+  | 'REFLECTION'
+  | 'COMPLETED'
+
+export interface LearningSession {
+  id: number
+  conversationId: number
+  goal: string
+  topic?: string
+  intent?: string
+  status: LearningSessionStatus
+  currentStepType?: string
+  teachingStrategy?: string
+  nextAction?: string
+  createTime?: string
+  updateTime?: string
+  completeTime?: string
+}
+
+export interface TutorAgentChatResult extends AiChatResult {
+  intent: string
+  learningSession?: LearningSession | null
+  teachingStrategy?: string
+  strategySource: string[]
+  toolTraces: string[]
+  sources: RagSource[]
+  memoryUpdates: string[]
+  actions: TutorAction[]
+}
+
 export interface KnowledgePoint {
   id: number
   subject: string

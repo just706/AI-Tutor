@@ -18,6 +18,7 @@
 - `ai_tutor` 数据库已创建。
 - 阶段 1 到阶段 4 的 SQL 已执行。
 - 后端服务正在运行。
+- 后端启动前已设置 `SPRING_DATASOURCE_PASSWORD`。
 - 如需测试真实 AI 聊天，后端启动前已设置 `DEEPSEEK_API_KEY`。
 
 阶段 SQL：
@@ -31,13 +32,41 @@ backend/src/main/resources/db/stage4-ai-chat.sql
 
 ## 3. 启动后端
 
+推荐把本机环境变量写入 `backend/.env`，不要把真实密码或 API Key 写入可提交文档：
+
+```text
+SPRING_DATASOURCE_PASSWORD=your_mysql_password
+DEEPSEEK_API_KEY=your_deepseek_api_key
+```
+
+如果只在当前 PowerShell 窗口临时设置：
+
 ```powershell
 cd D:\AI-Tutor\backend
+$env:SPRING_DATASOURCE_PASSWORD="your_mysql_password"
 $env:DEEPSEEK_API_KEY="your_deepseek_api_key"
 .\run.cmd
 ```
 
-## 4. 运行完整 MVP 联调
+`run.cmd` 是 Windows 本地标准启动方式，会读取 `backend/.env`，并使用项目内 Maven 缓存 `backend/.m2/repository`。不建议用 `spring-boot:run` 作为首选启动路径。
+
+## 4. 启动前端
+
+新开一个 PowerShell 窗口执行：
+
+```powershell
+cd D:\AI-Tutor\frontend
+npm install
+npm run dev
+```
+
+默认访问地址：
+
+```text
+http://localhost:5173
+```
+
+## 5. 运行完整 MVP 联调
 
 新开一个 PowerShell 窗口执行：
 
@@ -64,7 +93,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1 -BaseUrl "http:/
 powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1 -AiMessage "Reply with OK only."
 ```
 
-## 5. 通过标准
+## 6. 通过标准
 
 脚本最后输出：
 
@@ -74,7 +103,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1 -AiMessage "Repl
 
 表示核心闭环通过。
 
-## 6. 覆盖场景
+## 7. 覆盖场景
 
 脚本会验证：
 

@@ -98,9 +98,25 @@
         </div>
       </section>
 
+      <section v-if="workspaceStore.activeLearningSession" class="learning-session-strip">
+        <div>
+          <p class="eyebrow">Active Learning Session</p>
+          <h3>{{ workspaceStore.activeLearningSession.goal }}</h3>
+          <p>{{ workspaceStore.activeLearningSession.nextAction || '继续围绕当前目标学习' }}</p>
+        </div>
+        <div class="learning-session-meta">
+          <el-tag :type="learningSessionStatusTag(workspaceStore.activeLearningSession.status)" effect="dark">
+            {{ learningSessionStatusLabel(workspaceStore.activeLearningSession.status) }}
+          </el-tag>
+          <el-tag v-if="workspaceStore.activeLearningSession.teachingStrategy" effect="plain">
+            {{ strategyLabel(workspaceStore.activeLearningSession.teachingStrategy) }}
+          </el-tag>
+        </div>
+      </section>
+
       <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list wide">
         <div v-if="workspaceStore.messages.length === 0" class="empty-chat">
-          <h3>把问题丢给 AI Tutor</h3>
+          <h3>把问题交给 AI Tutor</h3>
           <p>可以问概念、代码、学习路径，也可以让它按你的档案调整讲解方式。</p>
         </div>
 
@@ -157,7 +173,6 @@
         </el-button>
       </footer>
     </section>
-
   </div>
 </template>
 
@@ -167,7 +182,7 @@ import { useRouter } from 'vue-router'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Close, Plus, Promotion, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorkspaceStore } from '../stores/workspace'
-import type { TutorAction } from '../types/domain'
+import type { LearningSessionStatus, TutorAction } from '../types/domain'
 import { formatTime, modeLabel } from '../utils/format'
 import { renderMarkdown } from '../utils/markdown'
 
@@ -193,7 +208,7 @@ const currentChatTitle = computed(() => {
   if (workspaceStore.currentConversation?.title) {
     return workspaceStore.currentConversation.title
   }
-  return workspaceStore.draftConversation ? '输入第一句后自动命名' : 'AI 学习问答'
+  return workspaceStore.draftConversation ? '输入第一句话后自动命名' : 'AI 学习问答'
 })
 const filteredConversations = computed(() => {
   const keyword = threadQuery.value.toLowerCase()
@@ -360,12 +375,50 @@ function buildSearchSnippet(content: string, keyword: string) {
   return `${start > 0 ? '...' : ''}${normalizedContent.slice(start, end)}${end < normalizedContent.length ? '...' : ''}`
 }
 
+function learningSessionStatusLabel(status: LearningSessionStatus) {
+  const labels: Record<LearningSessionStatus, string> = {
+    CREATED: '已创建',
+    DIAGNOSING: '诊断中',
+    PLANNING: '规划中',
+    TEACHING: '教学中',
+    PRACTICE: '练习中',
+    REFLECTION: '复盘中',
+    COMPLETED: '已完成'
+  }
+  return labels[status] || status
+}
+
+function learningSessionStatusTag(status: LearningSessionStatus) {
+  if (status === 'COMPLETED') {
+    return 'success'
+  }
+  if (status === 'PRACTICE' || status === 'REFLECTION') {
+    return 'warning'
+  }
+  if (status === 'CREATED') {
+    return 'info'
+  }
+  return 'primary'
+}
+
+function strategyLabel(strategy: string) {
+  const labels: Record<string, string> = {
+    concept_first: '概念优先',
+    example_first: '案例优先',
+    source_code_first: '源码优先',
+    prerequisite_first: '前置补齐',
+    practice_first: '练习优先',
+    debug_misconception: '纠偏讲解',
+    summary_review: '总结复盘'
+  }
+  return labels[strategy] || strategy
+}
+
 async function runTutorAction(action: TutorAction) {
   if (!action.routeName) {
     return
   }
 
-  // 动作卡片只负责把用户带到对应页面，真正的教学/出题仍由目标页面显式触发。
   const query: Record<string, string> = {}
   const payload = action.payload || {}
   if (payload.knowledgePointId) {

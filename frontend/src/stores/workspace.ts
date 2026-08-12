@@ -2,13 +2,14 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
   createConversation,
+  getActiveLearningSession,
   getProfile,
   listConversations,
   listMessages,
   saveProfile as saveProfileApi,
-  sendOrchestratorChat
+  sendTutorAgentChat
 } from '../api'
-import type { ChatMessage, Conversation, StudentProfile, TutorAction } from '../types/domain'
+import type { ChatMessage, Conversation, LearningSession, StudentProfile, TutorAction } from '../types/domain'
 
 export const useWorkspaceStore = defineStore('workspace', () => {
   const profile = ref<StudentProfile>({
@@ -20,6 +21,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const conversations = ref<Conversation[]>([])
   const currentConversationId = ref<number | null>(null)
   const messages = ref<ChatMessage[]>([])
+  const activeLearningSession = ref<LearningSession | null>(null)
   const draftConversation = ref(false)
   const loadingProfile = ref(false)
   const loadingConversations = ref(false)
@@ -73,7 +75,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     draftConversation.value = false
     loadingMessages.value = true
     try {
-      messages.value = await listMessages(conversationId)
+      const [messageResult, sessionResult] = await Promise.all([
+        listMessages(conversationId),
+        getActiveLearningSession(conversationId)
+      ])
+      messages.value = messageResult
+      activeLearningSession.value = sessionResult
     } finally {
       loadingMessages.value = false
     }
@@ -95,7 +102,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     })
     sending.value = true
     try {
-      const result = await sendOrchestratorChat(conversationId, content)
+      const result = await sendTutorAgentChat(conversationId, content, activeLearningSession.value?.id)
+      activeLearningSession.value = result.learningSession || null
       appendMessage('assistant', result.answer, result.actions, result.intent)
       await loadConversations()
       currentConversationId.value = conversationId
@@ -122,6 +130,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function startDraftConversation() {
     currentConversationId.value = null
     messages.value = []
+    activeLearningSession.value = null
     draftConversation.value = true
   }
 
@@ -149,6 +158,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     conversations.value = []
     currentConversationId.value = null
     messages.value = []
+    activeLearningSession.value = null
     draftConversation.value = false
   }
 
@@ -158,6 +168,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     currentConversationId,
     currentConversation,
     messages,
+    activeLearningSession,
     draftConversation,
     loadingProfile,
     loadingConversations,

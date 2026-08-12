@@ -32,4 +32,11 @@ if not defined MAVEN_OPTS (
     set "MAVEN_OPTS=-Xms32m -Xmx256m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=64m -Xss512k"
 )
 
-call "%MAVEN_BIN%" %*
+set "AI_TUTOR_MAVEN_HOME=%BASE_DIR%.m2"
+if not defined AI_TUTOR_MAVEN_REPO (
+    set "AI_TUTOR_MAVEN_REPO=%AI_TUTOR_MAVEN_HOME%\repository"
+)
+if not exist "%AI_TUTOR_MAVEN_HOME%" mkdir "%AI_TUTOR_MAVEN_HOME%"
+if not exist "%AI_TUTOR_MAVEN_REPO%" mkdir "%AI_TUTOR_MAVEN_REPO%"
+
+call "%MAVEN_BIN%" "-Dmaven.repo.local=%AI_TUTOR_MAVEN_REPO%" %*

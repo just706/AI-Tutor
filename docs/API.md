@@ -1323,3 +1323,79 @@ POST /api/agents/suggestions/{suggestionId}/dismiss
   "note": "暂时不做"
 }
 ```
+
+## 13. Tutor Agent Chat-first 接口
+
+### 13.1 Tutor Agent 聊天
+
+```text
+POST /api/tutor-agent/chat
+```
+
+请求参数：
+
+```json
+{
+  "conversationId": 1,
+  "learningSessionId": 10,
+  "message": "我还是不理解 HashMap 为什么线程不安全"
+}
+```
+
+说明：
+
+- `conversationId` 必填，继续复用现有 ChatSession。
+- `learningSessionId` 可选；不传时后端会优先复用当前会话下的 active LearningSession。
+- Phase 1 中 Tutor Agent 复用现有 AI Chat 和 Orchestrator，并记录 LearningSession 与 LearningSessionStep。
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "answer": "针对当前上下文生成的教学回复",
+    "intent": "concept_difficulty",
+    "learningSession": {
+      "id": 10,
+      "conversationId": 1,
+      "goal": "学习 HashMap",
+      "topic": "HashMap",
+      "intent": "concept_difficulty",
+      "status": "REFLECTION",
+      "currentStepType": "reflection",
+      "teachingStrategy": "debug_misconception",
+      "nextAction": "换一种解释方式并补齐必要前置知识",
+      "createTime": "2026-08-12 10:00:00",
+      "updateTime": "2026-08-12 10:05:00",
+      "completeTime": null
+    },
+    "teachingStrategy": "debug_misconception",
+    "strategySource": [
+      "Phase 1 uses intent-based fallback strategy",
+      "Current topic: HashMap",
+      "User message indicates unresolved understanding"
+    ],
+    "toolTraces": [
+      "orchestrator_chat",
+      "learning_session_step_recorded"
+    ],
+    "sources": [],
+    "memoryUpdates": [],
+    "actions": []
+  }
+}
+```
+
+### 13.2 查询当前学习会话
+
+```text
+GET /api/learning-sessions/active?conversationId=1
+```
+
+说明：
+
+- 用于前端切换 ChatSession 后恢复 active LearningSession 状态。
+- 只返回当前用户、当前会话下尚未完成的最新学习会话。
+- 没有 active LearningSession 时返回 `null`。
