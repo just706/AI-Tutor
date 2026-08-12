@@ -1346,7 +1346,9 @@ POST /api/tutor-agent/chat
 
 - `conversationId` 必填，继续复用现有 ChatSession。
 - `learningSessionId` 可选；不传时后端会优先复用当前会话下的 active LearningSession。
-- Phase 1 中 Tutor Agent 复用现有 AI Chat 和 Orchestrator，并记录 LearningSession 与 LearningSessionStep。
+- Tutor Agent 复用现有 AI Chat 和 Orchestrator，并记录 LearningSession 与 LearningSessionStep。
+- Phase 2 由 TeachingStrategyService 根据 intent、用户消息、当前 topic 和最近 LearningSessionStep 选择教学策略；`strategySource` 返回可解释的选择原因。
+- 对同一 LearningSession，最近存在 `concept_difficulty` 或 `reflection` 类型理解困难 Step 时，下一次“我还是不懂”会切换到 `prerequisite_first`。
 
 响应示例：
 
@@ -1365,17 +1367,24 @@ POST /api/tutor-agent/chat
       "intent": "concept_difficulty",
       "status": "REFLECTION",
       "currentStepType": "reflection",
-      "teachingStrategy": "debug_misconception",
-      "nextAction": "换一种解释方式并补齐必要前置知识",
+      "teachingStrategy": "prerequisite_first",
+      "nextAction": "先补齐理解 HashMap 所需的前置知识，再重新解释当前问题",
+      "strategySource": [
+        "当前学习主题：HashMap",
+        "用户反馈当前仍未理解",
+        "当前会话已连续出现理解困难反馈",
+        "可能存在前置知识缺口"
+      ],
       "createTime": "2026-08-12 10:00:00",
       "updateTime": "2026-08-12 10:05:00",
       "completeTime": null
     },
-    "teachingStrategy": "debug_misconception",
+    "teachingStrategy": "prerequisite_first",
     "strategySource": [
-      "Phase 1 uses intent-based fallback strategy",
-      "Current topic: HashMap",
-      "User message indicates unresolved understanding"
+      "当前学习主题：HashMap",
+      "用户反馈当前仍未理解",
+      "当前会话已连续出现理解困难反馈",
+      "可能存在前置知识缺口"
     ],
     "toolTraces": [
       "orchestrator_chat",
@@ -1399,3 +1408,4 @@ GET /api/learning-sessions/active?conversationId=1
 - 用于前端切换 ChatSession 后恢复 active LearningSession 状态。
 - 只返回当前用户、当前会话下尚未完成的最新学习会话。
 - 没有 active LearningSession 时返回 `null`。
+- 返回的 LearningSession 包含最近一次 Step 的 `strategySource`，用于展示当前策略原因。

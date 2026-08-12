@@ -662,6 +662,14 @@ button {
   line-height: 1.45;
 }
 
+.strategy-source-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .learning-session-meta {
   display: flex;
   flex: 0 0 auto;

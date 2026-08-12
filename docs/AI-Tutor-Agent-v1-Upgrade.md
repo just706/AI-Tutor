@@ -44,7 +44,7 @@ v1 的核心原则：
 |---|---|---|
 | Phase 0 | 已完成 | 文档落地、启动方式稳定、构建方式验证、知识图谱当前实现移除并延后重规划 |
 | Phase 1 | 已完成 | ChatSession 与 LearningSession 最小闭环已实现并提交 |
-| Phase 2 | 未开始 | 下一步建议实现 Teaching Strategy Layer MVP |
+| Phase 2 | 已完成 | Teaching Strategy Layer MVP 已实现并接入 Tutor Agent |
 | Phase 3 | 未开始 | Knowledge Map 与 RAG 决策能力重新规划 |
 | Phase 4 | 未开始 | Memory 生命周期 |
 | Phase 5 | 未开始 | Evaluation 与工程治理 |
@@ -212,6 +212,30 @@ Phase 2 不做：
 - 不做完整 Evaluation。
 - 不引入多 Agent 框架。
 - 不引入 Redis / MQ / 微服务。
+
+当前状态：
+
+```text
+已完成。
+```
+
+实现内容：
+
+- 新增 `TeachingStrategyService`，统一输出 `teachingStrategy`、`strategySource` 与 `nextAction`。
+- 支持 `concept_first`、`example_first`、`source_code_first`、`prerequisite_first`、`practice_first`、`debug_misconception`、`summary_review` 七种策略。
+- `TutorAgentServiceImpl` 保留 LearningSession 创建、复用和 Step 记录流程，并委托 Teaching Strategy Layer 选择策略。
+- 同一 LearningSession 中，上一次为 `concept_difficulty` 或 `reflection` 的理解困难 Step 后，下一次“我还是不懂”会切换为 `prerequisite_first`；策略原因会说明连续理解困难和可能的前置知识缺口。
+- `LearningSessionStep.strategy_source` 持久化策略原因；查询 active LearningSession 时会恢复最近一次原因，Chat 页面展示中文策略名称和原因列表。
+
+验收结果：
+
+- “我想学习 HashMap” → `concept_first`。
+- “能不能举个例子解释 HashMap” → `example_first`。
+- “HashMap 源码里 put 是怎么实现的” → `source_code_first`。
+- 第一次“我还是不懂” → `debug_misconception`，并复用原有 topic。
+- 连续第二次“我还是不懂” → `prerequisite_first`。
+- “做题练一下” → `practice_first`。
+- “总结一下” → `summary_review`。
 
 ### Phase 3：Knowledge Map 与 RAG 决策参与
 
@@ -588,29 +612,10 @@ http://localhost:5173
 
 ## 9. 下一步建议
 
-下一步进入 Phase 2：
+下一步进入 Phase 3：
 
 ```text
-Teaching Strategy Layer MVP
+Knowledge Map 与 RAG 决策参与重新规划
 ```
 
-推荐只做以下内容：
-
-- 新增 `TeachingStrategyService`。
-- 支持 7 种基础教学策略。
-- TutorAgentServiceImpl 调用 TeachingStrategyService。
-- `strategySource` 必须可解释。
-- 连续反馈 `我还是不懂` 时切换到 `prerequisite_first`。
-- Chat 前端展示教学策略和策略原因。
-- 更新必要文档。
-- 验证不破坏 Phase 1 LearningSession 闭环。
-
-不要在 Phase 2 中做：
-
-- Memory 生命周期
-- Knowledge Map 重新实现
-- RAG 优化
-- Evaluation 系统
-- Redis / MQ
-- 多 Agent 框架
-- 微服务拆分
+Phase 3 应以能参与 Agent 决策的 Knowledge Map 为目标，不重做独立展示型知识图谱页面。

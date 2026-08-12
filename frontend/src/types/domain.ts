@@ -85,6 +85,7 @@ export interface LearningSession {
   status: LearningSessionStatus
   currentStepType?: string
   teachingStrategy?: string
+  strategySource?: string[]
   nextAction?: string
   createTime?: string
   updateTime?: string

@@ -12,11 +12,13 @@ import com.aitutor.mapper.LearningSessionStepMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.TutorAgentService;
 import com.aitutor.service.TutorOrchestratorService;
+import com.aitutor.service.TeachingStrategyService;
 import com.aitutor.vo.KnowledgePointVO;
 import com.aitutor.vo.LearningSessionVO;
 import com.aitutor.vo.OrchestratorActionVO;
 import com.aitutor.vo.OrchestratorChatVO;
 import com.aitutor.vo.TutorAgentChatVO;
+import com.aitutor.vo.TeachingStrategyDecisionVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,7 +26,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -55,24 +56,21 @@ public class TutorAgentServiceImpl implements TutorAgentService {
     private static final String INTENT_ANALYSIS = "analysis";
     private static final String INTENT_CONCEPT_DIFFICULTY = "concept_difficulty";
 
-    private static final String STRATEGY_CONCEPT_FIRST = "concept_first";
-    private static final String STRATEGY_EXAMPLE_FIRST = "example_first";
-    private static final String STRATEGY_PRACTICE_FIRST = "practice_first";
-    private static final String STRATEGY_DEBUG_MISCONCEPTION = "debug_misconception";
-    private static final String STRATEGY_SUMMARY_REVIEW = "summary_review";
-
     private final TutorOrchestratorService tutorOrchestratorService;
+    private final TeachingStrategyService teachingStrategyService;
     private final ConversationMapper conversationMapper;
     private final LearningSessionMapper learningSessionMapper;
     private final LearningSessionStepMapper learningSessionStepMapper;
     private final ObjectMapper objectMapper;
 
     public TutorAgentServiceImpl(TutorOrchestratorService tutorOrchestratorService,
+                                 TeachingStrategyService teachingStrategyService,
                                  ConversationMapper conversationMapper,
                                  LearningSessionMapper learningSessionMapper,
                                  LearningSessionStepMapper learningSessionStepMapper,
                                  ObjectMapper objectMapper) {
         this.tutorOrchestratorService = tutorOrchestratorService;
+        this.teachingStrategyService = teachingStrategyService;
         this.conversationMapper = conversationMapper;
         this.learningSessionMapper = learningSessionMapper;
         this.learningSessionStepMapper = learningSessionStepMapper;
@@ -99,20 +97,23 @@ public class TutorAgentServiceImpl implements TutorAgentService {
 
         String nextStatus = decideStatus(intent, previousStatus);
         String stepType = decideStepType(intent, nextStatus);
-        String teachingStrategy = decideTeachingStrategy(intent, request.getMessage());
-        String nextAction = decideNextAction(intent, topic);
-        List<String> strategySource = buildStrategySource(intent, request.getMessage(), topic);
+        LearningSessionStep recentStep = findLatestStep(session.getId());
+        TeachingStrategyDecisionVO strategyDecision = teachingStrategyService.decide(
+                intent, request.getMessage(), session, topic, recentStep);
 
-        updateSession(session, intent, topic, nextStatus, stepType, teachingStrategy, nextAction);
-        recordStep(session, previousStatus, nextStatus, stepType, intent, teachingStrategy,
-                request.getMessage(), orchestratorResult.getAnswer(), strategySource, orchestratorResult.getActions());
+        updateSession(session, intent, topic, nextStatus, stepType, strategyDecision.getTeachingStrategy(),
+                strategyDecision.getNextAction());
+        recordStep(session, previousStatus, nextStatus, stepType, intent, strategyDecision.getTeachingStrategy(),
+                request.getMessage(), orchestratorResult.getAnswer(), strategyDecision.getStrategySource(), orchestratorResult.getActions());
 
         TutorAgentChatVO response = new TutorAgentChatVO();
         response.setAnswer(orchestratorResult.getAnswer());
         response.setIntent(intent);
-        response.setLearningSession(LearningSessionVO.from(session));
-        response.setTeachingStrategy(teachingStrategy);
-        response.setStrategySource(strategySource);
+        LearningSessionVO learningSessionVO = LearningSessionVO.from(session);
+        learningSessionVO.setStrategySource(strategyDecision.getStrategySource());
+        response.setLearningSession(learningSessionVO);
+        response.setTeachingStrategy(strategyDecision.getTeachingStrategy());
+        response.setStrategySource(strategyDecision.getStrategySource());
         response.setToolTraces(List.of("orchestrator_chat", "learning_session_step_recorded"));
         response.setActions(orchestratorResult.getActions());
         return response;
@@ -165,7 +166,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         session.setIntent(intent);
         session.setStatus(STATUS_CREATED);
         session.setCurrentStepType("created");
-        session.setTeachingStrategy(STRATEGY_CONCEPT_FIRST);
+        session.setTeachingStrategy("concept_first");
         session.setNextAction("继续说明学习目标或提出具体问题");
         learningSessionMapper.insert(session);
         return session;
@@ -222,6 +223,14 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         learningSessionStepMapper.insert(step);
     }
 
+    private LearningSessionStep findLatestStep(Long sessionId) {
+        return learningSessionStepMapper.selectOne(new LambdaQueryWrapper<LearningSessionStep>()
+                .eq(LearningSessionStep::getSessionId, sessionId)
+                .orderByDesc(LearningSessionStep::getCreateTime)
+                .orderByDesc(LearningSessionStep::getId)
+                .last("LIMIT 1"));
+    }
+
     private String normalizeIntent(String intent, String message) {
         String normalized = intent == null ? INTENT_CHAT : intent.trim().toLowerCase(Locale.ROOT);
         if ((INTENT_LEARN.equals(normalized) || INTENT_CHAT.equals(normalized)) && isConceptDifficulty(message)) {
@@ -263,51 +272,6 @@ public class TutorAgentServiceImpl implements TutorAgentService {
             return "teaching";
         }
         return "diagnosis";
-    }
-
-    private String decideTeachingStrategy(String intent, String message) {
-        if (INTENT_PRACTICE.equals(intent)) {
-            return STRATEGY_PRACTICE_FIRST;
-        }
-        if (INTENT_ANALYSIS.equals(intent)) {
-            return STRATEGY_SUMMARY_REVIEW;
-        }
-        if (INTENT_CONCEPT_DIFFICULTY.equals(intent)) {
-            return STRATEGY_DEBUG_MISCONCEPTION;
-        }
-        if (containsAny(message, List.of("例子", "案例", "example"))) {
-            return STRATEGY_EXAMPLE_FIRST;
-        }
-        return STRATEGY_CONCEPT_FIRST;
-    }
-
-    private String decideNextAction(String intent, String topic) {
-        String displayTopic = blankToDefault(topic, "当前主题");
-        return switch (intent) {
-            case INTENT_PRACTICE -> "围绕 " + displayTopic + " 做一次针对性练习";
-            case INTENT_PATH -> "确认学习目标后生成 " + displayTopic + " 的学习路径";
-            case INTENT_ANALYSIS -> "查看学习分析并决定下一步复习重点";
-            case INTENT_CONCEPT_DIFFICULTY -> "换一种解释方式并补齐必要前置知识";
-            case INTENT_LEARN -> "继续学习 " + displayTopic + " 并完成一次理解检查";
-            default -> "继续对话，必要时创建具体学习目标";
-        };
-    }
-
-    private List<String> buildStrategySource(String intent, String message, String topic) {
-        List<String> sources = new ArrayList<>();
-        sources.add("Phase 1 uses intent-based fallback strategy");
-        if (!isBlank(topic)) {
-            sources.add("Current topic: " + topic);
-        }
-        if (INTENT_CONCEPT_DIFFICULTY.equals(intent)) {
-            sources.add("User message indicates unresolved understanding");
-        } else {
-            sources.add("Detected intent: " + intent);
-        }
-        if (containsAny(message, List.of("例子", "案例", "example"))) {
-            sources.add("User requested example-oriented explanation");
-        }
-        return sources;
     }
 
     private String resolveTopic(KnowledgePointVO matchedPoint, String message) {

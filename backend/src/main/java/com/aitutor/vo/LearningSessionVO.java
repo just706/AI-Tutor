@@ -3,6 +3,8 @@ package com.aitutor.vo;
 import com.aitutor.entity.LearningSession;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 public class LearningSessionVO {
 
@@ -14,6 +16,7 @@ public class LearningSessionVO {
     private String status;
     private String currentStepType;
     private String teachingStrategy;
+    private List<String> strategySource = new ArrayList<>();
     private String nextAction;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -101,6 +104,14 @@ public class LearningSessionVO {
 
     public void setTeachingStrategy(String teachingStrategy) {
         this.teachingStrategy = teachingStrategy;
+    }
+
+    public List<String> getStrategySource() {
+        return strategySource;
+    }
+
+    public void setStrategySource(List<String> strategySource) {
+        this.strategySource = strategySource == null ? new ArrayList<>() : strategySource;
     }
 
     public String getNextAction() {

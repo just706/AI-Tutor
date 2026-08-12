@@ -103,6 +103,9 @@
           <p class="eyebrow">Active Learning Session</p>
           <h3>{{ workspaceStore.activeLearningSession.goal }}</h3>
           <p>{{ workspaceStore.activeLearningSession.nextAction || '继续围绕当前目标学习' }}</p>
+          <ul v-if="workspaceStore.activeLearningSession.strategySource?.length" class="strategy-source-list">
+            <li v-for="source in workspaceStore.activeLearningSession.strategySource" :key="source">{{ source }}</li>
+          </ul>
         </div>
         <div class="learning-session-meta">
           <el-tag :type="learningSessionStatusTag(workspaceStore.activeLearningSession.status)" effect="dark">
