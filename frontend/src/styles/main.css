@@ -670,6 +670,16 @@ button {
   line-height: 1.55;
 }
 
+.knowledge-map-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .learning-session-meta {
   display: flex;
   flex: 0 0 auto;

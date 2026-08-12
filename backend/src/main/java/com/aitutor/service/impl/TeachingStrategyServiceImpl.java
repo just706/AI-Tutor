@@ -3,6 +3,8 @@ package com.aitutor.service.impl;
 import com.aitutor.entity.LearningSession;
 import com.aitutor.entity.LearningSessionStep;
 import com.aitutor.service.TeachingStrategyService;
+import com.aitutor.vo.KnowledgeMapContextVO;
+import com.aitutor.vo.KnowledgeMapPrerequisiteVO;
 import com.aitutor.vo.TeachingStrategyDecisionVO;
 import org.springframework.stereotype.Service;
 
@@ -30,7 +32,8 @@ public class TeachingStrategyServiceImpl implements TeachingStrategyService {
                                              String userMessage,
                                              LearningSession learningSession,
                                              String currentTopic,
-                                             LearningSessionStep recentStep) {
+                                             LearningSessionStep recentStep,
+                                             KnowledgeMapContextVO knowledgeMapContext) {
         String normalizedIntent = normalize(intent);
         String topic = isBlank(currentTopic) && learningSession != null ? learningSession.getTopic() : currentTopic;
         List<String> strategySource = new ArrayList<>();
@@ -58,11 +61,18 @@ public class TeachingStrategyServiceImpl implements TeachingStrategyService {
             if (isDifficultyStep(recentStep)) {
                 strategySource.add("当前会话已连续出现理解困难反馈");
                 strategySource.add("可能存在前置知识缺口");
+                appendKnowledgeMapSource(strategySource, knowledgeMapContext);
                 return decision(STRATEGY_PREREQUISITE_FIRST, strategySource,
-                        "先补齐理解 " + displayTopic(topic) + " 所需的前置知识，再重新解释当前问题。");
+                        prerequisiteNextAction(topic, knowledgeMapContext));
             }
             return decision(STRATEGY_DEBUG_MISCONCEPTION, strategySource,
                     "换一种解释方式定位误区，再确认 " + displayTopic(topic) + " 的关键概念。");
+        }
+        if (isPrerequisiteRequest(userMessage)) {
+            strategySource.add("用户明确要求补充前置知识");
+            appendKnowledgeMapSource(strategySource, knowledgeMapContext);
+            return decision(STRATEGY_PREREQUISITE_FIRST, strategySource,
+                    prerequisiteNextAction(topic, knowledgeMapContext));
         }
         if (containsAny(userMessage, List.of("举个例子", "举例", "例子", "案例", "example"))) {
             strategySource.add("用户明确请求案例解释");
@@ -103,6 +113,33 @@ public class TeachingStrategyServiceImpl implements TeachingStrategyService {
     private boolean isDifficultyStep(LearningSessionStep step) {
         return step != null && (INTENT_CONCEPT_DIFFICULTY.equals(normalize(step.getIntent()))
                 || "reflection".equals(normalize(step.getStepType())));
+    }
+
+    private boolean isPrerequisiteRequest(String userMessage) {
+        return containsAny(userMessage, List.of("前置知识", "基础不牢", "基础薄弱", "从基础", "补基础"));
+    }
+
+    private void appendKnowledgeMapSource(List<String> strategySource, KnowledgeMapContextVO knowledgeMapContext) {
+        if (knowledgeMapContext == null || !knowledgeMapContext.isHasUnmetPrerequisites()) {
+            strategySource.add("知识地图未发现尚未掌握的直接前置知识，先回顾必要基础再调整讲解方式");
+            return;
+        }
+        String prerequisiteNames = knowledgeMapContext.getUnmetPrerequisites().stream()
+                .map(KnowledgeMapPrerequisiteVO::getKnowledgePointName)
+                .filter(name -> !isBlank(name))
+                .collect(java.util.stream.Collectors.joining("、"));
+        strategySource.add("知识地图识别出尚未掌握的前置知识：" + prerequisiteNames);
+    }
+
+    private String prerequisiteNextAction(String topic, KnowledgeMapContextVO knowledgeMapContext) {
+        if (knowledgeMapContext != null && knowledgeMapContext.isHasUnmetPrerequisites()) {
+            String prerequisiteNames = knowledgeMapContext.getUnmetPrerequisites().stream()
+                    .map(KnowledgeMapPrerequisiteVO::getKnowledgePointName)
+                    .filter(name -> !isBlank(name))
+                    .collect(java.util.stream.Collectors.joining("、"));
+            return "先补齐 " + prerequisiteNames + "，再重新解释 " + displayTopic(topic) + " 当前问题。";
+        }
+        return "先回顾理解 " + displayTopic(topic) + " 所需的前置知识，再重新解释当前问题。";
     }
 
     private boolean containsAny(String value, List<String> keywords) {

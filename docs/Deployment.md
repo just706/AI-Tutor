@@ -115,7 +115,11 @@ backend/src/main/resources/db/stage1-user.sql
 backend/src/main/resources/db/stage2-student-profile.sql
 backend/src/main/resources/db/stage3-conversation-chat.sql
 backend/src/main/resources/db/stage4-ai-chat.sql
+backend/src/main/resources/db/stage12-learning-session.sql
+backend/src/main/resources/db/stage13-knowledge-map.sql
 ```
+
+已完成 Phase 2 的数据库只需补执行 `stage13-knowledge-map.sql`。该脚本会创建 `knowledge_map_dependency` 并写入幂等的 HashMap 前置依赖种子数据。
 
 建议后期使用数据库迁移工具管理脚本，例如：
 

@@ -45,7 +45,7 @@ v1 的核心原则：
 | Phase 0 | 已完成 | 文档落地、启动方式稳定、构建方式验证、知识图谱当前实现移除并延后重规划 |
 | Phase 1 | 已完成 | ChatSession 与 LearningSession 最小闭环已实现并提交 |
 | Phase 2 | 已完成 | Teaching Strategy Layer MVP 已实现并接入 Tutor Agent |
-| Phase 3 | 未开始 | Knowledge Map 与 RAG 决策能力重新规划 |
+| Phase 3 | 已完成 | Knowledge Map MVP 已参与前置知识判断与教学策略解释；RAG 不在本阶段改造范围内 |
 | Phase 4 | 未开始 | Memory 生命周期 |
 | Phase 5 | 未开始 | Evaluation 与工程治理 |
 
@@ -281,6 +281,28 @@ RAG 服务于：
 - 引用来源
 
 RAG 不应该喧宾夺主，也不应该把项目变成知识库问答系统。
+
+Phase 3 实现范围：
+
+- 新增 `knowledge_map_dependency`，显式保存知识点的有向直接前置依赖，而不复用仅表示层级的 `parent_id`。
+- 新增 `KnowledgeMapService`：按当前 topic 解析知识点，读取直接前置项，并结合当前用户 `learning_record` 返回掌握度低于 70 的前置知识。
+- 为 Java `HashMap` 预置 `基础语法`、`面向对象`、`集合框架` 三个直接前置项。
+- 将 Knowledge Map 上下文传给 Teaching Strategy Layer。连续理解困难或用户明确要求补基础时，`prerequisite_first` 的 `strategySource` 与 `nextAction` 会引用未掌握的前置项。
+- `POST /api/tutor-agent/chat` 与 active LearningSession 查询返回 `knowledgeMap`；Chat 仅以标签展示建议补齐的前置项。
+
+Phase 3 明确不做：
+
+- 不重做独立知识图谱页面。
+- 不做 RAG 检索、召回或排序优化。
+- 不做 Memory 生命周期、Evaluation、Redis、MQ、微服务或多 Agent 框架。
+
+Phase 3 验收标准：
+
+- 执行 `backend/src/main/resources/db/stage13-knowledge-map.sql` 后，`HashMap` 能解析到预置的直接前置依赖。
+- 对掌握度低于 70 的前置项，chat 响应和 active LearningSession 返回 `knowledgeMap.unmetPrerequisites`。
+- 第一次“我还是不懂”仍使用 `debug_misconception`；连续理解困难后使用 `prerequisite_first`，策略原因明确包含前置知识缺口与知识地图结果。
+- 掌握度不低于 70 的前置项不会出现在未掌握列表中。
+- 后端单元测试、后端编译和前端构建通过。
 
 ### Phase 4：Memory 生命周期
 
@@ -612,10 +634,10 @@ http://localhost:5173
 
 ## 9. 下一步建议
 
-下一步进入 Phase 3：
+下一步进入 Phase 4：
 
 ```text
-Knowledge Map 与 RAG 决策参与重新规划
+Memory 生命周期 MVP
 ```
 
-Phase 3 应以能参与 Agent 决策的 Knowledge Map 为目标，不重做独立展示型知识图谱页面。
+Phase 4 应先定义可删除、可过期、可抑制的 Memory 生命周期，再决定长期记忆的扩展范围。

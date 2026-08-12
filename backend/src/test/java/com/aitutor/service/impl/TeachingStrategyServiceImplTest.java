@@ -2,6 +2,8 @@ package com.aitutor.service.impl;
 
 import com.aitutor.entity.LearningSession;
 import com.aitutor.entity.LearningSessionStep;
+import com.aitutor.vo.KnowledgeMapContextVO;
+import com.aitutor.vo.KnowledgeMapPrerequisiteVO;
 import com.aitutor.vo.TeachingStrategyDecisionVO;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +45,8 @@ class TeachingStrategyServiceImplTest {
         assertEquals("prerequisite_first", decision.getTeachingStrategy());
         assertTrue(decision.getStrategySource().contains("当前会话已连续出现理解困难反馈"));
         assertTrue(decision.getStrategySource().contains("可能存在前置知识缺口"));
+        assertTrue(decision.getStrategySource().contains("知识地图识别出尚未掌握的前置知识：基础语法"));
+        assertEquals("先补齐 基础语法，再重新解释 HashMap 当前问题。", decision.getNextAction());
     }
 
     @Test
@@ -65,6 +69,14 @@ class TeachingStrategyServiceImplTest {
     private TeachingStrategyDecisionVO decide(String intent, String userMessage, LearningSessionStep recentStep) {
         LearningSession session = new LearningSession();
         session.setTopic("HashMap");
-        return service.decide(intent, userMessage, session, "HashMap", recentStep);
+        return service.decide(intent, userMessage, session, "HashMap", recentStep, knowledgeMapContext());
+    }
+
+    private KnowledgeMapContextVO knowledgeMapContext() {
+        KnowledgeMapPrerequisiteVO prerequisite = new KnowledgeMapPrerequisiteVO();
+        prerequisite.setKnowledgePointName("基础语法");
+        KnowledgeMapContextVO context = new KnowledgeMapContextVO();
+        context.setUnmetPrerequisites(java.util.List.of(prerequisite));
+        return context;
     }
 }

@@ -86,6 +86,7 @@ export interface LearningSession {
   currentStepType?: string
   teachingStrategy?: string
   strategySource?: string[]
+  knowledgeMap?: KnowledgeMapContext
   nextAction?: string
   createTime?: string
   updateTime?: string
@@ -97,6 +98,7 @@ export interface TutorAgentChatResult extends AiChatResult {
   learningSession?: LearningSession | null
   teachingStrategy?: string
   strategySource: string[]
+  knowledgeMap?: KnowledgeMapContext
   toolTraces: string[]
   sources: RagSource[]
   memoryUpdates: string[]
@@ -110,6 +112,22 @@ export interface KnowledgePoint {
   parentId: number
   sortOrder: number
   children: KnowledgePoint[]
+}
+
+export interface KnowledgeMapPrerequisite {
+  knowledgePointId: number
+  knowledgePointName: string
+  subject?: string
+  masteryLevel: number
+  relationReason?: string
+}
+
+export interface KnowledgeMapContext {
+  knowledgePointId?: number
+  topic?: string
+  subject?: string
+  unmetPrerequisites: KnowledgeMapPrerequisite[]
+  hasUnmetPrerequisites: boolean
 }
 
 export interface LearningRecord {

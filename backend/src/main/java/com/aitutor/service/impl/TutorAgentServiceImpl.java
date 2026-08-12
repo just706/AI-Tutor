@@ -13,7 +13,9 @@ import com.aitutor.security.UserContext;
 import com.aitutor.service.TutorAgentService;
 import com.aitutor.service.TutorOrchestratorService;
 import com.aitutor.service.TeachingStrategyService;
+import com.aitutor.service.KnowledgeMapService;
 import com.aitutor.vo.KnowledgePointVO;
+import com.aitutor.vo.KnowledgeMapContextVO;
 import com.aitutor.vo.LearningSessionVO;
 import com.aitutor.vo.OrchestratorActionVO;
 import com.aitutor.vo.OrchestratorChatVO;
@@ -58,6 +60,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
 
     private final TutorOrchestratorService tutorOrchestratorService;
     private final TeachingStrategyService teachingStrategyService;
+    private final KnowledgeMapService knowledgeMapService;
     private final ConversationMapper conversationMapper;
     private final LearningSessionMapper learningSessionMapper;
     private final LearningSessionStepMapper learningSessionStepMapper;
@@ -65,12 +68,14 @@ public class TutorAgentServiceImpl implements TutorAgentService {
 
     public TutorAgentServiceImpl(TutorOrchestratorService tutorOrchestratorService,
                                  TeachingStrategyService teachingStrategyService,
+                                 KnowledgeMapService knowledgeMapService,
                                  ConversationMapper conversationMapper,
                                  LearningSessionMapper learningSessionMapper,
                                  LearningSessionStepMapper learningSessionStepMapper,
                                  ObjectMapper objectMapper) {
         this.tutorOrchestratorService = tutorOrchestratorService;
         this.teachingStrategyService = teachingStrategyService;
+        this.knowledgeMapService = knowledgeMapService;
         this.conversationMapper = conversationMapper;
         this.learningSessionMapper = learningSessionMapper;
         this.learningSessionStepMapper = learningSessionStepMapper;
@@ -98,8 +103,9 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         String nextStatus = decideStatus(intent, previousStatus);
         String stepType = decideStepType(intent, nextStatus);
         LearningSessionStep recentStep = findLatestStep(session.getId());
+        KnowledgeMapContextVO knowledgeMapContext = knowledgeMapService.resolve(userId, topic);
         TeachingStrategyDecisionVO strategyDecision = teachingStrategyService.decide(
-                intent, request.getMessage(), session, topic, recentStep);
+                intent, request.getMessage(), session, topic, recentStep, knowledgeMapContext);
 
         updateSession(session, intent, topic, nextStatus, stepType, strategyDecision.getTeachingStrategy(),
                 strategyDecision.getNextAction());
@@ -111,9 +117,11 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         response.setIntent(intent);
         LearningSessionVO learningSessionVO = LearningSessionVO.from(session);
         learningSessionVO.setStrategySource(strategyDecision.getStrategySource());
+        learningSessionVO.setKnowledgeMap(knowledgeMapContext);
         response.setLearningSession(learningSessionVO);
         response.setTeachingStrategy(strategyDecision.getTeachingStrategy());
         response.setStrategySource(strategyDecision.getStrategySource());
+        response.setKnowledgeMap(knowledgeMapContext);
         response.setToolTraces(List.of("orchestrator_chat", "learning_session_step_recorded"));
         response.setActions(orchestratorResult.getActions());
         return response;

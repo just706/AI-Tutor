@@ -9,6 +9,8 @@ import com.aitutor.mapper.LearningSessionMapper;
 import com.aitutor.mapper.LearningSessionStepMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.LearningSessionService;
+import com.aitutor.service.KnowledgeMapService;
+import com.aitutor.vo.KnowledgeMapContextVO;
 import com.aitutor.vo.LearningSessionVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -34,15 +36,18 @@ public class LearningSessionServiceImpl implements LearningSessionService {
     private final LearningSessionMapper learningSessionMapper;
     private final LearningSessionStepMapper learningSessionStepMapper;
     private final ObjectMapper objectMapper;
+    private final KnowledgeMapService knowledgeMapService;
 
     public LearningSessionServiceImpl(ConversationMapper conversationMapper,
                                       LearningSessionMapper learningSessionMapper,
                                       LearningSessionStepMapper learningSessionStepMapper,
-                                      ObjectMapper objectMapper) {
+                                      ObjectMapper objectMapper,
+                                      KnowledgeMapService knowledgeMapService) {
         this.conversationMapper = conversationMapper;
         this.learningSessionMapper = learningSessionMapper;
         this.learningSessionStepMapper = learningSessionStepMapper;
         this.objectMapper = objectMapper;
+        this.knowledgeMapService = knowledgeMapService;
     }
 
     @Override
@@ -60,6 +65,8 @@ public class LearningSessionServiceImpl implements LearningSessionService {
         LearningSessionVO sessionVO = LearningSessionVO.from(session);
         if (sessionVO != null) {
             sessionVO.setStrategySource(readLatestStrategySource(session.getId()));
+            KnowledgeMapContextVO knowledgeMapContext = knowledgeMapService.resolve(userId, session.getTopic());
+            sessionVO.setKnowledgeMap(knowledgeMapContext);
         }
         return sessionVO;
     }

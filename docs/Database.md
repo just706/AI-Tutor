@@ -15,6 +15,7 @@
 | conversation | 会话信息 |
 | chat_history | 聊天记录 |
 | knowledge_point | 知识点 |
+| knowledge_map_dependency | 知识点前置依赖关系 |
 | learning_record | 学习记录 |
 | question | 题目 |
 | answer_record | 答题记录 |
@@ -489,6 +490,7 @@ CREATE TABLE agent_event_log (
 - `conversation` 与 `learning_session` 是一对多关系。
 - `learning_session` 与 `learning_session_step` 是一对多关系。
 - `knowledge_point` 支持父子层级结构。
+- `knowledge_map_dependency` 表示知识点之间的有向前置依赖；`prerequisite_point_id` 是前置知识点，`dependent_point_id` 是需要学习它的知识点。
 - `knowledge_point` 与 `question` 是一对多关系。
 - `user` 与 `learning_record` 是一对多关系。
 - `user` 与 `answer_record` 是一对多关系。
@@ -602,3 +604,19 @@ CREATE TABLE agent_event_log (
 | strategy_source | TEXT | 策略证据 JSON |
 | actions_snapshot | TEXT | 动作快照 JSON |
 | create_time | DATETIME | 创建时间 |
+
+## 21. 知识地图依赖表 knowledge_map_dependency
+
+该表不用于独立展示图谱，而是为 Tutor Agent 提供可解释的前置知识判断依据。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | 主键 |
+| prerequisite_point_id | BIGINT | 前置知识点 ID |
+| dependent_point_id | BIGINT | 依赖此前置项的知识点 ID |
+| relation_type | VARCHAR(32) | 关系类型，当前为 `required` |
+| relation_reason | VARCHAR(255) | 面向用户的依赖原因 |
+| sort_order | INT | 前置项展示与补齐顺序 |
+| create_time | DATETIME | 创建时间 |
+
+对应迁移脚本：`backend/src/main/resources/db/stage13-knowledge-map.sql`。该脚本预置 Java 的 `基础语法`、`面向对象`、`集合框架` 到 `HashMap` 的直接前置依赖。

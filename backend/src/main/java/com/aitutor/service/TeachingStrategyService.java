@@ -2,6 +2,7 @@ package com.aitutor.service;
 
 import com.aitutor.entity.LearningSession;
 import com.aitutor.entity.LearningSessionStep;
+import com.aitutor.vo.KnowledgeMapContextVO;
 import com.aitutor.vo.TeachingStrategyDecisionVO;
 
 public interface TeachingStrategyService {
@@ -10,5 +11,6 @@ public interface TeachingStrategyService {
                                       String userMessage,
                                       LearningSession learningSession,
                                       String currentTopic,
-                                      LearningSessionStep recentStep);
+                                      LearningSessionStep recentStep,
+                                      KnowledgeMapContextVO knowledgeMapContext);
 }

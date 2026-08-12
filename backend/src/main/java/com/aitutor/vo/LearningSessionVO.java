@@ -17,6 +17,7 @@ public class LearningSessionVO {
     private String currentStepType;
     private String teachingStrategy;
     private List<String> strategySource = new ArrayList<>();
+    private KnowledgeMapContextVO knowledgeMap;
     private String nextAction;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -112,6 +113,14 @@ public class LearningSessionVO {
 
     public void setStrategySource(List<String> strategySource) {
         this.strategySource = strategySource == null ? new ArrayList<>() : strategySource;
+    }
+
+    public KnowledgeMapContextVO getKnowledgeMap() {
+        return knowledgeMap;
+    }
+
+    public void setKnowledgeMap(KnowledgeMapContextVO knowledgeMap) {
+        this.knowledgeMap = knowledgeMap;
     }
 
     public String getNextAction() {

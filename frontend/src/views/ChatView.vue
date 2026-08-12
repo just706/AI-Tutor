@@ -106,6 +106,17 @@
           <ul v-if="workspaceStore.activeLearningSession.strategySource?.length" class="strategy-source-list">
             <li v-for="source in workspaceStore.activeLearningSession.strategySource" :key="source">{{ source }}</li>
           </ul>
+          <div v-if="workspaceStore.activeLearningSession.knowledgeMap?.unmetPrerequisites.length" class="knowledge-map-hint">
+            <span>建议先补齐</span>
+            <el-tag
+              v-for="prerequisite in workspaceStore.activeLearningSession.knowledgeMap.unmetPrerequisites"
+              :key="prerequisite.knowledgePointId"
+              size="small"
+              effect="plain"
+            >
+              {{ prerequisite.knowledgePointName }}
+            </el-tag>
+          </div>
         </div>
         <div class="learning-session-meta">
           <el-tag :type="learningSessionStatusTag(workspaceStore.activeLearningSession.status)" effect="dark">

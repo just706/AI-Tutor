@@ -1349,6 +1349,7 @@ POST /api/tutor-agent/chat
 - Tutor Agent 复用现有 AI Chat 和 Orchestrator，并记录 LearningSession 与 LearningSessionStep。
 - Phase 2 由 TeachingStrategyService 根据 intent、用户消息、当前 topic 和最近 LearningSessionStep 选择教学策略；`strategySource` 返回可解释的选择原因。
 - 对同一 LearningSession，最近存在 `concept_difficulty` 或 `reflection` 类型理解困难 Step 时，下一次“我还是不懂”会切换到 `prerequisite_first`。
+- Phase 3 的 Knowledge Map 会按当前 topic 查询直接前置知识，并结合当前用户的 `learning_record` 返回掌握度低于 70 的前置项；它只参与前置判断和教学策略解释，不提供独立知识图谱页面。
 
 响应示例：
 
@@ -1368,12 +1369,28 @@ POST /api/tutor-agent/chat
       "status": "REFLECTION",
       "currentStepType": "reflection",
       "teachingStrategy": "prerequisite_first",
-      "nextAction": "先补齐理解 HashMap 所需的前置知识，再重新解释当前问题",
+      "nextAction": "先补齐基础语法、面向对象、集合框架，再重新解释 HashMap 当前问题。",
       "strategySource": [
         "当前学习主题：HashMap",
         "用户反馈当前仍未理解",
         "当前会话已连续出现理解困难反馈",
-        "可能存在前置知识缺口"
+        "可能存在前置知识缺口",
+        "知识地图识别出尚未掌握的前置知识：基础语法、面向对象、集合框架"
+      ],
+      "knowledgeMap": {
+        "knowledgePointId": 10,
+        "topic": "HashMap",
+        "subject": "Java",
+        "hasUnmetPrerequisites": true,
+        "unmetPrerequisites": [
+          {
+            "knowledgePointId": 1,
+            "knowledgePointName": "基础语法",
+            "subject": "Java",
+            "masteryLevel": 0,
+            "relationReason": "阅读 HashMap 使用代码的基础。"
+          }
+        ]
       ],
       "createTime": "2026-08-12 10:00:00",
       "updateTime": "2026-08-12 10:05:00",
@@ -1384,8 +1401,24 @@ POST /api/tutor-agent/chat
       "当前学习主题：HashMap",
       "用户反馈当前仍未理解",
       "当前会话已连续出现理解困难反馈",
-      "可能存在前置知识缺口"
+      "可能存在前置知识缺口",
+      "知识地图识别出尚未掌握的前置知识：基础语法、面向对象、集合框架"
     ],
+    "knowledgeMap": {
+      "knowledgePointId": 10,
+      "topic": "HashMap",
+      "subject": "Java",
+      "hasUnmetPrerequisites": true,
+      "unmetPrerequisites": [
+        {
+          "knowledgePointId": 1,
+          "knowledgePointName": "基础语法",
+          "subject": "Java",
+          "masteryLevel": 0,
+          "relationReason": "阅读 HashMap 使用代码的基础。"
+        }
+      ]
+    },
     "toolTraces": [
       "orchestrator_chat",
       "learning_session_step_recorded"
@@ -1409,3 +1442,4 @@ GET /api/learning-sessions/active?conversationId=1
 - 只返回当前用户、当前会话下尚未完成的最新学习会话。
 - 没有 active LearningSession 时返回 `null`。
 - 返回的 LearningSession 包含最近一次 Step 的 `strategySource`，用于展示当前策略原因。
+- 返回的 LearningSession 同时包含 `knowledgeMap`：当前 topic、学科和未掌握的直接前置知识。没有匹配 topic 或没有未掌握的前置项时，`unmetPrerequisites` 为空数组。

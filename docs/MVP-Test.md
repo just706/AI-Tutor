@@ -28,7 +28,11 @@ backend/src/main/resources/db/stage1-user.sql
 backend/src/main/resources/db/stage2-student-profile.sql
 backend/src/main/resources/db/stage3-conversation-chat.sql
 backend/src/main/resources/db/stage4-ai-chat.sql
+backend/src/main/resources/db/stage12-learning-session.sql
+backend/src/main/resources/db/stage13-knowledge-map.sql
 ```
+
+若数据库已完成 Phase 2，只需补执行 `stage13-knowledge-map.sql` 后再启动更新后的后端。
 
 ## 3. 启动后端
 

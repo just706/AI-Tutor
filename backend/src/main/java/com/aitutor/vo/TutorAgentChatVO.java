@@ -10,6 +10,7 @@ public class TutorAgentChatVO {
     private LearningSessionVO learningSession;
     private String teachingStrategy;
     private List<String> strategySource = new ArrayList<>();
+    private KnowledgeMapContextVO knowledgeMap;
     private List<String> toolTraces = new ArrayList<>();
     private List<RagSourceVO> sources = new ArrayList<>();
     private List<String> memoryUpdates = new ArrayList<>();
@@ -53,6 +54,14 @@ public class TutorAgentChatVO {
 
     public void setStrategySource(List<String> strategySource) {
         this.strategySource = strategySource == null ? new ArrayList<>() : strategySource;
+    }
+
+    public KnowledgeMapContextVO getKnowledgeMap() {
+        return knowledgeMap;
+    }
+
+    public void setKnowledgeMap(KnowledgeMapContextVO knowledgeMap) {
+        this.knowledgeMap = knowledgeMap;
     }
 
     public List<String> getToolTraces() {
