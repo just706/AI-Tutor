@@ -17,7 +17,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -71,6 +73,31 @@ public class LearningSessionServiceImpl implements LearningSessionService {
         return sessionVO;
     }
 
+    @Override
+    @Transactional
+    public LearningSessionVO closeSession(Long learningSessionId) {
+        Long userId = UserContext.getRequired().getId();
+        LearningSession session = learningSessionMapper.selectOne(new LambdaQueryWrapper<LearningSession>()
+                .eq(LearningSession::getId, learningSessionId)
+                .eq(LearningSession::getUserId, userId)
+                .last("LIMIT 1"));
+        if (session == null) {
+            throw new BusinessException(404, "Learning session not found");
+        }
+        if (!"COMPLETED".equals(session.getStatus())) {
+            String previousStatus = session.getStatus();
+            LocalDateTime now = LocalDateTime.now();
+            session.setStatus("COMPLETED");
+            session.setCurrentStepType("completed");
+            session.setNextAction("本次学习会话已完成。");
+            session.setCompleteTime(now);
+            session.setUpdateTime(now);
+            learningSessionMapper.updateById(session);
+            recordCompletionStep(session, previousStatus);
+        }
+        return LearningSessionVO.from(session);
+    }
+
     private void requireOwnedConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, conversationId)
@@ -96,5 +123,19 @@ public class LearningSessionServiceImpl implements LearningSessionService {
         } catch (JsonProcessingException ex) {
             return List.of();
         }
+    }
+
+    private void recordCompletionStep(LearningSession session, String previousStatus) {
+        LearningSessionStep step = new LearningSessionStep();
+        step.setSessionId(session.getId());
+        step.setUserId(session.getUserId());
+        step.setConversationId(session.getConversationId());
+        step.setStepType("completed");
+        step.setStatusFrom(previousStatus);
+        step.setStatusTo("COMPLETED");
+        step.setIntent(session.getIntent());
+        step.setStrategySource("[]");
+        step.setActionsSnapshot("[]");
+        learningSessionStepMapper.insert(step);
     }
 }

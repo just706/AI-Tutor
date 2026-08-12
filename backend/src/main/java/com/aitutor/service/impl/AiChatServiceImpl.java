@@ -77,15 +77,17 @@ public class AiChatServiceImpl implements AiChatService {
         StudentProfile profile = findProfile(userId);
         List<AiMessage> messages = buildMessages(profile, userId, conversation.getId());
 
+        long requestStartedAt = System.nanoTime();
         try {
             AiChatResult result = deepSeekClient.chat(messages);
             saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, result.getContent());
             touchConversation(conversation.getId());
-            saveAiCallLog(userId, result.getPromptTokens(), result.getCompletionTokens(), "success", null);
+            saveAiCallLog(userId, result.getPromptTokens(), result.getCompletionTokens(), "success", null,
+                    elapsedMilliseconds(requestStartedAt));
             return new AiChatVO(result.getContent());
         } catch (AiServiceException ex) {
             touchConversation(conversation.getId());
-            saveAiCallLog(userId, null, null, "failed", ex.getMessage());
+            saveAiCallLog(userId, null, null, "failed", ex.getMessage(), elapsedMilliseconds(requestStartedAt));
             throw ex;
         }
     }
@@ -162,17 +164,24 @@ public class AiChatServiceImpl implements AiChatService {
                                Integer promptTokens,
                                Integer completionTokens,
                                String status,
-                               String errorMessage) {
+                               String errorMessage,
+                               int durationMs) {
         AiCallLog log = new AiCallLog();
         log.setUserId(userId);
         log.setProvider(PROVIDER_DEEPSEEK);
         log.setModelName(deepSeekClient.getModelName());
         log.setRequestType(REQUEST_TYPE_CHAT);
+        log.setDurationMs(durationMs);
         log.setPromptTokens(promptTokens == null ? 0 : promptTokens);
         log.setCompletionTokens(completionTokens == null ? 0 : completionTokens);
         log.setStatus(status);
         log.setErrorMessage(limitErrorMessage(errorMessage));
         aiCallLogMapper.insert(log);
+    }
+
+    private int elapsedMilliseconds(long requestStartedAt) {
+        long elapsed = (System.nanoTime() - requestStartedAt) / 1_000_000;
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(0, elapsed));
     }
 
     private String limitErrorMessage(String errorMessage) {

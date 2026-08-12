@@ -5,4 +5,6 @@ import com.aitutor.vo.LearningSessionVO;
 public interface LearningSessionService {
 
     LearningSessionVO getActiveSession(Long conversationId);
+
+    LearningSessionVO closeSession(Long learningSessionId);
 }

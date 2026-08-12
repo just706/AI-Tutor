@@ -16,7 +16,7 @@
 
 - MySQL 已启动。
 - `ai_tutor` 数据库已创建。
-- 阶段 1 到阶段 4 的 SQL 已执行。
+- 阶段 1 到阶段 5 的 SQL 已执行。
 - 后端服务正在运行。
 - 后端启动前已设置 `SPRING_DATASOURCE_PASSWORD`。
 - 如需测试真实 AI 聊天，后端启动前已设置 `DEEPSEEK_API_KEY`。
@@ -31,6 +31,7 @@ backend/src/main/resources/db/stage4-ai-chat.sql
 backend/src/main/resources/db/stage12-learning-session.sql
 backend/src/main/resources/db/stage13-knowledge-map.sql
 backend/src/main/resources/db/stage14-learner-memory.sql
+backend/src/main/resources/db/stage15-evaluation-governance.sql
 ```
 
 若数据库已完成 Phase 2，先补执行 `stage13-knowledge-map.sql`；启用 Phase 4 时还需要执行下方的 `stage14-learner-memory.sql`。
@@ -43,6 +44,12 @@ Phase 4 还需要执行：
 
 ```powershell
 & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage14-learner-memory.sql"
+```
+
+Phase 5 还需要执行：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage15-evaluation-governance.sql"
 ```
 
 ## 3. 启动后端
@@ -133,6 +140,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1 -AiMessage "Repl
 - 第二个用户无法读取第一个用户的会话消息。
 - 完整模式下，AI 聊天会返回回答。
 - 完整模式下，聊天记录包含用户消息和 AI 回复。
+- 当前用户可通过 `POST /api/learning-sessions/{learningSessionId}/close` 完成本次会话；完成后不再作为 active 会话返回。
+- 执行 Phase 5 SQL 后，登录用户可访问 `GET /api/evaluation/overview`，并看到当前用户的策略、会话、记忆和 AI 调用汇总。
 
 ## 7. 注意事项
 

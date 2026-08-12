@@ -1293,6 +1293,63 @@ button {
   font-size: 24px;
 }
 
+.evaluation-panel {
+  margin-bottom: 18px;
+}
+
+.evaluation-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.evaluation-metrics > div {
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-soft);
+}
+
+.evaluation-metrics span,
+.evaluation-metrics small,
+.evaluation-label,
+.memory-evaluation-summary span {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.evaluation-metrics strong {
+  display: block;
+  margin: 8px 0 5px;
+  color: var(--color-text);
+  font-size: 22px;
+}
+
+.evaluation-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.evaluation-label {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.strategy-distribution,
+.memory-evaluation-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.memory-evaluation-summary {
+  justify-content: flex-end;
+}
+
 .analysis-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
@@ -1526,7 +1583,8 @@ button {
   }
 
   .topbar-search,
-  .analysis-metrics {
+  .analysis-metrics,
+  .evaluation-metrics {
     width: 100%;
     min-width: 0;
   }
@@ -1576,8 +1634,16 @@ button {
 @media (max-width: 560px) {
   .workspace-nav,
   .sidebar-footer,
-  .analysis-metrics {
+  .analysis-metrics,
+  .evaluation-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .evaluation-detail,
+  .memory-evaluation-summary {
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-direction: column;
   }
 
   .auth-panel {

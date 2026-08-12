@@ -11,6 +11,7 @@ import type {
   ConversationCreateResult,
   DocumentChunk,
   DocumentUploadResult,
+  EvaluationOverview,
   KnowledgePoint,
   KnowledgePointProgress,
   LearningSession,
@@ -122,6 +123,13 @@ export function getActiveLearningSession(conversationId: number) {
     url: '/learning-sessions/active',
     method: 'GET',
     params: { conversationId }
+  })
+}
+
+export function closeLearningSession(learningSessionId: number) {
+  return request<LearningSession>({
+    url: `/learning-sessions/${learningSessionId}/close`,
+    method: 'POST'
   })
 }
 
@@ -257,6 +265,13 @@ export function sendRagChat(conversationId: number, question: string, documentId
 export function getLearningAnalysisOverview() {
   return request<LearningAnalysisOverview>({
     url: '/analysis/overview',
+    method: 'GET'
+  })
+}
+
+export function getEvaluationOverview() {
+  return request<EvaluationOverview>({
+    url: '/evaluation/overview',
     method: 'GET'
   })
 }

@@ -47,7 +47,7 @@ v1 的核心原则：
 | Phase 2 | 已完成 | Teaching Strategy Layer MVP 已实现并接入 Tutor Agent |
 | Phase 3 | 已完成 | Knowledge Map MVP 已参与前置知识判断与教学策略解释；RAG 不在本阶段改造范围内 |
 | Phase 4 | 已完成 | 受控的长期学习记忆生命周期已接入 Tutor Agent，并支持用户管理 |
-| Phase 5 | 未开始 | Evaluation 与工程治理 |
+| Phase 5 | 已完成 | 策略决策、学习会话、记忆生命周期与 AI 调用的可观察性和验收集已实现 |
 
 Phase 1 提交记录：
 
@@ -398,6 +398,29 @@ Agent 质量指标：
 - 接口错误率
 - 慢请求
 
+Phase 5 实现范围：
+
+- 新增 `GET /api/evaluation/overview`，仅汇总当前登录用户的 Tutor Agent 决策、LearningSession、LearnerMemory 和 AI 调用日志。
+- 复用 `learning_session_step` 中已持久化的 `teaching_strategy` 与 `strategy_source`，统计策略分布和策略可解释率，不重复创建决策日志。
+- 统计 LearningSession 完成率，以及长期记忆的生效、已停用和已过期数量。
+- 提供最小的会话完成操作，用户可在 Chat 中结束本次学习会话，使完成率具有真实状态来源。
+- `ai_call_log` 新增 `duration_ms`，记录每次 AI 调用实际耗时；汇总调用失败率、平均耗时、5 秒及以上慢调用数和累计 token 数。
+- 在既有“学习分析”页增加紧凑的“教学决策与稳定性”区块，不新增复杂运营后台或新的 Agent 能力。
+
+Phase 5 明确不做：
+
+- 不宣称当前聚合指标等同于策略选择准确率、知识保持率或迁移能力；这些需要人工标注或长期实验数据后再定义。
+- 不引入监控平台、Redis、MQ、微服务、自动调参或新的多 Agent 编排。
+- 不将评估数据跨用户汇总或暴露给普通用户以外的身份。
+
+Phase 5 验收标准：
+
+- 每条 Tutor Agent Step 均可按 `teaching_strategy` 和 `strategy_source` 计入策略决策与可解释率统计。
+- 评估接口只返回当前登录用户的数据；无数据时各数值返回 0，集合返回空数组。
+- 新产生的 AI Chat 调用写入耗时；Phase 5 前历史日志的耗时为 0，不参与平均耗时样本。
+- 学习分析页显示策略可解释率、会话完成率、AI 调用失败率、平均耗时、策略分布与记忆状态。
+- 后端单元测试、后端编译和前端构建通过。
+
 ## 4. 核心架构决策
 
 ### 4.1 ChatSession
@@ -598,12 +621,13 @@ Phase 1 满足以下条件即可验收：
 
 ### 8.1 执行数据库脚本
 
-Phase 1 至 Phase 4 需要按已启用功能执行：
+Phase 1 至 Phase 5 需要按已启用功能执行：
 
 ```text
 backend/src/main/resources/db/stage12-learning-session.sql
 backend/src/main/resources/db/stage13-knowledge-map.sql
 backend/src/main/resources/db/stage14-learner-memory.sql
+backend/src/main/resources/db/stage15-evaluation-governance.sql
 ```
 
 PowerShell 示例：
@@ -660,10 +684,4 @@ http://localhost:5173
 
 ## 9. 下一步建议
 
-下一步进入 Phase 5：
-
-```text
-Evaluation 与工程治理
-```
-
-Phase 5 应优先建立策略选择、记忆生命周期和核心学习路径的可观察性与验收集，而不是先扩展新 Agent 能力。
+当前 Phase 5 已完成。后续迭代应基于真实使用数据和人工标注定义策略准确率、知识保持率与迁移能力，而不是在样本不足时给出误导性评分。

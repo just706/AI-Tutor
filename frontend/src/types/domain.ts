@@ -263,6 +263,33 @@ export interface LearningAnalysisOverview {
   nextActions: string[]
 }
 
+export interface StrategyEvaluation {
+  teachingStrategy: string
+  decisionCount: number
+}
+
+export interface EvaluationOverview {
+  strategyDecisionCount: number
+  explainableStrategyDecisionCount: number
+  strategyExplanationCoverage: number
+  strategyDistribution: StrategyEvaluation[]
+  totalSessionCount: number
+  activeSessionCount: number
+  completedSessionCount: number
+  sessionCompletionRate: number
+  activeMemoryCount: number
+  suppressedMemoryCount: number
+  expiredMemoryCount: number
+  aiCallCount: number
+  successfulAiCallCount: number
+  failedAiCallCount: number
+  aiFailureRate: number
+  aiLatencySampleCount: number
+  averageAiDurationMs: number
+  slowAiCallCount: number
+  totalAiTokens: number
+}
+
 export interface KnowledgePointProgress {
   knowledgePointId: number
   knowledgePointName: string

@@ -118,6 +118,7 @@ backend/src/main/resources/db/stage4-ai-chat.sql
 backend/src/main/resources/db/stage12-learning-session.sql
 backend/src/main/resources/db/stage13-knowledge-map.sql
 backend/src/main/resources/db/stage14-learner-memory.sql
+backend/src/main/resources/db/stage15-evaluation-governance.sql
 ```
 
 已完成 Phase 2 的数据库需补执行 `stage13-knowledge-map.sql`。该脚本会创建 `knowledge_map_dependency` 并写入幂等的 HashMap 前置依赖种子数据。
@@ -132,6 +133,12 @@ backend/src/main/resources/db/stage14-learner-memory.sql
 
 ```powershell
 & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage14-learner-memory.sql"
+```
+
+启用 Phase 5 前，还需执行 `stage15-evaluation-governance.sql`：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage15-evaluation-governance.sql"
 ```
 
 建议后期使用数据库迁移工具管理脚本，例如：

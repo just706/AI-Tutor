@@ -125,6 +125,7 @@
           <el-tag v-if="workspaceStore.activeLearningSession.teachingStrategy" effect="plain">
             {{ strategyLabel(workspaceStore.activeLearningSession.teachingStrategy) }}
           </el-tag>
+          <el-button size="small" type="success" plain @click="completeLearningSession">完成本次会话</el-button>
         </div>
       </section>
 
@@ -462,6 +463,15 @@ async function send() {
     await workspaceStore.sendMessage(content)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '发送失败')
+  }
+}
+
+async function completeLearningSession() {
+  try {
+    await workspaceStore.completeActiveLearningSession()
+    ElMessage.success('本次学习会话已完成')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '完成学习会话失败')
   }
 }
 </script>

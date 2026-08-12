@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import {
+  closeLearningSession,
   createConversation,
   getActiveLearningSession,
   getProfile,
@@ -112,6 +113,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
+  async function completeActiveLearningSession() {
+    if (!activeLearningSession.value) {
+      return
+    }
+    await closeLearningSession(activeLearningSession.value.id)
+    activeLearningSession.value = null
+  }
+
   function appendMessage(
     role: ChatMessage['role'],
     messageContent: string,
@@ -182,6 +191,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     addConversation,
     selectConversation,
     sendMessage,
+    completeActiveLearningSession,
     appendMessage,
     startDraftConversation,
     reset

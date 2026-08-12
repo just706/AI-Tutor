@@ -37,6 +37,55 @@
       </div>
     </section>
 
+    <section class="panel evaluation-panel">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Agent Evaluation</p>
+          <h2>教学决策与稳定性</h2>
+        </div>
+        <el-button text type="primary" :loading="analysisLoading" @click="loadAnalysisOverviewFlow">刷新</el-button>
+      </div>
+      <div class="evaluation-metrics">
+        <div>
+          <span>策略可解释率</span>
+          <strong>{{ evaluationOverview?.strategyExplanationCoverage ?? 0 }}%</strong>
+          <small>{{ evaluationOverview?.explainableStrategyDecisionCount ?? 0 }} / {{ evaluationOverview?.strategyDecisionCount ?? 0 }} 次决策</small>
+        </div>
+        <div>
+          <span>学习会话完成率</span>
+          <strong>{{ evaluationOverview?.sessionCompletionRate ?? 0 }}%</strong>
+          <small>完成 {{ evaluationOverview?.completedSessionCount ?? 0 }}，进行中 {{ evaluationOverview?.activeSessionCount ?? 0 }}</small>
+        </div>
+        <div>
+          <span>AI 调用失败率</span>
+          <strong>{{ evaluationOverview?.aiFailureRate ?? 0 }}%</strong>
+          <small>失败 {{ evaluationOverview?.failedAiCallCount ?? 0 }} / {{ evaluationOverview?.aiCallCount ?? 0 }}</small>
+        </div>
+        <div>
+          <span>平均 AI 耗时</span>
+          <strong>{{ formatDuration(evaluationOverview?.averageAiDurationMs) }}</strong>
+          <small>慢调用 {{ evaluationOverview?.slowAiCallCount ?? 0 }} 次</small>
+        </div>
+      </div>
+      <div class="evaluation-detail">
+        <div>
+          <span class="evaluation-label">策略分布</span>
+          <div v-if="evaluationOverview?.strategyDistribution.length" class="strategy-distribution">
+            <el-tag v-for="item in evaluationOverview.strategyDistribution" :key="item.teachingStrategy" effect="plain">
+              {{ strategyLabel(item.teachingStrategy) }} {{ item.decisionCount }}
+            </el-tag>
+          </div>
+          <span v-else class="empty-line">暂无 Tutor Agent 决策记录。</span>
+        </div>
+        <div class="memory-evaluation-summary">
+          <span class="evaluation-label">学习记忆状态</span>
+          <span>生效 {{ evaluationOverview?.activeMemoryCount ?? 0 }}</span>
+          <span>已停用 {{ evaluationOverview?.suppressedMemoryCount ?? 0 }}</span>
+          <span>已过期 {{ evaluationOverview?.expiredMemoryCount ?? 0 }}</span>
+        </div>
+      </div>
+    </section>
+
     <section class="analysis-grid">
       <div class="panel mastery-panel">
         <div class="section-head">
@@ -139,12 +188,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   generateStudyPlan,
+  getEvaluationOverview,
   getLearningAnalysisOverview,
   listKnowledgePointProgress,
   listRecentAnswerAnalysis
 } from '../api'
 import type {
   KnowledgePointProgress,
+  EvaluationOverview,
   LearningAnalysisOverview,
   RecentAnswerAnalysis,
   StudyPlan
@@ -154,6 +205,7 @@ import { formatMinutes } from '../utils/format'
 const route = useRoute()
 const router = useRouter()
 const analysisOverview = ref<LearningAnalysisOverview | null>(null)
+const evaluationOverview = ref<EvaluationOverview | null>(null)
 const knowledgeProgress = ref<KnowledgePointProgress[]>([])
 const recentAnswers = ref<RecentAnswerAnalysis[]>([])
 const studyPlan = ref<StudyPlan | null>(null)
@@ -181,12 +233,14 @@ function applyChatTopicGoal() {
 async function loadAnalysisOverviewFlow() {
   analysisLoading.value = true
   try {
-    const [overview, progress, answers] = await Promise.all([
+    const [overview, evaluation, progress, answers] = await Promise.all([
       getLearningAnalysisOverview(),
+      getEvaluationOverview(),
       listKnowledgePointProgress(),
       listRecentAnswerAnalysis(8)
     ])
     analysisOverview.value = overview
+    evaluationOverview.value = evaluation
     knowledgeProgress.value = progress
     recentAnswers.value = answers
   } catch (error) {
@@ -194,6 +248,26 @@ async function loadAnalysisOverviewFlow() {
   } finally {
     analysisLoading.value = false
   }
+}
+
+function formatDuration(durationMs?: number) {
+  if (!durationMs) {
+    return '暂无'
+  }
+  return durationMs >= 1000 ? `${(durationMs / 1000).toFixed(1)} 秒` : `${durationMs} 毫秒`
+}
+
+function strategyLabel(strategy: string) {
+  const labels: Record<string, string> = {
+    concept_first: '概念优先',
+    example_first: '案例优先',
+    source_code_first: '源码优先',
+    prerequisite_first: '前置补齐',
+    practice_first: '练习优先',
+    debug_misconception: '纠偏讲解',
+    summary_review: '总结复盘'
+  }
+  return labels[strategy] || strategy
 }
 
 async function generateStudyPlanFlow() {

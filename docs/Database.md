@@ -384,6 +384,7 @@ CREATE TABLE study_plan (
 | provider | VARCHAR(64) | 模型供应商 |
 | model_name | VARCHAR(128) | 模型名称 |
 | request_type | VARCHAR(64) | 请求类型 |
+| duration_ms | INT | AI 调用耗时（毫秒），Phase 5 新增；历史记录默认为 0 |
 | prompt_tokens | INT | 输入 Token 数 |
 | completion_tokens | INT | 输出 Token 数 |
 | status | VARCHAR(32) | 调用状态 |
@@ -399,6 +400,7 @@ CREATE TABLE ai_call_log (
   provider VARCHAR(64),
   model_name VARCHAR(128),
   request_type VARCHAR(64),
+  duration_ms INT NOT NULL DEFAULT 0,
   prompt_tokens INT DEFAULT 0,
   completion_tokens INT DEFAULT 0,
   status VARCHAR(32) NOT NULL,
@@ -644,3 +646,7 @@ CREATE TABLE agent_event_log (
 | update_time | DATETIME | 更新时间 |
 
 对应迁移脚本：`backend/src/main/resources/db/stage14-learner-memory.sql`。
+
+## 23. Phase 5 AI 调用治理字段
+
+`stage15-evaluation-governance.sql` 为既有 `ai_call_log` 添加 `duration_ms` 和 `(user_id, status, create_time)` 索引，支持按当前用户计算调用耗时、失败率、慢调用数与 token 汇总。它不新建跨用户的评估数据表。

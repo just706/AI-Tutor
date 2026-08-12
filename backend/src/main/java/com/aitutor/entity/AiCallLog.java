@@ -19,6 +19,8 @@ public class AiCallLog {
     private String modelName;
     @TableField("request_type")
     private String requestType;
+    @TableField("duration_ms")
+    private Integer durationMs;
     @TableField("prompt_tokens")
     private Integer promptTokens;
     @TableField("completion_tokens")
@@ -67,6 +69,14 @@ public class AiCallLog {
 
     public void setRequestType(String requestType) {
         this.requestType = requestType;
+    }
+
+    public Integer getDurationMs() {
+        return durationMs;
+    }
+
+    public void setDurationMs(Integer durationMs) {
+        this.durationMs = durationMs;
     }
 
     public Integer getPromptTokens() {

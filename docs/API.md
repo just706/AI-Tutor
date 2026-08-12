@@ -1351,6 +1351,7 @@ POST /api/tutor-agent/chat
 - 对同一 LearningSession，最近存在 `concept_difficulty` 或 `reflection` 类型理解困难 Step 时，下一次“我还是不懂”会切换到 `prerequisite_first`。
 - Phase 3 的 Knowledge Map 会按当前 topic 查询直接前置知识，并结合当前用户的 `learning_record` 返回掌握度低于 70 的前置项；它只参与前置判断和教学策略解释，不提供独立知识图谱页面。
 - Phase 4 会在用户明确表达长期偏好、连续理解困难或明确表述误解时创建或更新受控记忆；本轮变更通过 `memoryUpdates` 返回，当前用户消息始终优先于记忆。
+- Phase 5 会将每次 Tutor Agent Step 的策略和策略原因用于当前用户的评估汇总；不会记录或返回其他用户数据。
 
 响应示例：
 
@@ -1445,7 +1446,19 @@ GET /api/learning-sessions/active?conversationId=1
 - 返回的 LearningSession 包含最近一次 Step 的 `strategySource`，用于展示当前策略原因。
 - 返回的 LearningSession 同时包含 `knowledgeMap`：当前 topic、学科和未掌握的直接前置知识。没有匹配 topic 或没有未掌握的前置项时，`unmetPrerequisites` 为空数组。
 
-### 13.3 长期学习记忆
+### 13.3 完成本次学习会话
+
+```text
+POST /api/learning-sessions/{learningSessionId}/close
+```
+
+说明：
+
+- 仅可完成当前登录用户的会话；不存在或不属于当前用户时返回 404。
+- 会话状态更新为 `COMPLETED`，并写入一个完成步骤；重复调用保持幂等，不会重复写入步骤。
+- 完成后的会话不再作为 active LearningSession 返回，并会计入当前用户的会话完成率。
+
+### 13.4 长期学习记忆
 
 ```text
 GET    /api/learner-memories
@@ -1479,5 +1492,51 @@ DELETE /api/learner-memories/{memoryId}
       "updateTime": "2026-08-12 14:40:00"
     }
   ]
+}
+```
+
+### 13.5 Tutor Agent 评估汇总
+
+```text
+GET /api/evaluation/overview
+```
+
+说明：
+
+- 仅返回当前登录用户的策略决策、学习会话、学习记忆和 AI 调用汇总。
+- `strategyExplanationCoverage` 表示带有非空 `strategySource` 的策略决策占比，不等同于人工标注的策略准确率。
+- `averageAiDurationMs` 仅统计已记录耗时的调用；Phase 5 前历史日志耗时为 0，因此不计入该平均值。
+- `slowAiCallCount` 的阈值为 5 秒。
+
+响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "strategyDecisionCount": 6,
+    "explainableStrategyDecisionCount": 6,
+    "strategyExplanationCoverage": 100,
+    "strategyDistribution": [
+      { "teachingStrategy": "concept_first", "decisionCount": 2 },
+      { "teachingStrategy": "example_first", "decisionCount": 1 }
+    ],
+    "totalSessionCount": 2,
+    "activeSessionCount": 1,
+    "completedSessionCount": 1,
+    "sessionCompletionRate": 50,
+    "activeMemoryCount": 1,
+    "suppressedMemoryCount": 0,
+    "expiredMemoryCount": 0,
+    "aiCallCount": 8,
+    "successfulAiCallCount": 7,
+    "failedAiCallCount": 1,
+    "aiFailureRate": 13,
+    "aiLatencySampleCount": 3,
+    "averageAiDurationMs": 1450,
+    "slowAiCallCount": 0,
+    "totalAiTokens": 4560
+  }
 }
 ```
