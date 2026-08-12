@@ -1399,6 +1399,76 @@ button {
   gap: 18px;
 }
 
+.memory-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #edf2f7;
+}
+
+.memory-section-head,
+.memory-item-head,
+.memory-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.memory-section-head h3 {
+  margin: 3px 0 0;
+  font-size: 16px;
+}
+
+.memory-list {
+  display: grid;
+  gap: 10px;
+}
+
+.memory-item {
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid #dbe8e3;
+  border-radius: 6px;
+  background: #fbfefd;
+}
+
+.memory-item p,
+.memory-item small {
+  margin: 0;
+}
+
+.memory-item p {
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.memory-item small {
+  color: var(--color-muted);
+}
+
+.memory-actions {
+  justify-content: flex-end;
+}
+
+.message-memory-updates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.message-memory-updates span {
+  padding: 3px 7px;
+  border: 1px solid #cfe2dc;
+  border-radius: 4px;
+  color: #367967;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .profile-form {
   max-width: 720px;
 }

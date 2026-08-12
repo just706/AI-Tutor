@@ -16,6 +16,7 @@
 | chat_history | 聊天记录 |
 | knowledge_point | 知识点 |
 | knowledge_map_dependency | 知识点前置依赖关系 |
+| learner_memory | 用户长期学习记忆 |
 | learning_record | 学习记录 |
 | question | 题目 |
 | answer_record | 答题记录 |
@@ -491,6 +492,7 @@ CREATE TABLE agent_event_log (
 - `learning_session` 与 `learning_session_step` 是一对多关系。
 - `knowledge_point` 支持父子层级结构。
 - `knowledge_map_dependency` 表示知识点之间的有向前置依赖；`prerequisite_point_id` 是前置知识点，`dependent_point_id` 是需要学习它的知识点。
+- `user` 与 `learner_memory` 是一对多关系；每条记忆可选关联其来源的 `learning_session` 与 `conversation`，用于审计，不参与跨用户查询。
 - `knowledge_point` 与 `question` 是一对多关系。
 - `user` 与 `learning_record` 是一对多关系。
 - `user` 与 `answer_record` 是一对多关系。
@@ -620,3 +622,25 @@ CREATE TABLE agent_event_log (
 | create_time | DATETIME | 创建时间 |
 
 对应迁移脚本：`backend/src/main/resources/db/stage13-knowledge-map.sql`。该脚本预置 Java 的 `基础语法`、`面向对象`、`集合框架` 到 `HashMap` 的直接前置依赖。
+
+## 22. 长期学习记忆表 learner_memory
+
+该表保存可由用户查看、抑制和删除的长期学习观察。它只为 AI 回答提供受控参考，不能覆盖当前用户请求。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | BIGINT | 主键 |
+| user_id | BIGINT | 用户 ID |
+| memory_type | VARCHAR(32) | `preference`、`difficulty_pattern`、`misconception` |
+| topic | VARCHAR(128) | 可选的关联主题 |
+| content | VARCHAR(255) | 面向用户的记忆内容 |
+| confidence | INT | 置信度，重复观察时提高，最高 95 |
+| status | VARCHAR(32) | `ACTIVE`、`SUPPRESSED`、`EXPIRED` |
+| source_session_id | BIGINT | 来源 LearningSession，可为空 |
+| source_conversation_id | BIGINT | 来源 ChatSession，可为空 |
+| last_observed_time | DATETIME | 最近一次观察时间 |
+| expire_time | DATETIME | 到期时间 |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+
+对应迁移脚本：`backend/src/main/resources/db/stage14-learner-memory.sql`。

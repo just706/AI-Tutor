@@ -45,6 +45,7 @@ export interface ChatMessage {
   createTime: string
   intent?: string
   actions?: TutorAction[]
+  memoryUpdates?: string[]
 }
 
 export interface AiChatResult {
@@ -103,6 +104,21 @@ export interface TutorAgentChatResult extends AiChatResult {
   sources: RagSource[]
   memoryUpdates: string[]
   actions: TutorAction[]
+}
+
+export type LearnerMemoryType = 'preference' | 'difficulty_pattern' | 'misconception'
+export type LearnerMemoryStatus = 'ACTIVE' | 'SUPPRESSED' | 'EXPIRED'
+
+export interface LearnerMemory {
+  id: number
+  memoryType: LearnerMemoryType
+  topic?: string
+  content: string
+  confidence: number
+  status: LearnerMemoryStatus
+  lastObservedTime?: string
+  expireTime?: string
+  updateTime?: string
 }
 
 export interface KnowledgePoint {

@@ -9,6 +9,7 @@ import com.aitutor.dto.AiChatRequest;
 import com.aitutor.entity.AiCallLog;
 import com.aitutor.entity.ChatHistory;
 import com.aitutor.entity.Conversation;
+import com.aitutor.entity.LearnerMemory;
 import com.aitutor.entity.StudentProfile;
 import com.aitutor.exception.AiServiceException;
 import com.aitutor.exception.BusinessException;
@@ -18,6 +19,7 @@ import com.aitutor.mapper.ConversationMapper;
 import com.aitutor.mapper.StudentProfileMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.AiChatService;
+import com.aitutor.service.LearnerMemoryService;
 import com.aitutor.vo.AiChatVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
@@ -43,6 +45,7 @@ public class AiChatServiceImpl implements AiChatService {
     private final DeepSeekClient deepSeekClient;
     private final DeepSeekProperties deepSeekProperties;
     private final AiPromptBuilder aiPromptBuilder;
+    private final LearnerMemoryService learnerMemoryService;
 
     public AiChatServiceImpl(ConversationMapper conversationMapper,
                              ChatHistoryMapper chatHistoryMapper,
@@ -50,7 +53,8 @@ public class AiChatServiceImpl implements AiChatService {
                              AiCallLogMapper aiCallLogMapper,
                              DeepSeekClient deepSeekClient,
                              DeepSeekProperties deepSeekProperties,
-                             AiPromptBuilder aiPromptBuilder) {
+                             AiPromptBuilder aiPromptBuilder,
+                             LearnerMemoryService learnerMemoryService) {
         this.conversationMapper = conversationMapper;
         this.chatHistoryMapper = chatHistoryMapper;
         this.studentProfileMapper = studentProfileMapper;
@@ -58,6 +62,7 @@ public class AiChatServiceImpl implements AiChatService {
         this.deepSeekClient = deepSeekClient;
         this.deepSeekProperties = deepSeekProperties;
         this.aiPromptBuilder = aiPromptBuilder;
+        this.learnerMemoryService = learnerMemoryService;
     }
 
     @Override
@@ -105,6 +110,11 @@ public class AiChatServiceImpl implements AiChatService {
     private List<AiMessage> buildMessages(StudentProfile profile, Long userId, Long conversationId) {
         List<AiMessage> messages = new ArrayList<>();
         messages.add(new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildTutorPrompt(profile)));
+        List<LearnerMemory> memories = learnerMemoryService.getActiveMemories(userId);
+        String memoryContext = aiPromptBuilder.buildLearnerMemoryContext(memories);
+        if (!memoryContext.isBlank()) {
+            messages.add(new AiMessage(ROLE_SYSTEM, memoryContext));
+        }
 
         // Keep only the recent window to control token usage while preserving short-term context.
         for (ChatHistory history : listRecentMessages(userId, conversationId)) {

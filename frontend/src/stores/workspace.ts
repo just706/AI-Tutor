@@ -104,7 +104,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     try {
       const result = await sendTutorAgentChat(conversationId, content, activeLearningSession.value?.id)
       activeLearningSession.value = result.learningSession || null
-      appendMessage('assistant', result.answer, result.actions, result.intent)
+      appendMessage('assistant', result.answer, result.actions, result.intent, result.memoryUpdates)
       await loadConversations()
       currentConversationId.value = conversationId
     } finally {
@@ -116,14 +116,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     role: ChatMessage['role'],
     messageContent: string,
     actions: TutorAction[] = [],
-    intent?: string
+    intent?: string,
+    memoryUpdates: string[] = []
   ) {
     messages.value.push({
       role,
       messageContent,
       createTime: new Date().toISOString(),
       actions,
-      intent
+      intent,
+      memoryUpdates
     })
   }
 

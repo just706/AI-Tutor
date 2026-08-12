@@ -154,6 +154,9 @@
             v-html="renderMarkdown(message.messageContent)"
           />
           <div v-else class="message-bubble">{{ message.messageContent }}</div>
+          <div v-if="message.role === 'assistant' && message.memoryUpdates?.length" class="message-memory-updates">
+            <span v-for="update in message.memoryUpdates" :key="update">{{ update }}</span>
+          </div>
           <div v-if="message.role === 'assistant' && message.actions?.length" class="message-actions">
             <button
               v-for="action in message.actions"

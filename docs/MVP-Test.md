@@ -30,9 +30,20 @@ backend/src/main/resources/db/stage3-conversation-chat.sql
 backend/src/main/resources/db/stage4-ai-chat.sql
 backend/src/main/resources/db/stage12-learning-session.sql
 backend/src/main/resources/db/stage13-knowledge-map.sql
+backend/src/main/resources/db/stage14-learner-memory.sql
 ```
 
-若数据库已完成 Phase 2，只需补执行 `stage13-knowledge-map.sql` 后再启动更新后的后端。
+若数据库已完成 Phase 2，先补执行 `stage13-knowledge-map.sql`；启用 Phase 4 时还需要执行下方的 `stage14-learner-memory.sql`。
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage13-knowledge-map.sql"
+```
+
+Phase 4 还需要执行：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage14-learner-memory.sql"
+```
 
 ## 3. 启动后端
 

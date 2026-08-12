@@ -14,6 +14,7 @@ import type {
   KnowledgePoint,
   KnowledgePointProgress,
   LearningSession,
+  LearnerMemory,
   LearningDocument,
   LearningAnalysisOverview,
   LearningDocumentDetail,
@@ -121,6 +122,27 @@ export function getActiveLearningSession(conversationId: number) {
     url: '/learning-sessions/active',
     method: 'GET',
     params: { conversationId }
+  })
+}
+
+export function listLearnerMemories() {
+  return request<LearnerMemory[]>({
+    url: '/learner-memories',
+    method: 'GET'
+  })
+}
+
+export function suppressLearnerMemory(memoryId: number) {
+  return request<boolean>({
+    url: `/learner-memories/${memoryId}/suppress`,
+    method: 'PATCH'
+  })
+}
+
+export function deleteLearnerMemory(memoryId: number) {
+  return request<boolean>({
+    url: `/learner-memories/${memoryId}`,
+    method: 'DELETE'
   })
 }
 

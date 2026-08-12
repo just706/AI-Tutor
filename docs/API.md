@@ -1350,6 +1350,7 @@ POST /api/tutor-agent/chat
 - Phase 2 由 TeachingStrategyService 根据 intent、用户消息、当前 topic 和最近 LearningSessionStep 选择教学策略；`strategySource` 返回可解释的选择原因。
 - 对同一 LearningSession，最近存在 `concept_difficulty` 或 `reflection` 类型理解困难 Step 时，下一次“我还是不懂”会切换到 `prerequisite_first`。
 - Phase 3 的 Knowledge Map 会按当前 topic 查询直接前置知识，并结合当前用户的 `learning_record` 返回掌握度低于 70 的前置项；它只参与前置判断和教学策略解释，不提供独立知识图谱页面。
+- Phase 4 会在用户明确表达长期偏好、连续理解困难或明确表述误解时创建或更新受控记忆；本轮变更通过 `memoryUpdates` 返回，当前用户消息始终优先于记忆。
 
 响应示例：
 
@@ -1443,3 +1444,40 @@ GET /api/learning-sessions/active?conversationId=1
 - 没有 active LearningSession 时返回 `null`。
 - 返回的 LearningSession 包含最近一次 Step 的 `strategySource`，用于展示当前策略原因。
 - 返回的 LearningSession 同时包含 `knowledgeMap`：当前 topic、学科和未掌握的直接前置知识。没有匹配 topic 或没有未掌握的前置项时，`unmetPrerequisites` 为空数组。
+
+### 13.3 长期学习记忆
+
+```text
+GET    /api/learner-memories
+PATCH  /api/learner-memories/{memoryId}/suppress
+DELETE /api/learner-memories/{memoryId}
+```
+
+说明：
+
+- 仅返回或修改当前登录用户的记忆。
+- `memoryType` 为 `preference`、`difficulty_pattern` 或 `misconception`。
+- `status` 为 `ACTIVE`、`SUPPRESSED` 或 `EXPIRED`。只有 `ACTIVE` 且未过期的记忆会作为 AI 回答的受控参考。
+- 抑制后不会再参与回答；删除后无法恢复。
+
+`GET /api/learner-memories` 响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 12,
+      "memoryType": "preference",
+      "topic": null,
+      "content": "先用具体案例解释",
+      "confidence": 80,
+      "status": "ACTIVE",
+      "lastObservedTime": "2026-08-12 14:40:00",
+      "expireTime": "2027-02-08 14:40:00",
+      "updateTime": "2026-08-12 14:40:00"
+    }
+  ]
+}
+```

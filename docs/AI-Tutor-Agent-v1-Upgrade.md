@@ -46,7 +46,7 @@ v1 的核心原则：
 | Phase 1 | 已完成 | ChatSession 与 LearningSession 最小闭环已实现并提交 |
 | Phase 2 | 已完成 | Teaching Strategy Layer MVP 已实现并接入 Tutor Agent |
 | Phase 3 | 已完成 | Knowledge Map MVP 已参与前置知识判断与教学策略解释；RAG 不在本阶段改造范围内 |
-| Phase 4 | 未开始 | Memory 生命周期 |
+| Phase 4 | 已完成 | 受控的长期学习记忆生命周期已接入 Tutor Agent，并支持用户管理 |
 | Phase 5 | 未开始 | Evaluation 与工程治理 |
 
 Phase 1 提交记录：
@@ -329,6 +329,30 @@ Memory 必须支持：
 
 Phase 4 不应该一开始就做复杂记忆系统。重点是记忆生命周期和可控性。
 
+Phase 4 实现范围：
+
+- 新增 `learner_memory`，只保存 `preference`、`difficulty_pattern`、`misconception` 三类长期学习记忆。
+- 仅在用户明确表达长期讲解偏好、同一主题连续理解困难、或用户明确陈述误解时创建或更新记忆；重复观察会提高置信度并刷新到期时间。
+- 有效记忆以受控参考上下文参与普通 AI Chat；当前用户消息和当前学习任务始终优先，记忆不能覆盖当次指令。
+- 困难模式和待澄清误解在 30 天后自动过期；学习偏好在 180 天后自动过期。过期条目保留为 `EXPIRED`，不再参与回答。
+- 用户可查询自己的记忆，并可抑制或删除；被抑制的条目不会被自动重新启用。
+- Chat 响应通过 `memoryUpdates` 返回本轮新建或更新的记忆说明；学习档案页提供紧凑的管理列表。
+
+Phase 4 明确不做：
+
+- 不做自动总结整段聊天记录，不引入向量记忆、RAG 或独立记忆 Agent。
+- 不让长期记忆直接覆盖当前用户请求、LearningSession 或 Teaching Strategy。
+- 不做跨用户共享、复杂规则编排、Redis、MQ、微服务或多 Agent 框架。
+
+Phase 4 验收标准：
+
+- 用户输入“以后请先举例再解释”后创建 `preference` 记忆，并在后续回答中作为受控参考。
+- 连续理解困难切换到 `prerequisite_first` 后创建或刷新当前 topic 的 `difficulty_pattern` 记忆。
+- 用户输入“我一直以为……”后创建对应 topic 的 `misconception` 记忆。
+- 重复观察会提高置信度；过期、抑制和删除的记忆不会参与后续回答。
+- `GET /api/learner-memories`、抑制和删除接口均按当前用户隔离。
+- 后端单元测试、后端编译和前端构建通过。
+
 ### Phase 5：Evaluation 与工程治理
 
 目标：
@@ -539,9 +563,9 @@ POST /api/learning-sessions/{id}/close
 GET  /api/learning-sessions/{id}/report
 ```
 
-### 6.2 Memory 后续接口
+### 6.2 Memory 接口
 
-保留到 Phase 4：
+Phase 4 已实现：
 
 ```text
 GET    /api/learner-memories
@@ -574,21 +598,23 @@ Phase 1 满足以下条件即可验收：
 
 ### 8.1 执行数据库脚本
 
-Phase 1 需要执行：
+Phase 1 至 Phase 4 需要按已启用功能执行：
 
 ```text
 backend/src/main/resources/db/stage12-learning-session.sql
+backend/src/main/resources/db/stage13-knowledge-map.sql
+backend/src/main/resources/db/stage14-learner-memory.sql
 ```
 
 PowerShell 示例：
 
 ```powershell
-Get-Content -Raw "D:\AI-Tutor\backend\src\main\resources\db\stage12-learning-session.sql" | & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -uroot -p ai_tutor
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage12-learning-session.sql"
 ```
 
 说明：
 
-PowerShell 不支持传统 CMD 的 `<` 输入重定向写法，因此推荐使用 `Get-Content -Raw ... | mysql`。
+请让 MySQL 客户端通过 `source` 直接读取 UTF-8 SQL 文件，避免 PowerShell 管道按本机代码页重新编码中文内容。
 
 ### 8.2 启动后端
 
@@ -634,10 +660,10 @@ http://localhost:5173
 
 ## 9. 下一步建议
 
-下一步进入 Phase 4：
+下一步进入 Phase 5：
 
 ```text
-Memory 生命周期 MVP
+Evaluation 与工程治理
 ```
 
-Phase 4 应先定义可删除、可过期、可抑制的 Memory 生命周期，再决定长期记忆的扩展范围。
+Phase 5 应优先建立策略选择、记忆生命周期和核心学习路径的可观察性与验收集，而不是先扩展新 Agent 能力。

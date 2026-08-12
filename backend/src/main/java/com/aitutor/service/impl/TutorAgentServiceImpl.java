@@ -14,6 +14,7 @@ import com.aitutor.service.TutorAgentService;
 import com.aitutor.service.TutorOrchestratorService;
 import com.aitutor.service.TeachingStrategyService;
 import com.aitutor.service.KnowledgeMapService;
+import com.aitutor.service.LearnerMemoryService;
 import com.aitutor.vo.KnowledgePointVO;
 import com.aitutor.vo.KnowledgeMapContextVO;
 import com.aitutor.vo.LearningSessionVO;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -61,6 +63,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
     private final TutorOrchestratorService tutorOrchestratorService;
     private final TeachingStrategyService teachingStrategyService;
     private final KnowledgeMapService knowledgeMapService;
+    private final LearnerMemoryService learnerMemoryService;
     private final ConversationMapper conversationMapper;
     private final LearningSessionMapper learningSessionMapper;
     private final LearningSessionStepMapper learningSessionStepMapper;
@@ -69,6 +72,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
     public TutorAgentServiceImpl(TutorOrchestratorService tutorOrchestratorService,
                                  TeachingStrategyService teachingStrategyService,
                                  KnowledgeMapService knowledgeMapService,
+                                 LearnerMemoryService learnerMemoryService,
                                  ConversationMapper conversationMapper,
                                  LearningSessionMapper learningSessionMapper,
                                  LearningSessionStepMapper learningSessionStepMapper,
@@ -76,6 +80,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         this.tutorOrchestratorService = tutorOrchestratorService;
         this.teachingStrategyService = teachingStrategyService;
         this.knowledgeMapService = knowledgeMapService;
+        this.learnerMemoryService = learnerMemoryService;
         this.conversationMapper = conversationMapper;
         this.learningSessionMapper = learningSessionMapper;
         this.learningSessionStepMapper = learningSessionStepMapper;
@@ -111,6 +116,8 @@ public class TutorAgentServiceImpl implements TutorAgentService {
                 strategyDecision.getNextAction());
         recordStep(session, previousStatus, nextStatus, stepType, intent, strategyDecision.getTeachingStrategy(),
                 request.getMessage(), orchestratorResult.getAnswer(), strategyDecision.getStrategySource(), orchestratorResult.getActions());
+        List<String> memoryUpdates = learnerMemoryService.observeTutorChat(
+                userId, session, intent, topic, request.getMessage(), strategyDecision.getTeachingStrategy());
 
         TutorAgentChatVO response = new TutorAgentChatVO();
         response.setAnswer(orchestratorResult.getAnswer());
@@ -122,7 +129,12 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         response.setTeachingStrategy(strategyDecision.getTeachingStrategy());
         response.setStrategySource(strategyDecision.getStrategySource());
         response.setKnowledgeMap(knowledgeMapContext);
-        response.setToolTraces(List.of("orchestrator_chat", "learning_session_step_recorded"));
+        List<String> toolTraces = new ArrayList<>(List.of("orchestrator_chat", "learning_session_step_recorded"));
+        if (!memoryUpdates.isEmpty()) {
+            toolTraces.add("learner_memory_observed");
+        }
+        response.setToolTraces(toolTraces);
+        response.setMemoryUpdates(memoryUpdates);
         response.setActions(orchestratorResult.getActions());
         return response;
     }
