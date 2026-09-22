@@ -16,7 +16,7 @@
 
 - MySQL 已启动。
 - `ai_tutor` 数据库已创建。
-- 阶段 1 到阶段 5 的 SQL 已执行。
+- 阶段 1 到阶段 5 及 Stage 16 的 SQL 已执行。
 - 后端服务正在运行。
 - 后端启动前已设置 `SPRING_DATASOURCE_PASSWORD`。
 - 如需测试真实 AI 聊天，后端启动前已设置 `DEEPSEEK_API_KEY`。
@@ -32,6 +32,7 @@ backend/src/main/resources/db/stage12-learning-session.sql
 backend/src/main/resources/db/stage13-knowledge-map.sql
 backend/src/main/resources/db/stage14-learner-memory.sql
 backend/src/main/resources/db/stage15-evaluation-governance.sql
+backend/src/main/resources/db/stage16-personal-graph.sql
 ```
 
 若数据库已完成 Phase 2，先补执行 `stage13-knowledge-map.sql`；启用 Phase 4 时还需要执行下方的 `stage14-learner-memory.sql`。
@@ -50,6 +51,12 @@ Phase 5 还需要执行：
 
 ```powershell
 & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage15-evaluation-governance.sql"
+```
+
+Stage 16 还需要执行：
+
+```powershell
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" --default-character-set=utf8mb4 -uroot -p ai_tutor -e "source D:/AI-Tutor/backend/src/main/resources/db/stage16-personal-graph.sql"
 ```
 
 ## 3. 启动后端
@@ -143,9 +150,21 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test-mvp.ps1 -AiMessage "Repl
 - 当前用户可通过 `POST /api/learning-sessions/{learningSessionId}/close` 完成本次会话；完成后不再作为 active 会话返回。
 - 执行 Phase 5 SQL 后，登录用户可访问 `GET /api/evaluation/overview`，并看到当前用户的策略、会话、记忆和 AI 调用汇总。
 
-## 7. 注意事项
+### 7.1 Personal Graph 手工联调（Stage 16）
+
+Stage 16 尚未接入自动化联调脚本；应在已配置 `DEEPSEEK_API_KEY` 的环境中按以下链路手工验证：
+
+1. 用用户 A 上传并完成处理一份不超过 100 个 chunk 的资料，在资料详情触发“生成知识图谱”。
+2. 查询 extraction，确认第一阶段候选节点已按同名合并，第二阶段关系端点均来自候选节点集，并且节点和关系均包含有效 `chunkIndex` 与服务端生成的 `snippet`；检查模型无效 JSON、虚构 chunk 引用或新造关系节点会使 extraction 为 `failed`，且不会写入个人图谱。
+3. 确认发布，查询 Personal Graph，验证节点和关系出现；再次发布相同 extraction，验证结果保持幂等。
+4. 对同一资料重新处理，或删除该资料，验证对应 extraction、个人节点和关系都会被清理；若 extraction 处于 `processing`，重新处理和删除应返回 409。
+5. 用用户 B 的 Token 查询或发布用户 A 的 extraction、访问用户 A 的 Personal Graph 或指定用户 A 的文档 ID，验证均返回 404。
+6. 切换到 Master Graph，验证其既有节点、关系和学习路径行为未受 Personal Graph 影响。
+
+## 8. 注意事项
 
 - 脚本会创建临时测试用户和测试会话，不会自动删除数据。
 - `-SkipAi` 模式不会调用 DeepSeek，也不会验证 AI 回复保存。
 - 如果完整模式返回 `code: 600`，优先检查后端进程是否已配置 `DEEPSEEK_API_KEY`。
 - 如果 PowerShell 阻止脚本运行，使用文档中的 `-ExecutionPolicy Bypass` 命令即可，不需要修改系统策略。
+- Stage 16 为同步 AI 抽取 MVP；超过 100 个 chunk 的资料应拆分后再进行手工联调。

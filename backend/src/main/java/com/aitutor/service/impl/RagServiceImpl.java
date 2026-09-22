@@ -4,6 +4,7 @@ import com.aitutor.ai.AiChatResult;
 import com.aitutor.ai.AiMessage;
 import com.aitutor.ai.AiPromptBuilder;
 import com.aitutor.ai.DeepSeekClient;
+import com.aitutor.ai.RagKeywordScorer;
 import com.aitutor.config.RagProperties;
 import com.aitutor.dto.RagChatRequest;
 import com.aitutor.entity.AiCallLog;
@@ -29,13 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,7 +45,6 @@ public class RagServiceImpl implements RagService {
     private static final String PROVIDER_DEEPSEEK = "DeepSeek";
     private static final String REQUEST_TYPE_RAG_CHAT = "rag_chat";
     private static final String STATUS_COMPLETED = "completed";
-    private static final Pattern TOKEN_SPLIT_PATTERN = Pattern.compile("[^\\p{IsHan}A-Za-z0-9]+");
 
     private final LearningDocumentMapper documentMapper;
     private final DocumentChunkMapper documentChunkMapper;
@@ -156,40 +152,15 @@ public class RagServiceImpl implements RagService {
                 .orderByAsc(DocumentChunk::getDocumentId)
                 .orderByAsc(DocumentChunk::getChunkIndex));
 
-        Set<String> queryTerms = tokenize(question);
+        RagKeywordScorer scorer = new RagKeywordScorer(question,
+                chunks.stream().map(DocumentChunk::getChunkText).toList());
         int topK = normalizedTopK();
         return chunks.stream()
-                .map(chunk -> new ScoredChunk(chunk, documentMap.get(chunk.getDocumentId()), scoreChunk(chunk, queryTerms, question)))
+                .map(chunk -> new ScoredChunk(chunk, documentMap.get(chunk.getDocumentId()), scorer.score(chunk.getChunkText())))
                 .filter(scored -> scored.score() > 0)
-                .sorted(Comparator.comparingInt(ScoredChunk::score).reversed())
+                .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed())
                 .limit(topK)
                 .toList();
-    }
-
-    private int scoreChunk(DocumentChunk chunk, Set<String> queryTerms, String question) {
-        String text = chunk.getChunkText() == null ? "" : chunk.getChunkText().toLowerCase(Locale.ROOT);
-        int score = 0;
-        for (String term : queryTerms) {
-            if (text.contains(term.toLowerCase(Locale.ROOT))) {
-                score += term.length() >= 4 ? 3 : 1;
-            }
-        }
-        if (!question.trim().isEmpty() && text.contains(question.trim().toLowerCase(Locale.ROOT))) {
-            score += 5;
-        }
-        return score;
-    }
-
-    private Set<String> tokenize(String question) {
-        Set<String> terms = new LinkedHashSet<>();
-        String[] rawTerms = TOKEN_SPLIT_PATTERN.split(question == null ? "" : question);
-        for (String rawTerm : rawTerms) {
-            String term = rawTerm.trim().toLowerCase(Locale.ROOT);
-            if (term.length() >= 2) {
-                terms.add(term);
-            }
-        }
-        return terms;
     }
 
     private String buildSourceContext(List<ScoredChunk> chunks) {
@@ -275,6 +246,6 @@ public class RagServiceImpl implements RagService {
         return errorMessage.substring(0, 1000);
     }
 
-    private record ScoredChunk(DocumentChunk chunk, LearningDocument document, int score) {
+    private record ScoredChunk(DocumentChunk chunk, LearningDocument document, double score) {
     }
 }
