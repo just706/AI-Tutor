@@ -11,7 +11,9 @@
 | AI、记忆、教学策略和 RAG | [docs/AI-Design.md](docs/AI-Design.md) |
 | 现有 HTTP 接口 | [docs/API.md](docs/API.md) |
 | 表、索引和脚本顺序 | [docs/Database.md](docs/Database.md) |
-| 本地开发和下一步计划 | [docs/Development.md](docs/Development.md) |
+| 整体开发路线、当前进度、阶段验收与本地开发 | [docs/Development.md](docs/Development.md) |
+
+整体规划统一维护在 [Development 的总体路线](docs/Development.md#总体路线与当前进度)。当前处于阶段 0：保存并验证本地版本；随后完善教材问答，再推进教学闭环、学习证据和效果验证。首个可验收版本以 Java 入门教材为试点，Python / LangGraph 等架构方案按评测结果决定是否采用。
 
 历史方案和阶段记录放在 `docs/archive/2026-09-21/`，只用于追溯背景，不作为当前实现或验收依据。
 
@@ -27,17 +29,40 @@
 
 ## 配置
 
-复制 `.env.example` 为 `.env`，填写数据库和模型配置；不要把 `.env`、上传文件、日志、构建目录或密钥打进压缩包。`run.cmd` 会读取 `.env`，但直接执行 `mvnw.cmd` 或 `java -jar` 不会自动读取它，此时请先在当前终端设置环境变量。
+首次配置时，将 `backend/.env.example` 复制为 `backend/.env`，填写数据库和模型配置；已有配置时继续使用，不要覆盖。不要把 `.env`、上传文件、日志、构建目录或密钥打进压缩包。`backend/run.cmd` 会读取同目录的 `.env`，但直接执行 `mvnw.cmd` 或 `java -jar` 不会自动读取它，此时请先在当前终端设置环境变量。
 
 主要默认值：后端 `8080`，数据库 `localhost:3306/ai_tutor`，JWT 有效期 120 分钟，文档大小 5 MB，分片 800 字符、重叠 120、检索前 4 个结果。生产部署必须显式设置 `JWT_SECRET`、数据库密码和 `DEEPSEEK_API_KEY`。
 
-## 启动
+## 启动（Windows PowerShell）
 
-1. 准备 Java 17、Node.js（Vite 8 要求 Node `^20.19.0` 或 `>=22.12.0`）和 MySQL。
-2. 先按 [docs/Database.md](docs/Database.md) 的顺序执行数据库脚本。
-3. 在 `backend` 下运行 `run.cmd`，或先设置环境变量再执行 Maven 打包后的 jar。
-4. 在 `frontend` 下运行 `npm install` 和 `npm run dev`。开发服务器默认使用 `5173`，`/api` 代理到 `http://localhost:8080`。
-5. 打开 `http://localhost:5173`，注册用户后开始学习。
+准备 Java 17、Node.js（Vite 8 要求 Node `^20.19.0` 或 `>=22.12.0`），并启动 MySQL。首次建库按 [docs/Database.md](docs/Database.md) 执行脚本；已经配置并运行过的项目可以继续使用原数据库。
+
+以下命令以项目位于 `D:\AI-Tutor` 为例；项目放在其他位置时，替换对应路径。只复制代码块中的命令，不要复制终端里的 `PS D:\AI-Tutor>` 或 `>>` 提示符。
+
+先在一个 PowerShell 窗口启动后端：
+
+```powershell
+cd D:\AI-Tutor\backend
+.\run.cmd
+```
+
+`cd` 用于切换目录，执行后提示符应显示 `PS D:\AI-Tutor\backend>`。`run.cmd` 会先构建，再启动后端；日志出现 `Started AiTutorApplication` 后，保持这个窗口打开。后端默认使用 `8080` 端口。
+
+再打开另一个 PowerShell 窗口启动前端：
+
+```powershell
+cd D:\AI-Tutor\frontend
+npm.cmd install
+npm.cmd run dev
+```
+
+依赖已经安装且没有变化时，可以跳过 `npm.cmd install`。前端默认地址是 `http://localhost:5173`；以终端实际显示的 `Local` 地址为准。`/api` 请求代理到 `http://localhost:8080`。保持两个窗口运行，在浏览器打开前端地址即可使用；需要停止时，在对应窗口按 `Ctrl+C`。
+
+### 找不到启动命令时
+
+- 如果提示符仍是 `PS D:\AI-Tutor>`，先执行 `cd D:\AI-Tutor\backend`，再执行 `.\run.cmd`；项目根目录没有 `run.cmd`。
+- 单独输入 `D:\AI-Tutor\backend` 不会切换目录，路径前必须加 `cd`。
+- `copilot D:\AI-Tutor\backend` 会调用 Copilot 命令，不能切换目录或启动本项目；启动 AI Tutor 不需要安装 Copilot CLI。
 
 ## 检查
 
