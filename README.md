@@ -13,7 +13,7 @@
 | 表、索引和脚本顺序 | [docs/Database.md](docs/Database.md) |
 | 整体开发路线、当前进度、阶段验收与本地开发 | [docs/Development.md](docs/Development.md) |
 
-整体规划统一维护在 [Development 的总体路线](docs/Development.md#总体路线与当前进度)。当前处于阶段 0：保存并验证本地版本；随后完善教材问答，再推进教学闭环、学习证据和效果验证。首个可验收版本以 Java 入门教材为试点，Python / LangGraph 等架构方案按评测结果决定是否采用。
+整体规划统一维护在 [Development 的总体路线](docs/Development.md#总体路线与当前进度)。阶段 0 已验收：当前功能代码已保存、推送并通过干净检出的构建与接口验证。下一项是阶段 1 的教材问答入口与教材绑定，随后推进教学闭环、学习证据和效果验证。首个可验收版本以 Java 入门教材为试点，Python / LangGraph 等架构方案按评测结果决定是否采用。
 
 历史方案和阶段记录放在 `docs/archive/2026-09-21/`，只用于追溯背景，不作为当前实现或验收依据。
 
@@ -67,9 +67,10 @@ npm.cmd run dev
 ## 检查
 
 - 后端：`cd backend; .\mvnw.cmd -o verify`（离线缓存可用时）。
-- 前端：`cd frontend; npm run build`。
+- 前端：在 `frontend` 目录运行 `npm.cmd test` 和 `npm.cmd run build`。
 - API 返回统一的 `{code,message,data}`；业务错误通常仍以 HTTP 200 返回，具体以 `code` 和接口文档为准。
 - `backend/scripts/test-mvp.ps1` 是旧的 AI 聊天冒烟脚本，不等同于完整学习闭环验收；个人图谱脚本也需要等待异步处理完成。
+- `backend/scripts/verify-stage0.mjs` 使用独立临时数据库和本地模型替身验证基本接口流程；运行方法和验收范围见 [Development](docs/Development.md#本地开发与验证)。
 
 ## SQL 说明
 
@@ -77,4 +78,4 @@ npm.cmd run dev
 
 ## 已知限制
 
-关键词 RAG 对中文改写和跨片段问题有限；开放题评分依赖模型；学习掌握度仍是 0–100 的工程指标，不能当作心理测量结果；学习计划和多数 Agent 建议是规则生成；主教师请求是同步链路。下一步优先做安全清理、RAG 评测和可解释的教学闭环，而不是直接扩展 Multi-Agent。
+关键词 RAG 对中文改写和跨片段问题有限；开放题评分依赖模型；学习掌握度仍是 0–100 的工程指标，不能当作心理测量结果；学习计划和多数 Agent 建议是规则生成；主教师请求是同步链路。下一步按开发路线完善教材问答的入口、教材绑定、引用恢复和连续追问，再验证教学闭环。

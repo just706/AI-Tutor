@@ -31,10 +31,14 @@ stage17-async-personal-graph.sql
 Windows 示例（在项目根目录打开 MySQL 客户端后执行）：
 
 ```sql
+CREATE DATABASE IF NOT EXISTS ai_tutor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE ai_tutor;
 SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage1-user.sql;
 SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage2-student-profile.sql;
 -- 依次执行上面的其余文件
 ```
+
+如果在 `.env` 中使用其他数据库名，相应调整建库和 `USE` 的名称；执行 `SOURCE` 前必须先选中目标数据库。
 
 ## 表清单
 
