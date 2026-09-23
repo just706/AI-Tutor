@@ -3,6 +3,7 @@ package com.aitutor.ai;
 import com.aitutor.entity.KnowledgePoint;
 import com.aitutor.entity.LearnerMemory;
 import com.aitutor.entity.StudentProfile;
+import com.aitutor.entity.DocumentChunk;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -227,6 +228,130 @@ public class AiPromptBuilder {
                 3. 如果资料片段不足，请明确说明“资料中没有找到足够依据”，并建议用户补充资料或换个问法。
                 4. 可以在回答末尾用“参考来源”简短列出片段编号。
                 """.formatted(valueOrDefault(question), valueOrDefault(sourceContext));
+    }
+
+    public String buildPersonalGraphNodeExtractionPrompt(List<DocumentChunk> chunks) {
+        StringBuilder sourceContext = new StringBuilder();
+        for (DocumentChunk chunk : chunks) {
+            sourceContext.append("[chunkIndex=")
+                    .append(chunk.getChunkIndex())
+                    .append("]\n")
+                    .append(valueOrDefault(chunk.getChunkText()))
+                    .append("\n\n");
+        }
+        return """
+                你是一个严谨的个人知识图谱节点抽取助手。
+                只能根据提供的资料片段抽取候选知识节点，不得补充片段中没有依据的事实。
+                只输出合法 JSON，不要输出 Markdown 代码块或额外说明。
+
+                JSON 格式必须为：
+                {
+                  "nodes": [
+                    {
+                      "name": "知识点名称",
+                      "description": "基于资料的简短说明",
+                      "confidence": 0,
+                      "evidenceChunkIndexes": [0]
+                    }
+                  ]
+                }
+
+                规则：
+                - `confidence` 必须是 0 到 100 的整数。
+                - 每个节点必须至少引用一个下面给出的 chunkIndex，且不得引用其他编号。
+                - 只输出 `nodes`，不要输出 `edges` 或任何关系。
+                - 资料不足时可以返回空数组，不能编造。
+
+                【资料片段】
+                %s
+                """.formatted(sourceContext.toString().trim());
+    }
+
+    public String buildPersonalGraphRelationExtractionPrompt(List<DocumentChunk> chunks,
+                                                              List<String> candidateNodeNames) {
+        StringBuilder sourceContext = new StringBuilder();
+        for (DocumentChunk chunk : chunks) {
+            sourceContext.append("[chunkIndex=")
+                    .append(chunk.getChunkIndex())
+                    .append("]\n")
+                    .append(valueOrDefault(chunk.getChunkText()))
+                    .append("\n\n");
+        }
+        String nodeList = candidateNodeNames == null || candidateNodeNames.isEmpty()
+                ? "[]"
+                : objectMapperSafeArray(candidateNodeNames);
+        return """
+                你是一个严谨的个人知识图谱关系抽取助手。
+                只能根据提供的资料片段，在【既有候选节点】之间抽取关系，不得创建、改写或补充任何节点。
+                只输出合法 JSON，不要输出 Markdown 代码块或额外说明。
+
+                【既有候选节点 JSON 数组】
+                %s
+
+                JSON 格式必须为：
+                {
+                  "edges": [
+                    {
+                      "sourceName": "必须来自候选节点",
+                      "targetName": "必须来自候选节点",
+                      "relationType": "prerequisite",
+                      "relationReason": "关系说明",
+                      "confidence": 0,
+                      "evidenceChunkIndexes": [0]
+                    }
+                  ]
+                }
+
+                规则：
+                - sourceName 和 targetName 必须与候选节点名称完全一致，包括大小写和空格。
+                - relationType 只能是 `prerequisite`、`contains`、`related`。
+                - `prerequisite` 表示 sourceName 是 targetName 的前置知识；`contains` 表示 sourceName 包含 targetName；`related` 表示两者相关。
+                - 每个关系必须至少引用一个下面给出的 chunkIndex，且不得引用其他编号。
+                - confidence 必须是 0 到 100 的整数；关系不能自环。
+                - 证据不足时返回空数组，不能编造；不要输出 `nodes` 字段。
+
+                【相关资料片段】
+                %s
+                """.formatted(nodeList, sourceContext.toString().trim())
+                + "\nAdditional output limits: return at most 8 edges for this chunk batch; keep relationReason under 80 characters; never repeat the candidate list; when there is no supported relation, return exactly {\"edges\":[]}.";
+    }
+
+    private String objectMapperSafeArray(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + escapeJson(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        StringBuilder escaped = new StringBuilder();
+        for (int index = 0; index < value.length(); index++) {
+            char current = value.charAt(index);
+            switch (current) {
+                case '"' -> escaped.append("\\\"");
+                case '\\' -> escaped.append("\\\\");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (current < 0x20) {
+                        escaped.append(String.format("\\u%04x", (int) current));
+                    } else {
+                        escaped.append(current);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
+    }
+
+    /** Backward-compatible entry point for callers outside PersonalGraphService. */
+    public String buildPersonalGraphExtractionPrompt(List<DocumentChunk> chunks) {
+        return buildPersonalGraphNodeExtractionPrompt(chunks);
     }
 
     private String valueOrDefault(String value) {

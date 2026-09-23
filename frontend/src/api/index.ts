@@ -12,6 +12,7 @@ import type {
   DocumentChunk,
   DocumentUploadResult,
   EvaluationOverview,
+  KnowledgeGraph,
   KnowledgePoint,
   KnowledgePointProgress,
   LearningSession,
@@ -22,6 +23,8 @@ import type {
   LearningRecord,
   LoginResult,
   OrchestratorChatResult,
+  PersonalGraph,
+  PersonalGraphExtraction,
   Question,
   RagChatResult,
   RecentAnswerAnalysis,
@@ -159,6 +162,52 @@ export function listKnowledgeTree(subject = 'Java') {
     url: '/knowledge-points/tree',
     method: 'GET',
     params: { subject }
+  })
+}
+
+export function getKnowledgeGraph(subject = 'Java') {
+  return request<KnowledgeGraph>({
+    url: '/knowledge-map/graph',
+    method: 'GET',
+    params: { subject }
+  })
+}
+
+export function createPersonalGraphExtraction(documentId: number) {
+  return request<PersonalGraphExtraction>({
+    url: '/personal-graph/extractions',
+    method: 'POST',
+    data: { documentId }
+  })
+}
+
+export function getPersonalGraphExtraction(extractionId: number) {
+  return request<PersonalGraphExtraction>({
+    url: `/personal-graph/extractions/${extractionId}`,
+    method: 'GET'
+  })
+}
+
+export function getLatestPersonalGraphExtraction(documentId: number) {
+  return request<PersonalGraphExtraction | null>({
+    url: '/personal-graph/extractions',
+    method: 'GET',
+    params: { documentId }
+  })
+}
+
+export function publishPersonalGraphExtraction(extractionId: number) {
+  return request<PersonalGraphExtraction>({
+    url: `/personal-graph/extractions/${extractionId}/publish`,
+    method: 'POST'
+  })
+}
+
+export function getPersonalGraph(documentId?: number) {
+  return request<PersonalGraph>({
+    url: '/personal-graph',
+    method: 'GET',
+    params: { documentId }
   })
 }
 

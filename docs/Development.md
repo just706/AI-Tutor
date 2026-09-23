@@ -121,6 +121,17 @@ cd D:\AI-Tutor\frontend
 npm.cmd run build
 ```
 
+图谱提示内容的回归测试：在 `frontend` 目录运行 `npm.cmd test`。
+
+独立数据库接口验收（先完成后端构建，需要本机 MySQL 及具有临时建库权限的账号；数据库连接参数来自环境变量或指定的 `.env`）：
+
+```powershell
+cd D:\AI-Tutor
+node backend/scripts/verify-stage0.mjs --env-file backend/.env --output-dir D:\AI-Tutor-工作资料\stage0-verification --mysql-bin "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+```
+
+该脚本创建随机命名的 `ai_tutor_verify_*` 临时库，依次执行初始化脚本，启动独立端口的后端和本地模型替身，验证注册登录、上传、异步提取及发布、中文检索、无依据拒答、跨用户隔离、长文档与清理。结束时删除本次创建的临时库并停止测试服务；日志和合成测试资料留在指定输出目录。只连接本机 MySQL，不修改现有 `ai_tutor` 数据库；该验证不证明真实模型回答质量或浏览器交互正确。
+
 仅复核 RAG 时，在 `backend` 目录运行 `.\mvnw.cmd -o -Dtest=RagServiceImplTest test`。
 
 ## 进展与验证记录

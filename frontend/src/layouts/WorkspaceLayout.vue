@@ -13,18 +13,55 @@
         新学习会话
       </el-button>
 
-      <nav class="workspace-nav" aria-label="主导航">
+      <nav class="workspace-nav workspace-hub-nav" aria-label="主导航">
         <RouterLink
-          v-for="item in navItems"
-          :key="item.name"
           class="workspace-nav-item"
-          :to="{ name: item.name }"
-          :class="{ active: route.name === item.name }"
+          :to="{ name: 'chat' }"
+          :class="{ active: route.name === 'chat' && !route.query.panel }"
         >
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.label }}</span>
+          <el-icon><ChatDotRound /></el-icon>
+          <span>AI Chat</span>
+        </RouterLink>
+        <RouterLink
+          class="workspace-nav-item"
+          :to="{ name: 'chat', query: { panel: 'sources' } }"
+          :class="{ active: route.name === 'chat' && route.query.panel === 'sources' }"
+        >
+          <el-icon><Collection /></el-icon>
+          <span>Sources</span>
+        </RouterLink>
+        <RouterLink
+          class="workspace-nav-item"
+          :to="{ name: 'chat', query: { panel: 'progress' } }"
+          :class="{ active: route.name === 'chat' && route.query.panel === 'progress' }"
+        >
+          <el-icon><DataAnalysis /></el-icon>
+          <span>Progress</span>
         </RouterLink>
       </nav>
+
+      <section class="sidebar-conversations">
+        <div class="sidebar-section-head">
+          <span>最近会话</span>
+          <el-button text type="primary" size="small" @click="workspaceStore.loadConversations()">刷新</el-button>
+        </div>
+        <div v-loading="workspaceStore.loadingConversations" class="sidebar-conversation-list">
+          <button
+            v-for="conversation in workspaceStore.conversations.slice(0, 8)"
+            :key="conversation.id"
+            class="sidebar-conversation-item"
+            :class="{ active: workspaceStore.currentConversationId === conversation.id && route.name === 'chat' }"
+            type="button"
+            @click="selectConversation(conversation.id)"
+          >
+            <strong>{{ conversation.title || '未命名会话' }}</strong>
+            <small>{{ modeLabel(conversation.mode) }} · {{ formatTime(conversation.updateTime) }}</small>
+          </button>
+          <div v-if="!workspaceStore.loadingConversations && workspaceStore.conversations.length === 0" class="sidebar-empty">
+            暂无会话
+          </div>
+        </div>
+      </section>
 
       <div class="sidebar-footer">
         <RouterLink class="workspace-nav-item soft" :to="{ name: 'profile' }">
@@ -60,18 +97,13 @@
 </template>
 
 <script setup lang="ts">
-import type { Component } from 'vue'
 import { computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
   ChatDotRound,
   Collection,
   DataAnalysis,
-  EditPen,
-  House,
-  MagicStick,
   Plus,
-  Reading,
   Setting,
   SwitchButton,
   User
@@ -79,33 +111,26 @@ import {
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { useWorkspaceStore } from '../stores/workspace'
-
-interface NavItem {
-  name: string
-  label: string
-  title: string
-  icon: Component
-}
+import { formatTime, modeLabel } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
 
-const navItems: NavItem[] = [
-  { name: 'dashboard', label: 'Dashboard', title: '学习总览', icon: House },
-  { name: 'chat', label: 'AI Chat', title: 'AI Chat', icon: ChatDotRound },
-  { name: 'learn', label: 'Learning Path', title: '学习路径', icon: Reading },
-  { name: 'practice', label: 'Practice', title: '练习', icon: EditPen },
-  { name: 'library', label: 'Knowledge Library', title: '知识资料库', icon: Collection },
-  { name: 'analysis', label: 'Learning Analysis', title: '学习分析', icon: DataAnalysis },
-  { name: 'agent', label: 'Agent Suggestions', title: 'Agent 建议', icon: MagicStick }
-]
+const routeLabels: Record<string, { label: string; title: string }> = {
+  chat: { label: 'AI Tutor Workspace', title: 'AI Chat' },
+  learn: { label: 'Learning Path Detail', title: '学习路径详情' },
+  knowledgeGraph: { label: 'Knowledge Graph', title: '知识关系图谱' },
+  practice: { label: 'Practice Detail', title: '练习详情' },
+  library: { label: 'Sources Detail', title: '资料详情' },
+  analysis: { label: 'Progress Detail', title: '学习分析详情' },
+  agent: { label: 'Agent Suggestions', title: 'Agent 建议详情' },
+  dashboard: { label: 'Progress Detail', title: '学习总览详情' },
+  profile: { label: 'Profile', title: '学习档案' }
+}
 
-const currentRoute = computed(() =>
-  navItems.find((item) => item.name === route.name)
-    || (route.name === 'profile' ? { label: 'Profile', title: '学习档案' } : null)
-)
+const currentRoute = computed(() => routeLabels[String(route.name)] || null)
 const currentRouteLabel = computed(() => currentRoute.value?.label || 'Learning Workspace')
 const currentRouteTitle = computed(() => currentRoute.value?.title || 'AI Tutor')
 
@@ -120,6 +145,11 @@ onMounted(async () => {
 async function newStudySession() {
   workspaceStore.startDraftConversation()
   await router.push({ name: 'chat' })
+}
+
+async function selectConversation(conversationId: number) {
+  await router.push({ name: 'chat' })
+  await workspaceStore.selectConversation(conversationId)
 }
 
 async function logout() {

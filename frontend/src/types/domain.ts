@@ -146,6 +146,105 @@ export interface KnowledgeMapContext {
   hasUnmetPrerequisites: boolean
 }
 
+export type KnowledgeGraphStatus = 'mastered' | 'learning' | 'weak' | 'not_started'
+
+export interface KnowledgeGraphNode {
+  id: number
+  name: string
+  subject: string
+  masteryLevel: number
+  learningStatus?: string
+  graphStatus: KnowledgeGraphStatus
+}
+
+export interface KnowledgeGraphEdge {
+  prerequisitePointId: number
+  dependentPointId: number
+  relationType?: string
+  relationReason?: string
+}
+
+export interface KnowledgeGraph {
+  subject: string
+  nodes: KnowledgeGraphNode[]
+  edges: KnowledgeGraphEdge[]
+}
+
+export interface PersonalGraphEvidence {
+  chunkIndex: number
+  snippet: string
+}
+
+export interface PersonalGraphCandidateNode {
+  name: string
+  description?: string
+  confidence: number
+  evidence: PersonalGraphEvidence[]
+}
+
+export interface PersonalGraphCandidateEdge {
+  sourceName: string
+  targetName: string
+  relationType: 'prerequisite' | 'contains' | 'related'
+  relationReason?: string
+  confidence: number
+  evidence: PersonalGraphEvidence[]
+}
+
+export interface PersonalGraphCandidates {
+  nodes: PersonalGraphCandidateNode[]
+  edges: PersonalGraphCandidateEdge[]
+}
+
+export type PersonalGraphExtractionStatus = 'processing' | 'completed' | 'failed' | 'published'
+export type PersonalGraphExtractionStage =
+  | 'queued'
+  | 'extracting_nodes'
+  | 'merging_nodes'
+  | 'extracting_relations'
+  | 'awaiting_review'
+  | 'published'
+  | 'failed'
+
+export interface PersonalGraphExtraction {
+  id: number
+  documentId: number
+  status: PersonalGraphExtractionStatus
+  stage?: PersonalGraphExtractionStage
+  progress?: number
+  candidates: PersonalGraphCandidates
+  errorMessage?: string | null
+  createTime?: string
+  updateTime?: string
+  publishTime?: string | null
+}
+
+export interface PersonalGraphNode {
+  id: number
+  documentId: number
+  name: string
+  description?: string
+  confidence: number
+  status: string
+  source: PersonalGraphEvidence[]
+}
+
+export interface PersonalGraphEdge {
+  id: number
+  documentId: number
+  sourceNodeId: number
+  targetNodeId: number
+  relationType: 'prerequisite' | 'contains' | 'related'
+  relationReason?: string
+  confidence: number
+  source: PersonalGraphEvidence[]
+}
+
+export interface PersonalGraph {
+  nodes: PersonalGraphNode[]
+  edges: PersonalGraphEdge[]
+}
+
 export interface LearningRecord {
   knowledgePointId: number
   knowledgePointName?: string
@@ -224,6 +323,7 @@ export interface DocumentUploadResult {
   documentId: number
   processStatus: string
   chunkCount: number
+  personalGraphExtractionId?: number | null
 }
 
 export interface RagSource {

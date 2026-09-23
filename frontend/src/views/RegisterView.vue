@@ -53,7 +53,7 @@ async function submit() {
   }
   try {
     await authStore.register(form.username, form.password)
-    await router.push('/dashboard')
+    await router.push('/chat')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '注册失败')
   }

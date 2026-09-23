@@ -8,13 +8,20 @@ import com.aitutor.mapper.DocumentChunkMapper;
 import com.aitutor.mapper.LearningDocumentMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.DocumentService;
+import com.aitutor.service.PersonalGraphService;
 import com.aitutor.vo.DocumentChunkVO;
 import com.aitutor.vo.DocumentDetailVO;
 import com.aitutor.vo.DocumentUploadVO;
 import com.aitutor.vo.DocumentVO;
+import com.aitutor.vo.PersonalGraphExtractionVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,18 +46,29 @@ public class DocumentServiceImpl implements DocumentService {
     private static final String STATUS_COMPLETED = "completed";
     private static final String STATUS_FAILED = "failed";
     private static final String EMBEDDING_PLACEHOLDER = "mysql-keyword";
-    private static final Set<String> SUPPORTED_TYPES = Set.of("txt", "md", "markdown", "pdf");
+    private static final Set<String> SUPPORTED_TYPES = Set.of("txt", "md", "markdown", "pdf", "doc", "docx");
 
     private final LearningDocumentMapper documentMapper;
     private final DocumentChunkMapper documentChunkMapper;
     private final RagProperties ragProperties;
+    private final PersonalGraphService personalGraphService;
 
+    @Autowired
     public DocumentServiceImpl(LearningDocumentMapper documentMapper,
                                DocumentChunkMapper documentChunkMapper,
-                               RagProperties ragProperties) {
+                               RagProperties ragProperties,
+                               PersonalGraphService personalGraphService) {
         this.documentMapper = documentMapper;
         this.documentChunkMapper = documentChunkMapper;
         this.ragProperties = ragProperties;
+        this.personalGraphService = personalGraphService;
+    }
+
+    /** Keeps lightweight service tests and legacy integrations source-compatible. */
+    public DocumentServiceImpl(LearningDocumentMapper documentMapper,
+                               DocumentChunkMapper documentChunkMapper,
+                               RagProperties ragProperties) {
+        this(documentMapper, documentChunkMapper, ragProperties, null);
     }
 
     @Override
@@ -80,7 +98,9 @@ public class DocumentServiceImpl implements DocumentService {
             }
             saveChunks(document.getId(), chunks);
             updateStatus(document.getId(), STATUS_COMPLETED);
-            return new DocumentUploadVO(document.getId(), STATUS_COMPLETED, chunks.size());
+            PersonalGraphExtractionVO extraction = startAutomaticGraph(document.getId(), chunks.size());
+            return new DocumentUploadVO(document.getId(), STATUS_COMPLETED, chunks.size(),
+                    extraction == null ? null : extraction.getId());
         } catch (RuntimeException ex) {
             updateStatus(document.getId(), STATUS_FAILED);
             throw ex;
@@ -126,6 +146,9 @@ public class DocumentServiceImpl implements DocumentService {
             throw new BusinessException(404, "Document file not found");
         }
 
+        if (personalGraphService != null) {
+            personalGraphService.clearDocumentGraph(userId, document.getId());
+        }
         updateStatus(document.getId(), STATUS_PENDING);
         deleteChunks(document.getId());
         try {
@@ -137,7 +160,9 @@ public class DocumentServiceImpl implements DocumentService {
             }
             saveChunks(document.getId(), chunks);
             updateStatus(document.getId(), STATUS_COMPLETED);
-            return new DocumentUploadVO(document.getId(), STATUS_COMPLETED, chunks.size());
+            PersonalGraphExtractionVO extraction = startAutomaticGraph(document.getId(), chunks.size());
+            return new DocumentUploadVO(document.getId(), STATUS_COMPLETED, chunks.size(),
+                    extraction == null ? null : extraction.getId());
         } catch (IOException ex) {
             updateStatus(document.getId(), STATUS_FAILED);
             throw new BusinessException(500, "Failed to read document file");
@@ -152,9 +177,20 @@ public class DocumentServiceImpl implements DocumentService {
     public void delete(Long documentId) {
         Long userId = UserContext.getRequired().getId();
         LearningDocument document = requireOwnedDocument(userId, documentId);
+        if (personalGraphService != null) {
+            personalGraphService.clearDocumentGraph(userId, document.getId());
+        }
         deleteChunks(document.getId());
         documentMapper.deleteById(document.getId());
         deleteStoredFile(document);
+    }
+
+    private PersonalGraphExtractionVO startAutomaticGraph(Long documentId, int chunkCount) {
+        // Graph generation is optional; its limit must not reject a valid RAG document.
+        if (personalGraphService == null || chunkCount > PersonalGraphService.MAX_EXTRACTION_CHUNKS) {
+            return null;
+        }
+        return personalGraphService.createExtraction(documentId);
     }
 
     private void validateFile(MultipartFile file) {
@@ -203,8 +239,32 @@ public class DocumentServiceImpl implements DocumentService {
         if ("pdf".equals(fileType)) {
             return parsePdfText(fileBytes);
         }
+        if ("docx".equals(fileType)) {
+            return parseDocxText(fileBytes);
+        }
+        if ("doc".equals(fileType)) {
+            return parseDocText(fileBytes);
+        }
         String text = new String(fileBytes, StandardCharsets.UTF_8);
         return normalizeText(text);
+    }
+
+    private String parseDocxText(byte[] fileBytes) {
+        try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(fileBytes));
+             XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
+            return normalizeText(extractor.getText());
+        } catch (IOException ex) {
+            throw new BusinessException(400, "Failed to parse DOCX document");
+        }
+    }
+
+    private String parseDocText(byte[] fileBytes) {
+        try (HWPFDocument document = new HWPFDocument(new ByteArrayInputStream(fileBytes));
+             WordExtractor extractor = new WordExtractor(document)) {
+            return normalizeText(extractor.getText());
+        } catch (IOException ex) {
+            throw new BusinessException(400, "Failed to parse DOC document");
+        }
     }
 
     private String parsePdfText(byte[] fileBytes) {

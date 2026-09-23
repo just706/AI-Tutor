@@ -52,7 +52,7 @@
           <p class="eyebrow">Sources</p>
           <h2>资料来源可信度</h2>
         </div>
-        <el-upload accept=".txt,.md,.markdown,.pdf" :show-file-list="false" :http-request="uploadLearningDocument">
+        <el-upload accept=".txt,.md,.markdown,.pdf,.doc,.docx" :show-file-list="false" :http-request="uploadLearningDocument">
           <el-button :icon="Upload" :loading="uploadingDocument">上传</el-button>
         </el-upload>
       </div>
@@ -76,6 +76,16 @@
           </div>
           <div class="source-actions">
             <el-button text type="primary" @click.stop="loadDocumentDetailFlow(document.id)">查看依据</el-button>
+            <el-button
+              v-if="selectedDocumentDetail?.id === document.id && personalExtraction?.status === 'failed'"
+              text
+              type="success"
+              :loading="graphGeneratingDocumentId === document.id"
+              :disabled="document.processStatus !== 'completed' || document.chunkCount === 0"
+              @click.stop="generatePersonalGraph(document.id)"
+            >
+              重新生成
+            </el-button>
             <el-button text :loading="documentActionLoadingId === document.id" @click.stop="reprocessLearningDocument(document.id)">
               重处理
             </el-button>
@@ -113,6 +123,74 @@
             <p>{{ chunk.chunkText }}</p>
           </article>
         </div>
+        <section class="personal-graph-review">
+          <div class="section-head compact">
+            <div>
+              <p class="eyebrow">Personal Graph</p>
+              <h3>个人图谱候选</h3>
+            </div>
+            <el-button
+              v-if="personalExtraction?.status === 'completed'"
+              type="primary"
+              :loading="publishingExtraction"
+              @click="publishPersonalGraph"
+            >
+              确认发布
+            </el-button>
+          </div>
+          <div v-if="loadingPersonalExtraction" class="empty-line">正在加载图谱审核结果...</div>
+          <div v-else-if="personalExtraction?.status === 'failed'" class="graph-review-error">
+            {{ personalGraphFailureMessage(personalExtraction.errorMessage) }}
+          </div>
+          <template v-else-if="personalExtraction">
+            <div v-if="personalExtraction.status === 'processing'" class="personal-graph-progress">
+              <el-steps :active="extractionStageIndex(personalExtraction.stage)" finish-status="success" align-center>
+                <el-step title="正在提取知识实体" />
+                <el-step title="正在合并重复实体" />
+                <el-step title="正在建立知识关系" />
+                <el-step title="知识图谱生成完成" />
+              </el-steps>
+              <el-progress :percentage="personalExtraction.progress || 0" :stroke-width="8" />
+            </div>
+            <el-tag :type="personalExtraction.status === 'published' ? 'success' : 'warning'" effect="plain">
+              {{ extractionStatusLabel(personalExtraction.status) }}
+            </el-tag>
+            <div v-if="personalExtraction.candidates.nodes.length > 0" class="graph-review-list">
+              <strong>候选节点</strong>
+              <article v-for="node in personalExtraction.candidates.nodes" :key="node.name">
+                <div>
+                  <b>{{ node.name }}</b>
+                  <el-tag size="small" effect="plain">{{ node.confidence }}%</el-tag>
+                </div>
+                <p>{{ node.description || '暂无说明' }}</p>
+                <small v-for="evidence in node.evidence" :key="evidence.chunkIndex">#{{ evidence.chunkIndex }} · {{ evidence.snippet }}</small>
+              </article>
+            </div>
+            <div v-if="personalExtraction.candidates.edges.length > 0" class="graph-review-list">
+              <strong>候选关系</strong>
+              <article v-for="edge in personalExtraction.candidates.edges" :key="`${edge.sourceName}-${edge.targetName}-${edge.relationType}`">
+                <div>
+                  <b>{{ edge.sourceName }} → {{ edge.targetName }}</b>
+                  <el-tag size="small" effect="plain">{{ edge.relationType }} · {{ edge.confidence }}%</el-tag>
+                </div>
+                <p>{{ edge.relationReason || '暂无关系说明' }}</p>
+                <small v-for="evidence in edge.evidence" :key="evidence.chunkIndex">#{{ evidence.chunkIndex }} · {{ evidence.snippet }}</small>
+              </article>
+            </div>
+            <div v-if="personalExtraction.candidates.nodes.length === 0 && personalExtraction.status !== 'processing'" class="empty-line">
+              当前资料没有可确认的候选知识点。
+            </div>
+            <el-button
+              v-if="personalExtraction.status === 'published'"
+              type="primary"
+              plain
+              @click="viewPersonalGraph"
+            >
+              查看知识图谱
+            </el-button>
+          </template>
+          <div v-else class="empty-line">生成后将在这里审核候选节点和关系。</div>
+        </section>
       </div>
 
       <div v-else class="empty-line">选择资料或完成一次资料问答后，这里会展示依据。</div>
@@ -121,15 +199,20 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Promotion, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadRequestOptions } from 'element-plus'
 import {
+  createPersonalGraphExtraction,
   deleteDocument,
   getDocument,
+  getPersonalGraphExtraction,
+  getLatestPersonalGraphExtraction,
   listDocumentChunks,
   listDocuments,
+  publishPersonalGraphExtraction,
   reprocessDocument,
   sendRagChat,
   uploadDocument
@@ -139,11 +222,13 @@ import type {
   DocumentChunk,
   LearningDocument,
   LearningDocumentDetail,
+  PersonalGraphExtraction,
   RagSource
 } from '../types/domain'
 import { renderMarkdown } from '../utils/markdown'
 
 const workspaceStore = useWorkspaceStore()
+const router = useRouter()
 const documents = ref<LearningDocument[]>([])
 const selectedDocumentIds = ref<number[]>([])
 const selectedDocumentDetail = ref<LearningDocumentDetail | null>(null)
@@ -154,9 +239,23 @@ const uploadingDocument = ref(false)
 const ragQuestion = ref('')
 const ragSources = ref<RagSource[]>([])
 const ragSending = ref(false)
+const personalExtraction = ref<PersonalGraphExtraction | null>(null)
+const loadingPersonalExtraction = ref(false)
+const graphGeneratingDocumentId = ref<number | null>(null)
+const publishingExtraction = ref(false)
+let extractionPollTimer: ReturnType<typeof window.setInterval> | null = null
+
+onBeforeUnmount(() => {
+  stopExtractionPolling()
+})
 
 onMounted(async () => {
-  await Promise.all([workspaceStore.loadConversations(), loadDocumentsFlow()])
+  await workspaceStore.loadConversations()
+  await loadDocumentsFlow()
+  const firstDocumentId = selectedDocumentIds.value[0]
+  if (firstDocumentId !== undefined) {
+    await loadDocumentDetailFlow(firstDocumentId)
+  }
 })
 
 async function uploadLearningDocument(options: UploadRequestOptions) {
@@ -197,11 +296,106 @@ async function loadDocumentDetailFlow(documentId: number) {
     ])
     selectedDocumentDetail.value = detail
     documentChunks.value = chunks
+    await loadPersonalGraphExtraction(documentId)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载资料依据失败')
   } finally {
     loadingDocumentDetail.value = false
   }
+}
+
+async function loadPersonalGraphExtraction(documentId: number) {
+  stopExtractionPolling()
+  loadingPersonalExtraction.value = true
+  try {
+    personalExtraction.value = await getLatestPersonalGraphExtraction(documentId)
+    if (personalExtraction.value?.status === 'processing') {
+      startExtractionPolling(documentId, personalExtraction.value.id)
+    }
+  } catch (error) {
+    personalExtraction.value = null
+    ElMessage.error(error instanceof Error ? error.message : '加载个人图谱失败')
+  } finally {
+    loadingPersonalExtraction.value = false
+  }
+}
+
+async function generatePersonalGraph(documentId: number) {
+  stopExtractionPolling()
+  graphGeneratingDocumentId.value = documentId
+  try {
+    personalExtraction.value = await createPersonalGraphExtraction(documentId)
+    if (personalExtraction.value.status === 'processing') {
+      startExtractionPolling(documentId, personalExtraction.value.id)
+      ElMessage.success('候选图谱任务已开始')
+      return
+    }
+    if (selectedDocumentDetail.value?.id !== documentId) {
+      await loadDocumentDetailFlow(documentId)
+    }
+    if (personalExtraction.value.status === 'failed') {
+      ElMessage.error(personalGraphFailureMessage(personalExtraction.value.errorMessage))
+    } else {
+      ElMessage.success('候选图谱已生成，请在资料详情审核')
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '生成知识图谱失败')
+  } finally {
+    graphGeneratingDocumentId.value = null
+  }
+}
+
+async function publishPersonalGraph() {
+  if (!personalExtraction.value) {
+    return
+  }
+  publishingExtraction.value = true
+  try {
+    personalExtraction.value = await publishPersonalGraphExtraction(personalExtraction.value.id)
+    ElMessage.success('个人图谱已发布')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '发布个人图谱失败')
+  } finally {
+    publishingExtraction.value = false
+  }
+}
+
+function startExtractionPolling(documentId: number, extractionId: number) {
+  stopExtractionPolling()
+  extractionPollTimer = window.setInterval(async () => {
+    try {
+      const latest = await getPersonalGraphExtraction(extractionId)
+      if (selectedDocumentDetail.value?.id !== documentId) {
+        stopExtractionPolling()
+        return
+      }
+      personalExtraction.value = latest
+      if (latest.status !== 'processing') {
+        stopExtractionPolling()
+        if (latest.status === 'completed') {
+          ElMessage.success('知识图谱生成完成，请审核候选结果')
+        }
+      }
+    } catch (error) {
+      stopExtractionPolling()
+      ElMessage.error(error instanceof Error ? error.message : '获取图谱进度失败')
+    }
+  }, 1000)
+}
+
+function stopExtractionPolling() {
+  if (extractionPollTimer !== null) {
+    window.clearInterval(extractionPollTimer)
+    extractionPollTimer = null
+  }
+}
+
+function viewPersonalGraph() {
+  if (!personalExtraction.value) return
+  router.push({
+    name: 'knowledgeGraph',
+    query: { mode: 'personal', documentId: String(personalExtraction.value.documentId) }
+  })
 }
 
 async function reprocessLearningDocument(documentId: number) {
@@ -236,6 +430,7 @@ async function deleteLearningDocument(documentId: number) {
     if (selectedDocumentDetail.value?.id === documentId) {
       selectedDocumentDetail.value = null
       documentChunks.value = []
+      personalExtraction.value = null
     }
     await loadDocumentsFlow()
     ElMessage.success('资料已删除')
@@ -244,6 +439,42 @@ async function deleteLearningDocument(documentId: number) {
   } finally {
     documentActionLoadingId.value = null
   }
+}
+
+function extractionStatusLabel(status: PersonalGraphExtraction['status']) {
+  if (status === 'completed') return '待确认'
+  if (status === 'published') return '已发布'
+  if (status === 'processing') return '生成中'
+  return '生成失败'
+}
+
+function extractionStageIndex(stage?: PersonalGraphExtraction['stage']) {
+  if (stage === 'merging_nodes') return 1
+  if (stage === 'extracting_relations') return 2
+  if (stage === 'awaiting_review') return 3
+  return 0
+}
+
+function personalGraphFailureMessage(errorMessage?: string | null) {
+  if (errorMessage?.includes('AI service call failed')) {
+    return `${errorMessage}。请检查 DeepSeek API Key、模型名称和网络连接后重试。`
+  }
+  if (errorMessage?.includes('unknown candidate node')) {
+    return 'AI 生成了候选节点集之外的关系，系统已拒绝保存，请重新生成。'
+  }
+  if (errorMessage?.includes('relation with an unknown node')) {
+    return '生成结果中的关系缺少对应知识点，系统未保存候选结果，请重新生成。'
+  }
+  if (errorMessage?.includes('invalid personal graph relation JSON')) {
+    return 'AI 返回的关系图谱格式不正确，系统未保存候选结果，请重新生成。'
+  }
+  if (errorMessage?.includes('invalid personal graph JSON')) {
+    return 'AI 返回的图谱格式不正确，系统未保存候选结果，请重新生成。'
+  }
+  if (errorMessage?.includes('referenced a chunk that was not provided')) {
+    return 'AI 引用了资料中不存在的片段，系统未保存候选结果，请重新生成。'
+  }
+  return errorMessage || '图谱抽取失败，请重新生成。'
 }
 
 async function createRagConversation() {
@@ -289,7 +520,7 @@ async function sendRagQuestion() {
 }
 
 function trustLabel(document: LearningDocument) {
-  if (document.chunkCount > 0 && document.processStatus === 'processed') {
+  if (document.chunkCount > 0 && ['processed', 'completed'].includes(document.processStatus)) {
     return '可引用'
   }
   if (document.chunkCount > 0) {

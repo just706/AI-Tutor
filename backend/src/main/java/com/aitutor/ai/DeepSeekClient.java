@@ -2,19 +2,25 @@ package com.aitutor.ai;
 
 import com.aitutor.exception.AiServiceException;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 import java.util.Map;
 
 @Component
 public class DeepSeekClient {
+
+    private static final Logger log = LoggerFactory.getLogger(DeepSeekClient.class);
 
     private final DeepSeekProperties properties;
     private final RestClient restClient;
@@ -32,16 +38,27 @@ public class DeepSeekClient {
     }
 
     public AiChatResult chat(List<AiMessage> messages) {
+        return chat(messages, false);
+    }
+
+    public AiChatResult chatJson(List<AiMessage> messages) {
+        return chat(messages, true);
+    }
+
+    private AiChatResult chat(List<AiMessage> messages, boolean jsonOutput) {
         if (properties.getApiKey() == null || properties.getApiKey().trim().isEmpty()) {
             throw new AiServiceException("DeepSeek API key is not configured");
         }
 
+        Map<String, String> responseFormat = jsonOutput ? Map.of("type", "json_object") : null;
         DeepSeekChatRequest request = new DeepSeekChatRequest(
                 properties.getModelName(),
                 messages,
                 false,
                 // The MVP expects a concise answer body; disable reasoning output for stable parsing.
-                Map.of("type", "disabled")
+                Map.of("type", "disabled"),
+                responseFormat,
+                jsonOutput ? 4096 : 2048
         );
         try {
             DeepSeekChatResponse response = restClient.post()
@@ -55,8 +72,14 @@ public class DeepSeekClient {
             return parseResponse(response);
         } catch (AiServiceException ex) {
             throw ex;
+        } catch (RestClientResponseException ex) {
+            // Upstream error bodies can contain credentials or submitted material.
+            int status = ex.getStatusCode().value();
+            log.warn("DeepSeek request failed with HTTP status {}", status);
+            throw new AiServiceException("AI service call failed (HTTP " + status + ")");
         } catch (RestClientException ex) {
-            throw new AiServiceException("AI service call failed");
+            log.warn("DeepSeek request failed ({})", ex.getClass().getSimpleName());
+            throw new AiServiceException("AI service is temporarily unavailable; please retry later");
         }
     }
 
@@ -85,10 +108,13 @@ public class DeepSeekClient {
         return new AiChatResult(choice.getMessage().getContent(), promptTokens, completionTokens);
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private record DeepSeekChatRequest(String model,
                                        List<AiMessage> messages,
                                        boolean stream,
-                                       Map<String, String> thinking) {
+                                       Map<String, String> thinking,
+                                       @JsonProperty("response_format") Map<String, String> responseFormat,
+                                       @JsonProperty("max_tokens") Integer maxTokens) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

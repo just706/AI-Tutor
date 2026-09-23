@@ -9,7 +9,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/dashboard'
+      redirect: '/chat'
     },
     {
       path: '/login',
@@ -40,6 +40,11 @@ const router = createRouter({
           path: 'learn',
           name: 'learn',
           component: () => import('../views/LearningPathView.vue')
+        },
+        {
+          path: 'knowledge-graph',
+          name: 'knowledgeGraph',
+          component: () => import('../views/KnowledgeGraphView.vue')
         },
         {
           path: 'practice',
@@ -79,7 +84,7 @@ router.beforeEach(async (to) => {
     return '/login'
   }
   if ((to.name === 'login' || to.name === 'register') && authStore.isAuthenticated) {
-    return '/dashboard'
+    return '/chat'
   }
   if (requiresAuth && authStore.isAuthenticated && !authStore.user) {
     try {

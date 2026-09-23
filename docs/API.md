@@ -35,7 +35,7 @@
 - `POST /api/tutor-agent/chat`：`conversationId` 必填，`message` 必填且不超过 4000；可选 `learningSessionId`。返回回答、意图、学习会话、策略、知识图谱上下文、记忆更新和导航动作。
 - `POST /api/ai/rag/chat`：`conversationId` 和问题必填；可选 `documentIds`，为空时使用当前用户所有已完成文档。返回回答和引用片段。
 - `POST /api/questions/generate`：`knowledgePointId` 必填；题型支持 `single_choice`、`true_false`、`short_answer`，数量限制 1–5。
-- `POST /api/documents/upload`：表单字段名为 `file`，支持 TXT/Markdown/PDF/DOC/DOCX，默认最大 5 MB。上传完成后可能创建异步个人图谱提取，需轮询提取端点。
+- `POST /api/documents/upload`：表单字段名为 `file`，支持 TXT/Markdown/PDF/DOC/DOCX，默认最大 5 MB。解析完成且分片不超过 100 段时自动创建异步个人图谱提取，需轮询提取端点。超过 100 段仍可上传和教材问答，但 `personalGraphExtractionId` 为 `null`；重处理遵循相同规则。手动提取图谱超过此限制时返回业务码 `400`，需拆分资料。
 - `POST /api/personal-graph/extractions/{id}/publish`：只有完成提取且属于当前用户时可发布；发布不是自动发生的。
 
 没有记录在上表中的 SSE、Python 服务、任意工具调用或计划中的学习记录接口，不能作为当前 API 使用。

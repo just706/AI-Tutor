@@ -1,62 +1,21 @@
 <template>
-  <div class="chat-workspace" :class="{ 'threads-collapsed': threadCollapsed }">
-    <aside class="chat-thread-list panel" :class="{ collapsed: threadCollapsed }">
-      <div class="thread-panel-head" :class="{ collapsed: threadCollapsed }">
-        <div v-if="!threadCollapsed">
-          <p class="eyebrow">Conversations</p>
-          <h2>学习会话</h2>
-        </div>
-        <div class="thread-actions">
-          <el-tooltip :content="threadCollapsed ? '展开会话' : '收起会话'" placement="right">
-            <el-button
-              :aria-label="threadCollapsed ? '展开会话' : '收起会话'"
-              :icon="threadCollapsed ? ArrowRight : ArrowLeft"
-              circle
-              @click="toggleThreads"
-            />
-          </el-tooltip>
-          <el-tooltip content="新学习会话" placement="right">
-            <el-button aria-label="新学习会话" :icon="Plus" circle @click="createNewConversation" />
-          </el-tooltip>
-        </div>
-      </div>
-
-      <template v-if="!threadCollapsed">
-        <el-input v-model.trim="threadQuery" class="chat-search" :prefix-icon="Search" placeholder="搜索会话..." />
-
-        <div v-loading="workspaceStore.loadingConversations" class="thread-scroll">
-          <button
-            v-for="conversation in filteredConversations"
-            :key="conversation.id"
-            class="conversation-row"
-            :class="{ active: workspaceStore.currentConversationId === conversation.id }"
-            type="button"
-            @click="workspaceStore.selectConversation(conversation.id)"
-          >
-            <span>
-              <strong>{{ conversation.title || '未命名会话' }}</strong>
-              <small>{{ modeLabel(conversation.mode) }} · {{ formatTime(conversation.updateTime) }}</small>
-            </span>
-          </button>
-          <el-empty
-            v-if="!workspaceStore.loadingConversations && filteredConversations.length === 0"
-            description="暂无会话"
-            :image-size="82"
-          />
-        </div>
-      </template>
-    </aside>
-
+  <div class="chat-workbench">
     <section class="chat-main panel">
       <header class="chat-main-head">
         <div>
           <p class="eyebrow">{{ currentModeLabel }}</p>
           <h2>{{ currentChatTitle }}</h2>
+          <div class="chat-topic-strip">
+            <el-tag v-if="activeTopicLabel" effect="plain">{{ activeTopicLabel }}</el-tag>
+            <el-tag v-if="workspaceStore.activeLearningSession?.teachingStrategy" effect="plain">
+              {{ strategyLabel(workspaceStore.activeLearningSession.teachingStrategy) }}
+            </el-tag>
+            <el-tag v-if="workspaceStore.activeLearningSession" :type="learningSessionStatusTag(workspaceStore.activeLearningSession.status)" effect="dark">
+              {{ learningSessionStatusLabel(workspaceStore.activeLearningSession.status) }}
+            </el-tag>
+          </div>
         </div>
         <div class="chat-head-actions">
-          <el-tag v-if="workspaceStore.currentConversation" effect="plain">
-            {{ modeLabel(workspaceStore.currentConversation.mode) }}
-          </el-tag>
           <el-tooltip :content="historySearchOpen ? '关闭记录搜索' : '查找聊天记录'" placement="bottom">
             <el-button
               :aria-label="historySearchOpen ? '关闭记录搜索' : '查找聊天记录'"
@@ -64,6 +23,9 @@
               circle
               @click="toggleHistorySearch"
             />
+          </el-tooltip>
+          <el-tooltip content="新学习会话" placement="bottom">
+            <el-button aria-label="新学习会话" :icon="Plus" circle @click="createNewConversation" />
           </el-tooltip>
         </div>
       </header>
@@ -98,41 +60,10 @@
         </div>
       </section>
 
-      <section v-if="workspaceStore.activeLearningSession" class="learning-session-strip">
-        <div>
-          <p class="eyebrow">Active Learning Session</p>
-          <h3>{{ workspaceStore.activeLearningSession.goal }}</h3>
-          <p>{{ workspaceStore.activeLearningSession.nextAction || '继续围绕当前目标学习' }}</p>
-          <ul v-if="workspaceStore.activeLearningSession.strategySource?.length" class="strategy-source-list">
-            <li v-for="source in workspaceStore.activeLearningSession.strategySource" :key="source">{{ source }}</li>
-          </ul>
-          <div v-if="workspaceStore.activeLearningSession.knowledgeMap?.unmetPrerequisites.length" class="knowledge-map-hint">
-            <span>建议先补齐</span>
-            <el-tag
-              v-for="prerequisite in workspaceStore.activeLearningSession.knowledgeMap.unmetPrerequisites"
-              :key="prerequisite.knowledgePointId"
-              size="small"
-              effect="plain"
-            >
-              {{ prerequisite.knowledgePointName }}
-            </el-tag>
-          </div>
-        </div>
-        <div class="learning-session-meta">
-          <el-tag :type="learningSessionStatusTag(workspaceStore.activeLearningSession.status)" effect="dark">
-            {{ learningSessionStatusLabel(workspaceStore.activeLearningSession.status) }}
-          </el-tag>
-          <el-tag v-if="workspaceStore.activeLearningSession.teachingStrategy" effect="plain">
-            {{ strategyLabel(workspaceStore.activeLearningSession.teachingStrategy) }}
-          </el-tag>
-          <el-button size="small" type="success" plain @click="completeLearningSession">完成本次会话</el-button>
-        </div>
-      </section>
-
       <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list wide">
         <div v-if="workspaceStore.messages.length === 0" class="empty-chat">
           <h3>把问题交给 AI Tutor</h3>
-          <p>可以问概念、代码、学习路径，也可以让它按你的档案调整讲解方式。</p>
+          <p>可以直接输入“我想学习 HashMap”，学习会话、图谱、练习和进度会在右侧自动承接。</p>
         </div>
 
         <article
@@ -157,6 +88,17 @@
           <div v-else class="message-bubble">{{ message.messageContent }}</div>
           <div v-if="message.role === 'assistant' && message.memoryUpdates?.length" class="message-memory-updates">
             <span v-for="update in message.memoryUpdates" :key="update">{{ update }}</span>
+          </div>
+          <div v-if="message.role === 'assistant'" class="message-quick-actions">
+            <el-button
+              v-for="action in quickPromptActions"
+              :key="action.prompt"
+              size="small"
+              plain
+              @click="sendPrompt(action.prompt)"
+            >
+              {{ action.label }}
+            </el-button>
           </div>
           <div v-if="message.role === 'assistant' && message.actions?.length" class="message-actions">
             <button
@@ -191,28 +133,203 @@
         </el-button>
       </footer>
     </section>
+
+    <aside class="learning-inspector panel">
+      <header class="inspector-head">
+        <div class="inspector-icon">
+          <el-icon><Compass /></el-icon>
+        </div>
+        <div>
+          <p class="eyebrow">Inspector</p>
+          <h2>学习上下文</h2>
+        </div>
+      </header>
+
+      <nav class="inspector-tabs" aria-label="学习上下文">
+        <button
+          v-for="tab in inspectorTabs"
+          :key="tab.key"
+          class="inspector-tab"
+          :class="{ active: activePanel === tab.key }"
+          type="button"
+          @click="setActivePanel(tab.key)"
+        >
+          <el-icon><component :is="tab.icon" /></el-icon>
+          <span>{{ tab.label }}</span>
+        </button>
+      </nav>
+
+      <div class="inspector-body">
+        <section v-if="activePanel === 'session'" class="inspector-section">
+          <template v-if="workspaceStore.activeLearningSession">
+            <div class="inspector-block">
+              <span>Current Topic</span>
+              <strong>{{ workspaceStore.activeLearningSession.topic || activeTopicLabel || '当前主题' }}</strong>
+            </div>
+            <div class="inspector-block">
+              <span>Strategy</span>
+              <el-tag effect="plain">{{ strategyLabel(workspaceStore.activeLearningSession.teachingStrategy || 'concept_first') }}</el-tag>
+            </div>
+            <div class="inspector-block">
+              <span>Reasoning</span>
+              <ul v-if="workspaceStore.activeLearningSession.strategySource?.length" class="inspector-list">
+                <li v-for="source in workspaceStore.activeLearningSession.strategySource" :key="source">{{ source }}</li>
+              </ul>
+              <p v-else>等待 Tutor Agent 形成可解释策略。</p>
+            </div>
+            <div class="inspector-next">
+              <span>Next Up</span>
+              <strong>{{ workspaceStore.activeLearningSession.nextAction || '继续围绕当前目标学习' }}</strong>
+            </div>
+            <el-button type="primary" plain :icon="CircleCheck" @click="completeLearningSession">
+              完成本次会话
+            </el-button>
+          </template>
+          <el-empty v-else description="开始聊天后会自动创建学习会话" :image-size="92" />
+        </section>
+
+        <section v-else-if="activePanel === 'map'" class="inspector-section">
+          <div class="inspector-block">
+            <span>Knowledge Map</span>
+            <strong>{{ knowledgeMapTargetLabel }}</strong>
+            <p>{{ knowledgeMapPanelHint }}</p>
+          </div>
+          <div class="knowledge-map-canvas">
+            <div v-if="knowledgeMapPrerequisites.length" class="knowledge-map-prerequisites">
+              <button
+                v-for="prerequisite in knowledgeMapPrerequisites"
+                :key="prerequisite.knowledgePointId"
+                class="knowledge-map-node prerequisite-node"
+                type="button"
+                @click="goLearningPath(prerequisite.knowledgePointId)"
+              >
+                <strong>{{ prerequisite.knowledgePointName }}</strong>
+                <small>掌握度 {{ masteryLabel(prerequisite.masteryLevel) }}</small>
+              </button>
+            </div>
+            <div v-else class="knowledge-map-node prerequisite-node muted">
+              <strong>{{ knowledgeMapEmptyTitle }}</strong>
+              <small>{{ knowledgeMapEmptyDescription }}</small>
+            </div>
+            <span class="knowledge-map-arrow">→</span>
+            <button class="knowledge-map-node target-node" type="button" @click="goLearningPath(activeKnowledgeMap?.knowledgePointId)">
+              <strong>{{ knowledgeMapTargetLabel }}</strong>
+              <small>{{ knowledgeMapSubjectLabel }}</small>
+            </button>
+          </div>
+          <ul v-if="knowledgeMapReasons.length" class="knowledge-map-reasons">
+            <li
+              v-for="prerequisite in knowledgeMapReasons"
+              :key="`${prerequisite.knowledgePointId}-${prerequisite.relationReason}`"
+            >
+              {{ prerequisite.relationReason }}
+            </li>
+          </ul>
+          <div class="inspector-action-row">
+            <el-button type="primary" plain :icon="Compass" @click="goKnowledgeGraph">打开知识图谱</el-button>
+            <el-button plain @click="goLearningPath(activeKnowledgeMap?.knowledgePointId)">查看学习路径详情</el-button>
+          </div>
+        </section>
+
+        <section v-else-if="activePanel === 'practice'" class="inspector-section">
+          <div class="inspector-block">
+            <span>Practice</span>
+            <strong>{{ activeTopicLabel || '当前主题练习' }}</strong>
+            <p>围绕当前主题做练习，检查自己的理解。</p>
+          </div>
+          <div class="inspector-card">
+            <strong>生成当前主题练习</strong>
+            <p>进入练习详情后，可以选择题型、难度和题目数量。</p>
+            <el-button type="primary" plain :icon="EditPen" @click="goPractice">进入练习</el-button>
+          </div>
+        </section>
+
+        <section v-else-if="activePanel === 'sources'" class="inspector-section" v-loading="sourcesLoading">
+          <div class="inspector-block">
+            <span>Sources</span>
+            <strong>{{ documents.length }} 个资料来源</strong>
+            <p>查看已上传的学习资料，进入资料库可以管理教材并依据教材提问。</p>
+          </div>
+          <div v-if="documents.length" class="inspector-list-card">
+            <article v-for="document in documents.slice(0, 5)" :key="document.id">
+              <strong>{{ document.fileName }}</strong>
+              <small>{{ document.fileType }} · {{ document.chunkCount }} 个片段 · {{ trustLabel(document) }}</small>
+            </article>
+          </div>
+          <el-empty v-else description="还没有资料来源" :image-size="86" />
+          <el-button plain :icon="Collection" @click="router.push({ name: 'library' })">打开资料详情</el-button>
+        </section>
+
+        <section v-else class="inspector-section" v-loading="progressLoading">
+          <div class="inspector-block">
+            <span>Progress</span>
+            <strong>{{ analysisOverview?.averageMasteryLevel ?? 0 }}% 平均掌握</strong>
+            <p>查看学习记录和薄弱知识点，进入学习分析可了解详细情况。</p>
+          </div>
+          <div class="inspector-metrics">
+            <div>
+              <span>正确率</span>
+              <strong>{{ analysisOverview?.answerAccuracy ?? 0 }}%</strong>
+            </div>
+            <div>
+              <span>完成率</span>
+              <strong>{{ evaluationOverview?.sessionCompletionRate ?? 0 }}%</strong>
+            </div>
+          </div>
+          <div v-if="analysisOverview?.weakKnowledgePoints.length" class="inspector-list-card">
+            <article v-for="point in analysisOverview.weakKnowledgePoints.slice(0, 4)" :key="point.knowledgePointId">
+              <strong>{{ point.knowledgePointName }}</strong>
+              <small>{{ point.reason }}</small>
+            </article>
+          </div>
+          <el-empty v-else description="暂无明显薄弱点" :image-size="86" />
+          <el-button plain :icon="DataAnalysis" @click="router.push({ name: 'analysis', query: activeTopicLabel ? { topic: activeTopicLabel } : {} })">
+            查看完整分析
+          </el-button>
+        </section>
+      </div>
+    </aside>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { Component } from 'vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Close, Plus, Promotion, Search } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  ArrowDown,
+  ArrowUp,
+  CircleCheck,
+  Close,
+  Collection,
+  Compass,
+  DataAnalysis,
+  EditPen,
+  InfoFilled,
+  Plus,
+  Promotion,
+  Reading,
+  Search
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import {
+  getEvaluationOverview,
+  getLearningAnalysisOverview,
+  listDocuments
+} from '../api'
 import { useWorkspaceStore } from '../stores/workspace'
-import type { LearningSessionStatus, TutorAction } from '../types/domain'
-import { formatTime, modeLabel } from '../utils/format'
+import type {
+  EvaluationOverview,
+  KnowledgeMapPrerequisite,
+  LearningAnalysisOverview,
+  LearningDocument,
+  LearningSessionStatus,
+  TutorAction
+} from '../types/domain'
+import { modeLabel } from '../utils/format'
 import { renderMarkdown } from '../utils/markdown'
 
-const workspaceStore = useWorkspaceStore()
-const router = useRouter()
-const draft = ref('')
-const threadQuery = ref('')
-const threadCollapsed = ref(false)
-const historySearchOpen = ref(false)
-const historyQuery = ref('')
-const activeResultIndex = ref(0)
-const messageScroller = ref<HTMLElement | null>(null)
+type InspectorPanel = 'session' | 'map' | 'practice' | 'sources' | 'progress'
 
 interface HistorySearchResult {
   resultIndex: number
@@ -221,6 +338,42 @@ interface HistorySearchResult {
   snippet: string
 }
 
+interface InspectorTab {
+  key: InspectorPanel
+  label: string
+  icon: Component
+}
+
+const workspaceStore = useWorkspaceStore()
+const route = useRoute()
+const router = useRouter()
+const draft = ref('')
+const historySearchOpen = ref(false)
+const historyQuery = ref('')
+const activeResultIndex = ref(0)
+const messageScroller = ref<HTMLElement | null>(null)
+const activePanel = ref<InspectorPanel>(normalizePanel(route.query.panel))
+const documents = ref<LearningDocument[]>([])
+const analysisOverview = ref<LearningAnalysisOverview | null>(null)
+const evaluationOverview = ref<EvaluationOverview | null>(null)
+const sourcesLoading = ref(false)
+const progressLoading = ref(false)
+
+const inspectorTabs: InspectorTab[] = [
+  { key: 'session', label: 'Session', icon: InfoFilled },
+  { key: 'map', label: 'Map', icon: Compass },
+  { key: 'practice', label: 'Practice', icon: EditPen },
+  { key: 'sources', label: 'Sources', icon: Collection },
+  { key: 'progress', label: 'Progress', icon: DataAnalysis }
+]
+
+const quickPromptActions = [
+  { label: '举例解释', prompt: '请用一个具体例子解释一下。' },
+  { label: '补前置知识', prompt: '请先帮我补齐理解这个问题需要的前置知识。' },
+  { label: '生成练习', prompt: '请基于当前知识点生成一道练习题。' },
+  { label: '总结一下', prompt: '请总结一下当前知识点和下一步。' }
+]
+
 const currentModeLabel = computed(() => modeLabel(workspaceStore.currentConversation?.mode || 'chat'))
 const currentChatTitle = computed(() => {
   if (workspaceStore.currentConversation?.title) {
@@ -228,15 +381,11 @@ const currentChatTitle = computed(() => {
   }
   return workspaceStore.draftConversation ? '输入第一句话后自动命名' : 'AI 学习问答'
 })
-const filteredConversations = computed(() => {
-  const keyword = threadQuery.value.toLowerCase()
-  if (!keyword) {
-    return workspaceStore.conversations
-  }
-  return workspaceStore.conversations.filter((item) =>
-    `${item.title} ${modeLabel(item.mode)}`.toLowerCase().includes(keyword)
-  )
-})
+const activeTopicLabel = computed(() =>
+  workspaceStore.activeLearningSession?.topic
+    || workspaceStore.currentConversation?.title
+    || String(route.query.topic || '').trim()
+)
 const normalizedHistoryQuery = computed(() => historyQuery.value.trim().toLowerCase())
 const historySearchResults = computed<HistorySearchResult[]>(() => {
   const keyword = normalizedHistoryQuery.value
@@ -264,6 +413,27 @@ const matchedMessageIndexes = computed(() =>
 )
 const activeHistoryResult = computed(() => historySearchResults.value[activeResultIndex.value] || null)
 const activeMessageIndex = computed(() => activeHistoryResult.value?.messageIndex ?? -1)
+const activeKnowledgeMap = computed(() => workspaceStore.activeLearningSession?.knowledgeMap || null)
+const knowledgeMapPrerequisites = computed(() => activeKnowledgeMap.value?.unmetPrerequisites || [])
+const knowledgeMapReasons = computed(() =>
+  knowledgeMapPrerequisites.value.filter((prerequisite) => Boolean(prerequisite.relationReason))
+)
+const knowledgeMapMatched = computed(() => Boolean(activeKnowledgeMap.value?.topic))
+const knowledgeMapTargetLabel = computed(() =>
+  activeKnowledgeMap.value?.topic || workspaceStore.activeLearningSession?.topic || activeTopicLabel.value || '当前主题'
+)
+const knowledgeMapSubjectLabel = computed(() => activeKnowledgeMap.value?.subject || '当前对话主题')
+const knowledgeMapPanelHint = computed(() =>
+  knowledgeMapMatched.value ? '当前主题的局部前置关系' : '知识图谱入口已预留，当前主题暂未进入标准知识地图'
+)
+const knowledgeMapEmptyTitle = computed(() =>
+  knowledgeMapMatched.value ? '暂无需补齐项' : '未匹配知识点'
+)
+const knowledgeMapEmptyDescription = computed(() =>
+  knowledgeMapMatched.value
+    ? '当前没有识别到未掌握前置知识'
+    : '试试输入“我想学习 HashMap”这类已建图主题'
+)
 const historySearchLabel = computed(() => {
   if (!normalizedHistoryQuery.value) {
     return '输入关键词'
@@ -276,7 +446,7 @@ const historySearchLabel = computed(() => {
 
 onMounted(async () => {
   try {
-    await workspaceStore.loadConversations()
+    await Promise.all([workspaceStore.loadConversations(), loadSourcesSummary(), loadProgressSummary()])
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载聊天失败')
   }
@@ -317,12 +487,63 @@ watch(
   }
 )
 
-async function createNewConversation() {
-  workspaceStore.startDraftConversation()
+watch(
+  () => route.query.panel,
+  (panel) => {
+    activePanel.value = normalizePanel(panel)
+  }
+)
+
+watch(activePanel, async (panel) => {
+  if (panel === 'sources' && documents.value.length === 0) {
+    await loadSourcesSummary()
+  }
+  if (panel === 'progress' && !analysisOverview.value) {
+    await loadProgressSummary()
+  }
+})
+
+function normalizePanel(panel: unknown): InspectorPanel {
+  return ['session', 'map', 'practice', 'sources', 'progress'].includes(String(panel))
+    ? String(panel) as InspectorPanel
+    : 'session'
 }
 
-function toggleThreads() {
-  threadCollapsed.value = !threadCollapsed.value
+async function setActivePanel(panel: InspectorPanel) {
+  activePanel.value = panel
+  await router.replace({ name: 'chat', query: panel === 'session' ? {} : { panel } })
+}
+
+async function loadSourcesSummary() {
+  sourcesLoading.value = true
+  try {
+    documents.value = await listDocuments()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载资料来源失败')
+  } finally {
+    sourcesLoading.value = false
+  }
+}
+
+async function loadProgressSummary() {
+  progressLoading.value = true
+  try {
+    const [analysis, evaluation] = await Promise.all([
+      getLearningAnalysisOverview(),
+      getEvaluationOverview()
+    ])
+    analysisOverview.value = analysis
+    evaluationOverview.value = evaluation
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载学习进度失败')
+  } finally {
+    progressLoading.value = false
+  }
+}
+
+async function createNewConversation() {
+  workspaceStore.startDraftConversation()
+  await setActivePanel('session')
 }
 
 function toggleHistorySearch() {
@@ -432,6 +653,23 @@ function strategyLabel(strategy: string) {
   return labels[strategy] || strategy
 }
 
+function masteryLabel(masteryLevel: KnowledgeMapPrerequisite['masteryLevel']) {
+  if (!masteryLevel) {
+    return '未记录'
+  }
+  return `${masteryLevel}%`
+}
+
+function trustLabel(document: LearningDocument) {
+  if (document.chunkCount > 0 && document.processStatus === 'completed') {
+    return '可引用'
+  }
+  if (document.chunkCount > 0) {
+    return '部分可引用'
+  }
+  return '待处理'
+}
+
 async function runTutorAction(action: TutorAction) {
   if (!action.routeName) {
     return
@@ -454,13 +692,19 @@ async function runTutorAction(action: TutorAction) {
 }
 
 async function send() {
-  const content = draft.value.trim()
-  if (!content) {
+  await sendPrompt(draft.value)
+}
+
+async function sendPrompt(content: string) {
+  const message = content.trim()
+  if (!message) {
     return
   }
-  draft.value = ''
+  if (content === draft.value) {
+    draft.value = ''
+  }
   try {
-    await workspaceStore.sendMessage(content)
+    await workspaceStore.sendMessage(message)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '发送失败')
   }
@@ -469,9 +713,36 @@ async function send() {
 async function completeLearningSession() {
   try {
     await workspaceStore.completeActiveLearningSession()
+    await loadProgressSummary()
     ElMessage.success('本次学习会话已完成')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '完成学习会话失败')
   }
+}
+
+function goLearningPath(knowledgePointId?: number) {
+  if (knowledgePointId) {
+    router.push({ name: 'learn', query: { knowledgePointId: String(knowledgePointId) } })
+    return
+  }
+  router.push({ name: 'learn', query: activeTopicLabel.value ? { topic: activeTopicLabel.value, source: 'chat' } : {} })
+}
+
+function goPractice() {
+  if (activeKnowledgeMap.value?.knowledgePointId) {
+    router.push({ name: 'practice', query: { knowledgePointId: String(activeKnowledgeMap.value.knowledgePointId) } })
+    return
+  }
+  router.push({ name: 'practice', query: activeTopicLabel.value ? { topic: activeTopicLabel.value, source: 'chat' } : {} })
+}
+
+function goKnowledgeGraph() {
+  const query: Record<string, string> = {
+    subject: activeKnowledgeMap.value?.subject || 'Java'
+  }
+  if (activeKnowledgeMap.value?.knowledgePointId) {
+    query.focusKnowledgePointId = String(activeKnowledgeMap.value.knowledgePointId)
+  }
+  router.push({ name: 'knowledgeGraph', query })
 }
 </script>
