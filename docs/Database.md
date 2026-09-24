@@ -24,6 +24,7 @@ stage14-learner-memory.sql
 stage15-evaluation-governance.sql
 stage16-personal-graph.sql
 stage17-async-personal-graph.sql
+stage18-conversation-documents.sql
 ```
 
 `repair-stage6-encoding.sql` 是针对已有环境的字符集修复脚本，不属于新库必跑步骤。脚本中的 `INSERT IGNORE`、更新和条件加列行为仍应在目标库上先检查。
@@ -40,13 +41,24 @@ SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage2-student-profile.sql;
 
 如果在 `.env` 中使用其他数据库名，相应调整建库和 `USE` 的名称；执行 `SOURCE` 前必须先选中目标数据库。
 
+## 已有库升级教材绑定
+
+使用新后端前，在已配置的目标数据库执行 `stage18-conversation-documents.sql`。该脚本检查列是否存在，只新增可空 JSON 列 `conversation.document_ids`，可重复执行，不回填旧会话，也不改动消息或教材。示例（已进入 MySQL 客户端）：
+
+```sql
+USE ai_tutor;
+SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage18-conversation-documents.sql;
+```
+
+数据库名与 `.env` 保持一致。升级后旧教材会话需要重新选择一次教材；`NULL` 或 `[]` 均表示尚未选择，不代表使用全部资料。
+
 ## 表清单
 
 | 表 | 用途 | 所有权/关键约束 |
 | --- | --- | --- |
 | `user` | 账号与角色 | `username` 唯一 |
 | `student_profile` | 学习方向、目标、水平、偏好 | 每用户一份 |
-| `conversation` | 会话 | 归属 `user_id` |
+| `conversation` | 会话与教材选择 | 归属 `user_id`；`document_ids` 保存最多 20 个去重的教材 ID |
 | `chat_history` | 用户/助手消息 | 通过会话归属用户 |
 | `ai_call_log` | 模型调用、错误和时延 | 关联用户/会话可为空 |
 | `knowledge_point` | 公共知识点树 | `subject,parent_id,name` 唯一组合 |
@@ -68,6 +80,8 @@ SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage2-student-profile.sql;
 ## 语义边界
 
 没有 `study_plan`、`learner_model` 或向量表；学习计划是实时规则结果，RAG 分片当前保存在 `document_chunk` 并使用关键词评分。`question.options`、会话策略来源和动作快照以文本形式保存 JSON，个人图谱候选和证据使用 JSON 字段。
+
+删除教材后不删除会话中的原教材 ID；问答前再次检查权限及可用性，页面提示重新选择。教材绑定不等于引用快照，`chat_history` 当前仍未保存结构化引用。
 
 掌握度当前由学习记录保存，服务层按历史最高值更新；没有唯一的活动会话约束，因此并发创建仍需应用层关注。SQL 没有用外键表达级联删除，文档、分片和图谱清理由服务层完成。
 

@@ -3,6 +3,7 @@ package com.aitutor.vo;
 import com.aitutor.entity.Conversation;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class ConversationVO {
 
@@ -10,6 +11,10 @@ public class ConversationVO {
     private String title;
     private String mode;
     private LocalDateTime updateTime;
+    private List<Long> documentIds = List.of();
+
+    public List<Long> getDocumentIds() { return documentIds; }
+    public void setDocumentIds(List<Long> documentIds) { this.documentIds = documentIds; }
 
     public ConversationVO() {
     }

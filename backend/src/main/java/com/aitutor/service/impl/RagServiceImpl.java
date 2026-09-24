@@ -18,9 +18,9 @@ import com.aitutor.mapper.AiCallLogMapper;
 import com.aitutor.mapper.ChatHistoryMapper;
 import com.aitutor.mapper.ConversationMapper;
 import com.aitutor.mapper.DocumentChunkMapper;
-import com.aitutor.mapper.LearningDocumentMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.RagService;
+import com.aitutor.service.ConversationDocumentBinding;
 import com.aitutor.vo.RagChatVO;
 import com.aitutor.vo.RagSourceVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -46,7 +46,7 @@ public class RagServiceImpl implements RagService {
     private static final String REQUEST_TYPE_RAG_CHAT = "rag_chat";
     private static final String STATUS_COMPLETED = "completed";
 
-    private final LearningDocumentMapper documentMapper;
+    private final ConversationDocumentBinding documentBinding;
     private final DocumentChunkMapper documentChunkMapper;
     private final ConversationMapper conversationMapper;
     private final ChatHistoryMapper chatHistoryMapper;
@@ -55,7 +55,7 @@ public class RagServiceImpl implements RagService {
     private final AiPromptBuilder aiPromptBuilder;
     private final RagProperties ragProperties;
 
-    public RagServiceImpl(LearningDocumentMapper documentMapper,
+    public RagServiceImpl(ConversationDocumentBinding documentBinding,
                           DocumentChunkMapper documentChunkMapper,
                           ConversationMapper conversationMapper,
                           ChatHistoryMapper chatHistoryMapper,
@@ -63,7 +63,7 @@ public class RagServiceImpl implements RagService {
                           DeepSeekClient deepSeekClient,
                           AiPromptBuilder aiPromptBuilder,
                           RagProperties ragProperties) {
-        this.documentMapper = documentMapper;
+        this.documentBinding = documentBinding;
         this.documentChunkMapper = documentChunkMapper;
         this.conversationMapper = conversationMapper;
         this.chatHistoryMapper = chatHistoryMapper;
@@ -80,9 +80,17 @@ public class RagServiceImpl implements RagService {
         Conversation conversation = requireOwnedRagConversation(userId, request.getConversationId());
         String question = request.getQuestion().trim();
 
+        List<Long> documentIds = request.getDocumentIds() == null
+                ? documentBinding.documentIds(conversation) : request.getDocumentIds();
+        if (documentIds.isEmpty()) throw new BusinessException(400, "请先为当前会话选择教材");
+        List<LearningDocument> documents = documentBinding.validateDocuments(userId, documentIds);
+        if (request.getDocumentIds() != null) {
+            Conversation update = new Conversation();
+            update.setId(conversation.getId());
+            update.setDocumentIds(documentBinding.serialize(documents));
+            conversationMapper.updateById(update);
+        }
         saveMessage(userId, conversation.getId(), ROLE_USER, question);
-
-        List<LearningDocument> documents = listSearchDocuments(userId, request.getDocumentIds());
         List<ScoredChunk> retrievedChunks = retrieveChunks(question, documents);
         if (retrievedChunks.isEmpty()) {
             String answer = "资料中没有找到足够依据，请补充相关资料或换个更具体的问题。";
@@ -125,22 +133,6 @@ public class RagServiceImpl implements RagService {
             throw new BusinessException(400, "Conversation is not a RAG conversation");
         }
         return conversation;
-    }
-
-    private List<LearningDocument> listSearchDocuments(Long userId, List<Long> documentIds) {
-        LambdaQueryWrapper<LearningDocument> wrapper = new LambdaQueryWrapper<LearningDocument>()
-                .eq(LearningDocument::getUserId, userId)
-                .eq(LearningDocument::getProcessStatus, STATUS_COMPLETED)
-                .orderByDesc(LearningDocument::getUploadTime)
-                .orderByDesc(LearningDocument::getId);
-        if (documentIds != null && !documentIds.isEmpty()) {
-            wrapper.in(LearningDocument::getId, documentIds);
-        }
-        List<LearningDocument> documents = documentMapper.selectList(wrapper);
-        if (documents.isEmpty()) {
-            throw new BusinessException(404, "No completed documents found");
-        }
-        return documents;
     }
 
     private List<ScoredChunk> retrieveChunks(String question, List<LearningDocument> documents) {

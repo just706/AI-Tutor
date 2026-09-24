@@ -16,6 +16,8 @@ public class Conversation {
     private Long userId;
     private String title;
     private String mode;
+    @TableField("document_ids")
+    private String documentIds;
     @TableField("create_time")
     private LocalDateTime createTime;
     @TableField("update_time")
@@ -56,6 +58,9 @@ public class Conversation {
     public LocalDateTime getCreateTime() {
         return createTime;
     }
+
+    public String getDocumentIds() { return documentIds; }
+    public void setDocumentIds(String documentIds) { this.documentIds = documentIds; }
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;

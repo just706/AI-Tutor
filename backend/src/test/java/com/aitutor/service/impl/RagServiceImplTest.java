@@ -18,6 +18,8 @@ import com.aitutor.mapper.LearningDocumentMapper;
 import com.aitutor.security.CurrentUser;
 import com.aitutor.security.UserContext;
 import com.aitutor.vo.RagChatVO;
+import com.aitutor.service.ConversationDocumentBinding;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +62,7 @@ class RagServiceImplTest {
     void setUp() {
         UserContext.set(new CurrentUser(7L, "reader", "student"));
         properties = new RagProperties();
-        service = new RagServiceImpl(documentMapper, chunkMapper, conversationMapper,
+        service = new RagServiceImpl(new ConversationDocumentBinding(documentMapper, new ObjectMapper()), chunkMapper, conversationMapper,
                 historyMapper, logMapper, client, new AiPromptBuilder(), properties);
     }
 
@@ -182,6 +184,53 @@ class RagServiceImplTest {
         verifyNoInteractions(documentMapper, chunkMapper, client);
     }
 
+    @Test
+    void emptySelectionDoesNotFallBackToAllDocumentsOrSaveAMessage() {
+        prepareDocuments();
+        RagChatRequest request = request("ArrayList");
+        request.setDocumentIds(List.of());
+        BusinessException failure = assertThrows(BusinessException.class, () -> service.chat(request));
+        assertEquals(400, failure.getCode());
+        verifyNoInteractions(chunkMapper, client, historyMapper);
+    }
+
+    @Test
+    void missingSelectionOnLegacyConversationRequiresExplicitSelection() {
+        prepareDocuments();
+        RagChatRequest request = request("ArrayList");
+        request.setDocumentIds(null);
+        BusinessException failure = assertThrows(BusinessException.class, () -> service.chat(request));
+        assertEquals(400, failure.getCode());
+        verifyNoInteractions(chunkMapper, client, historyMapper);
+    }
+
+    @Test
+    void mixedOwnedAndUnavailableDocumentsRejectsTheEntireSelection() {
+        prepareDocuments();
+        RagChatRequest request = request("ArrayList");
+        request.setDocumentIds(List.of(21L, 999L));
+        BusinessException failure = assertThrows(BusinessException.class, () -> service.chat(request));
+        assertEquals(404, failure.getCode());
+        verifyNoInteractions(chunkMapper, client, historyMapper);
+    }
+
+    @Test
+    void usesSavedBindingWhenFollowUpOmitsDocumentIds() {
+        prepareDocuments();
+        Conversation conversation = new Conversation();
+        conversation.setId(11L);
+        conversation.setUserId(7L);
+        conversation.setMode("rag");
+        conversation.setDocumentIds("[21]");
+        when(conversationMapper.selectOne(any())).thenReturn(conversation);
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(1, INDEX_ACCESS)));
+        stubModel();
+        RagChatRequest request = request("ArrayList");
+        request.setDocumentIds(null);
+        RagChatVO result = service.chat(request);
+        assertEquals(21L, result.getSources().get(0).getDocumentId());
+    }
+
     private void prepareDocuments() {
         Conversation conversation = new Conversation();
         conversation.setId(11L);
@@ -193,7 +242,7 @@ class RagServiceImplTest {
         document.setUserId(7L);
         document.setFileName("Java集合框架_RAG测试教材.docx");
         document.setProcessStatus("completed");
-        when(documentMapper.selectList(any())).thenReturn(List.of(document));
+        lenient().when(documentMapper.selectList(any())).thenReturn(List.of(document));
     }
 
     private void stubModel() {

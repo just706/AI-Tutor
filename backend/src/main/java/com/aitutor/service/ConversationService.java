@@ -14,4 +14,8 @@ public interface ConversationService {
     List<ConversationVO> listCurrentUserConversations();
 
     List<ChatMessageVO> listCurrentUserMessages(Long conversationId);
+
+    ConversationVO getCurrentUserConversation(Long conversationId);
+
+    ConversationVO updateDocuments(Long conversationId, List<Long> documentIds);
 }

@@ -4,11 +4,14 @@ import {
   closeLearningSession,
   createConversation,
   getActiveLearningSession,
+  getConversation,
   getProfile,
   listConversations,
   listMessages,
   saveProfile as saveProfileApi,
-  sendTutorAgentChat
+  sendTutorAgentChat,
+  sendRagChat,
+  updateConversationDocuments
 } from '../api'
 import type { ChatMessage, Conversation, LearningSession, StudentProfile, TutorAction } from '../types/domain'
 
@@ -28,6 +31,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const loadingConversations = ref(false)
   const loadingMessages = ref(false)
   const sending = ref(false)
+  const savingDocuments = ref(false)
+  let selectionVersion = 0
+  let lifecycleVersion = 0
 
   const currentConversation = computed(() =>
     conversations.value.find((item) => item.id === currentConversationId.value) || null
@@ -52,11 +58,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     await saveProfileApi(profile.value)
   }
 
-  async function loadConversations() {
+  async function loadConversations(preferredId?: number) {
+    const lifecycle = lifecycleVersion
     loadingConversations.value = true
     try {
-      conversations.value = await listConversations()
-      if (!currentConversationId.value && !draftConversation.value && conversations.value.length > 0) {
+      const result = await listConversations()
+      if (lifecycle !== lifecycleVersion) return
+      conversations.value = result
+      if (preferredId && preferredId !== currentConversationId.value) {
+        await selectConversation(preferredId)
+      } else if (!currentConversationId.value && !draftConversation.value && conversations.value.length > 0) {
         await selectConversation(conversations.value[0].id)
       }
     } finally {
@@ -64,52 +75,87 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  async function addConversation(title = '新的学习会话', mode = 'chat') {
-    const result = await createConversation(title, mode)
+  async function addConversation(title = '新的学习会话', mode = 'chat', documentIds?: number[]) {
+    const result = await createConversation(title, mode, documentIds)
     await loadConversations()
     await selectConversation(result.conversationId)
     return result.conversationId
   }
 
   async function selectConversation(conversationId: number) {
+    const version = ++selectionVersion
     currentConversationId.value = conversationId
     draftConversation.value = false
+    messages.value = []
+    activeLearningSession.value = null
     loadingMessages.value = true
     try {
+      const conversation = await getConversation(conversationId)
       const [messageResult, sessionResult] = await Promise.all([
         listMessages(conversationId),
-        getActiveLearningSession(conversationId)
+        conversation.mode === 'rag' ? Promise.resolve(null) : getActiveLearningSession(conversationId)
       ])
+      if (version !== selectionVersion) return
+      replaceConversation(conversation)
       messages.value = messageResult
       activeLearningSession.value = sessionResult
+    } catch (error) {
+      if (version === selectionVersion) currentConversationId.value = null
+      throw error
     } finally {
-      loadingMessages.value = false
+      if (version === selectionVersion) loadingMessages.value = false
     }
   }
 
   async function sendMessage(content: string) {
-    if (!currentConversationId.value) {
-      await addConversation(createConversationTitle(content))
-    }
-    if (!currentConversationId.value) {
-      return
-    }
-
-    const conversationId = currentConversationId.value
-    messages.value.push({
-      role: 'user',
-      messageContent: content,
-      createTime: new Date().toISOString()
-    })
+    if (sending.value || loadingMessages.value || savingDocuments.value) throw new Error('请等待当前操作完成')
+    const lifecycle = lifecycleVersion
     sending.value = true
     try {
-      const result = await sendTutorAgentChat(conversationId, content, activeLearningSession.value?.id)
-      activeLearningSession.value = result.learningSession || null
-      appendMessage('assistant', result.answer, result.actions, result.intent, result.memoryUpdates)
+      if (!currentConversationId.value) await addConversation(createConversationTitle(content))
+      const conversationId = currentConversationId.value
+      if (!conversationId || lifecycle !== lifecycleVersion) return
+      const isRag = currentConversation.value?.mode === 'rag'
+      if (isRag && !currentConversation.value?.documentIds?.length) throw new Error('请先为当前会话选择教材')
+      appendMessage('user', content)
+      if (isRag) {
+        const result = await sendRagChat(conversationId, content)
+        if (currentConversationId.value === conversationId && lifecycle === lifecycleVersion) {
+          activeLearningSession.value = null
+          messages.value.push({ role: 'assistant', messageContent: result.answer,
+            createTime: new Date().toISOString(), sources: result.sources || [] })
+        }
+      } else {
+        const result = await sendTutorAgentChat(conversationId, content, activeLearningSession.value?.id)
+        if (currentConversationId.value === conversationId && lifecycle === lifecycleVersion) {
+          activeLearningSession.value = result.learningSession || null
+          appendMessage('assistant', result.answer, result.actions, result.intent, result.memoryUpdates)
+        }
+      }
+      if (lifecycle !== lifecycleVersion) return
       await loadConversations()
-      currentConversationId.value = conversationId
     } finally {
       sending.value = false
+    }
+  }
+
+  function replaceConversation(conversation: Conversation) {
+    const index = conversations.value.findIndex(item => item.id === conversation.id)
+    if (index === -1) conversations.value.unshift(conversation)
+    else conversations.value[index] = conversation
+  }
+
+  async function setConversationDocuments(documentIds: number[]) {
+    const conversationId = currentConversationId.value
+    if (!conversationId || currentConversation.value?.mode !== 'rag') throw new Error('请先创建教材会话')
+    if (sending.value || savingDocuments.value || loadingMessages.value) throw new Error('请等待当前操作完成')
+    const lifecycle = lifecycleVersion
+    savingDocuments.value = true
+    try {
+      const conversation = await updateConversationDocuments(conversationId, documentIds)
+      if (lifecycle === lifecycleVersion) replaceConversation(conversation)
+    } finally {
+      savingDocuments.value = false
     }
   }
 
@@ -139,10 +185,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function startDraftConversation() {
+    selectionVersion++
     currentConversationId.value = null
     messages.value = []
     activeLearningSession.value = null
     draftConversation.value = true
+    loadingMessages.value = false
   }
 
   function createConversationTitle(content: string) {
@@ -160,6 +208,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function reset() {
+    lifecycleVersion++
+    selectionVersion++
     profile.value = {
       learningDirection: '',
       learningGoal: '',
@@ -171,6 +221,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     messages.value = []
     activeLearningSession.value = null
     draftConversation.value = false
+    loadingMessages.value = false
   }
 
   return {
@@ -185,12 +236,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     loadingConversations,
     loadingMessages,
     sending,
+    savingDocuments,
     loadProfile,
     saveProfile,
     loadConversations,
     addConversation,
     selectConversation,
     sendMessage,
+    setConversationDocuments,
     completeActiveLearningSession,
     appendMessage,
     startDraftConversation,

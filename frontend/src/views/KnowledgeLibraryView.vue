@@ -7,12 +7,16 @@
           <h2>资料问答</h2>
         </div>
         <el-button type="primary" :loading="ragSending" @click="createRagConversation">新建资料会话</el-button>
+        <el-button v-if="workspaceStore.currentConversation?.mode === 'rag'" @click="openMainChat">在主聊天继续</el-button>
       </div>
 
       <div class="source-summary">
         <strong>{{ selectedDocumentIds.length }}</strong>
         <span>个资料来源参与回答</span>
+        <small v-if="workspaceStore.currentConversation?.mode === 'rag'">{{ workspaceStore.savingDocuments ? '正在保存教材选择…' : '教材选择已随会话保存' }}</small>
       </div>
+      <el-alert v-if="unavailableDocumentIds.length" type="warning" :closable="false"
+        title="部分已选教材不可用，请取消选择或等待资料处理完成。" />
 
       <div class="rag-composer">
         <el-input
@@ -22,7 +26,8 @@
           :rows="5"
           placeholder="基于已上传资料提问，例如：请总结 HashMap 的核心知识点..."
         />
-        <el-button type="primary" :icon="Promotion" :loading="ragSending" @click="sendRagQuestion">
+        <el-button type="primary" :icon="Promotion" :loading="ragSending"
+          :disabled="loadingDocuments || !selectedDocumentIds.length || unavailableDocumentIds.length > 0 || workspaceStore.savingDocuments || workspaceStore.loadingMessages" @click="sendRagQuestion">
           基于资料回答
         </el-button>
       </div>
@@ -41,6 +46,7 @@
             v-html="renderMarkdown(message.messageContent)"
           />
           <div v-else class="message-bubble">{{ message.messageContent }}</div>
+          <RagSources :sources="message.sources" />
         </article>
       </div>
       <el-empty v-else description="创建资料会话后开始问答" :image-size="90" />
@@ -57,14 +63,15 @@
         </el-upload>
       </div>
 
-      <el-checkbox-group v-model="selectedDocumentIds" class="source-list">
+      <el-checkbox-group v-model="selectedDocumentIds" class="source-list" :disabled="loadingDocuments || ragSending || workspaceStore.savingDocuments || workspaceStore.loadingMessages" @change="saveDocumentSelection">
+        <el-checkbox v-for="id in missingDocumentIds" :key="`missing-${id}`" :value="id">资料 #{{ id }}（已删除或不可用，请取消选择）</el-checkbox>
         <article
           v-for="document in documents"
           :key="document.id"
           class="source-card"
           :class="{ active: selectedDocumentDetail?.id === document.id }"
         >
-          <el-checkbox :label="document.id">
+          <el-checkbox :value="document.id" :disabled="document.processStatus !== 'completed' && !selectedDocumentIds.includes(document.id)">
             <strong>{{ document.fileName }}</strong>
           </el-checkbox>
           <div class="source-meta">
@@ -95,7 +102,8 @@
           </div>
         </article>
       </el-checkbox-group>
-      <el-empty v-if="documents.length === 0" description="还没有资料来源" :image-size="90" />
+      <p v-if="loadingDocuments">正在加载教材…</p>
+      <el-empty v-else-if="documents.length === 0" description="还没有资料来源" :image-size="90" />
     </aside>
 
     <aside class="library-evidence panel">
@@ -199,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Promotion, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -214,7 +222,6 @@ import {
   listDocuments,
   publishPersonalGraphExtraction,
   reprocessDocument,
-  sendRagChat,
   uploadDocument
 } from '../api'
 import { useWorkspaceStore } from '../stores/workspace'
@@ -222,14 +229,15 @@ import type {
   DocumentChunk,
   LearningDocument,
   LearningDocumentDetail,
-  PersonalGraphExtraction,
-  RagSource
+  PersonalGraphExtraction
 } from '../types/domain'
 import { renderMarkdown } from '../utils/markdown'
+import RagSources from '../components/RagSources.vue'
 
 const workspaceStore = useWorkspaceStore()
 const router = useRouter()
 const documents = ref<LearningDocument[]>([])
+const loadingDocuments = ref(true)
 const selectedDocumentIds = ref<number[]>([])
 const selectedDocumentDetail = ref<LearningDocumentDetail | null>(null)
 const documentChunks = ref<DocumentChunk[]>([])
@@ -237,8 +245,15 @@ const loadingDocumentDetail = ref(false)
 const documentActionLoadingId = ref<number | null>(null)
 const uploadingDocument = ref(false)
 const ragQuestion = ref('')
-const ragSources = ref<RagSource[]>([])
-const ragSending = ref(false)
+const ragSources = computed(() => [...workspaceStore.messages].reverse().find(message => message.role === 'assistant')?.sources || [])
+const creatingConversation = ref(false)
+const ragSending = computed(() => workspaceStore.sending || creatingConversation.value)
+const missingDocumentIds = computed(() => loadingDocuments.value ? [] : selectedDocumentIds.value.filter(id => !documents.value.some(document => document.id === id)))
+const unavailableDocumentIds = computed(() => loadingDocuments.value ? [] : selectedDocumentIds.value.filter(id => !documents.value.some(document => document.id === id && document.processStatus === 'completed')))
+watch(() => workspaceStore.currentConversation, conversation => {
+  if (conversation?.mode === 'rag') selectedDocumentIds.value = [...conversation.documentIds]
+  else selectedDocumentIds.value = []
+}, { immediate: true })
 const personalExtraction = ref<PersonalGraphExtraction | null>(null)
 const loadingPersonalExtraction = ref(false)
 const graphGeneratingDocumentId = ref<number | null>(null)
@@ -250,10 +265,9 @@ onBeforeUnmount(() => {
 })
 
 onMounted(async () => {
-  await workspaceStore.loadConversations()
   await loadDocumentsFlow()
   const firstDocumentId = selectedDocumentIds.value[0]
-  if (firstDocumentId !== undefined) {
+  if (firstDocumentId !== undefined && documents.value.some(document => document.id === firstDocumentId)) {
     await loadDocumentDetailFlow(firstDocumentId)
   }
 })
@@ -264,6 +278,7 @@ async function uploadLearningDocument(options: UploadRequestOptions) {
     const result = await uploadDocument(options.file as File)
     await loadDocumentsFlow()
     selectedDocumentIds.value = [result.documentId]
+    await saveDocumentSelection()
     await loadDocumentDetailFlow(result.documentId)
     ElMessage.success('资料已上传')
     options.onSuccess?.(result)
@@ -277,13 +292,13 @@ async function uploadLearningDocument(options: UploadRequestOptions) {
 }
 
 async function loadDocumentsFlow() {
+  loadingDocuments.value = true
   try {
     documents.value = await listDocuments()
-    if (selectedDocumentIds.value.length === 0 && documents.value.length > 0) {
-      selectedDocumentIds.value = documents.value.map((item) => item.id)
-    }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载资料失败')
+  } finally {
+    loadingDocuments.value = false
   }
 }
 
@@ -426,7 +441,7 @@ async function deleteLearningDocument(documentId: number) {
   documentActionLoadingId.value = documentId
   try {
     await deleteDocument(documentId)
-    selectedDocumentIds.value = selectedDocumentIds.value.filter((id) => id !== documentId)
+    if (workspaceStore.currentConversation?.mode !== 'rag') selectedDocumentIds.value = selectedDocumentIds.value.filter((id) => id !== documentId)
     if (selectedDocumentDetail.value?.id === documentId) {
       selectedDocumentDetail.value = null
       documentChunks.value = []
@@ -478,13 +493,13 @@ function personalGraphFailureMessage(errorMessage?: string | null) {
 }
 
 async function createRagConversation() {
-  ragSending.value = true
+  creatingConversation.value = true
   try {
-    await workspaceStore.addConversation('资料问答', 'rag')
+    await workspaceStore.addConversation('资料问答', 'rag', [...selectedDocumentIds.value])
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '创建资料会话失败')
   } finally {
-    ragSending.value = false
+    creatingConversation.value = false
   }
 }
 
@@ -495,28 +510,35 @@ async function sendRagQuestion() {
     return
   }
 
-  ragSending.value = true
   try {
     if (!workspaceStore.currentConversationId || workspaceStore.currentConversation?.mode !== 'rag') {
-      await workspaceStore.addConversation('资料问答', 'rag')
+      creatingConversation.value = true
+      await workspaceStore.addConversation('资料问答', 'rag', [...selectedDocumentIds.value])
+      creatingConversation.value = false
     }
     if (!workspaceStore.currentConversationId) {
       return
     }
-    const result = await sendRagChat(
-      workspaceStore.currentConversationId,
-      question,
-      selectedDocumentIds.value.length > 0 ? selectedDocumentIds.value : undefined
-    )
+    await workspaceStore.sendMessage(question)
     ragQuestion.value = ''
-    ragSources.value = result.sources || []
-    await workspaceStore.loadConversations()
-    await workspaceStore.selectConversation(result.conversationId)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资料问答失败')
   } finally {
-    ragSending.value = false
+    creatingConversation.value = false
   }
+}
+
+async function saveDocumentSelection() {
+  if (workspaceStore.currentConversation?.mode !== 'rag') return
+  try { await workspaceStore.setConversationDocuments([...selectedDocumentIds.value]) }
+  catch (error) {
+    selectedDocumentIds.value = [...(workspaceStore.currentConversation?.documentIds || [])]
+    ElMessage.error(error instanceof Error ? error.message : '保存教材选择失败')
+  }
+}
+
+function openMainChat() {
+  return router.push({ name: 'chat', query: { conversationId: workspaceStore.currentConversationId || undefined } })
 }
 
 function trustLabel(document: LearningDocument) {

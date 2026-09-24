@@ -33,6 +33,7 @@ export interface Conversation {
   title: string
   mode: string
   updateTime: string
+  documentIds: number[]
 }
 
 export interface ConversationCreateResult {
@@ -46,6 +47,7 @@ export interface ChatMessage {
   intent?: string
   actions?: TutorAction[]
   memoryUpdates?: string[]
+  sources?: RagSource[]
 }
 
 export interface AiChatResult {

@@ -16,7 +16,7 @@
       <nav class="workspace-nav workspace-hub-nav" aria-label="主导航">
         <RouterLink
           class="workspace-nav-item"
-          :to="{ name: 'chat' }"
+          :to="{ name: 'chat', query: conversationQuery }"
           :class="{ active: route.name === 'chat' && !route.query.panel }"
         >
           <el-icon><ChatDotRound /></el-icon>
@@ -24,7 +24,7 @@
         </RouterLink>
         <RouterLink
           class="workspace-nav-item"
-          :to="{ name: 'chat', query: { panel: 'sources' } }"
+          :to="{ name: 'chat', query: { ...conversationQuery, panel: 'sources' } }"
           :class="{ active: route.name === 'chat' && route.query.panel === 'sources' }"
         >
           <el-icon><Collection /></el-icon>
@@ -32,7 +32,7 @@
         </RouterLink>
         <RouterLink
           class="workspace-nav-item"
-          :to="{ name: 'chat', query: { panel: 'progress' } }"
+          :to="{ name: 'chat', query: { ...conversationQuery, panel: 'progress' } }"
           :class="{ active: route.name === 'chat' && route.query.panel === 'progress' }"
         >
           <el-icon><DataAnalysis /></el-icon>
@@ -97,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
   ChatDotRound,
@@ -117,6 +117,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
+const conversationQuery = computed(() => ({ conversationId: workspaceStore.currentConversationId || undefined }))
 
 const routeLabels: Record<string, { label: string; title: string }> = {
   chat: { label: 'AI Tutor Workspace', title: 'AI Chat' },
@@ -136,10 +137,23 @@ const currentRouteTitle = computed(() => currentRoute.value?.title || 'AI Tutor'
 
 onMounted(async () => {
   try {
-    await Promise.all([workspaceStore.loadProfile(), workspaceStore.loadConversations()])
+    await Promise.all([workspaceStore.loadProfile(), workspaceStore.loadConversations(Number(route.query.conversationId) || undefined)])
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '工作台加载失败')
   }
+})
+
+watch(() => route.query.conversationId, async value => {
+  const id = Number(value)
+  if (!Number.isSafeInteger(id) || id <= 0 || id === workspaceStore.currentConversationId || workspaceStore.loadingConversations) return
+  try { await workspaceStore.selectConversation(id) }
+  catch (error) { ElMessage.error(error instanceof Error ? error.message : '加载会话失败') }
+})
+
+watch([() => workspaceStore.currentConversationId, () => route.name], async ([id]) => {
+  if (!['chat', 'library'].includes(String(route.name))) return
+  if ((Number(route.query.conversationId) || null) === id) return
+  await router.replace({ query: { ...route.query, conversationId: id || undefined } })
 })
 
 async function newStudySession() {
@@ -148,8 +162,7 @@ async function newStudySession() {
 }
 
 async function selectConversation(conversationId: number) {
-  await router.push({ name: 'chat' })
-  await workspaceStore.selectConversation(conversationId)
+  await router.push({ name: 'chat', query: { conversationId } })
 }
 
 async function logout() {

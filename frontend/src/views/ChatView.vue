@@ -30,6 +30,13 @@
         </div>
       </header>
 
+      <div v-if="isRagConversation" class="source-summary">
+        <span>当前教材：{{ sourcesLoading ? '正在加载…' : selectedTextbookNames || '尚未选择' }}</span>
+        <el-button text type="primary" @click="openTextbooks">选择教材</el-button>
+      </div>
+      <el-alert v-if="isRagConversation && unavailableTextbooks" type="warning" :closable="false"
+        title="部分教材已删除或尚未处理完成，请重新选择教材后提问。" />
+
       <section v-if="historySearchOpen" class="chat-history-search">
         <div class="history-search-row">
           <el-input
@@ -63,7 +70,8 @@
       <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list wide">
         <div v-if="workspaceStore.messages.length === 0" class="empty-chat">
           <h3>把问题交给 AI Tutor</h3>
-          <p>可以直接输入“我想学习 HashMap”，学习会话、图谱、练习和进度会在右侧自动承接。</p>
+          <p v-if="isRagConversation">先选择教材，再输入具体问题，例如“ArrayList 和 LinkedList 有什么区别？”。</p>
+          <p v-else>可以直接输入“我想学习 HashMap”，学习会话、图谱、练习和进度会在右侧自动承接。</p>
         </div>
 
         <article
@@ -86,10 +94,11 @@
             v-html="renderMarkdown(message.messageContent)"
           />
           <div v-else class="message-bubble">{{ message.messageContent }}</div>
+          <RagSources :sources="message.sources" />
           <div v-if="message.role === 'assistant' && message.memoryUpdates?.length" class="message-memory-updates">
             <span v-for="update in message.memoryUpdates" :key="update">{{ update }}</span>
           </div>
-          <div v-if="message.role === 'assistant'" class="message-quick-actions">
+          <div v-if="message.role === 'assistant' && !isRagConversation" class="message-quick-actions">
             <el-button
               v-for="action in quickPromptActions"
               :key="action.prompt"
@@ -128,7 +137,8 @@
           placeholder="问一个问题，或让 AI Tutor 继续解释当前知识点..."
           @keydown.enter.exact.prevent="send"
         />
-        <el-button type="primary" :icon="Promotion" :loading="workspaceStore.sending" @click="send">
+        <el-button type="primary" :icon="Promotion" :loading="workspaceStore.sending"
+          :disabled="workspaceStore.loadingMessages || workspaceStore.savingDocuments || (isRagConversation && (sourcesLoading || !workspaceStore.currentConversation?.documentIds.length || unavailableTextbooks))" @click="send">
           发送
         </el-button>
       </footer>
@@ -185,7 +195,7 @@
               完成本次会话
             </el-button>
           </template>
-          <el-empty v-else description="开始聊天后会自动创建学习会话" :image-size="92" />
+          <el-empty v-else :description="isRagConversation ? '当前为教材问答，可在回答下方查看引用依据' : '开始聊天后会自动创建学习会话'" :image-size="92" />
         </section>
 
         <section v-else-if="activePanel === 'map'" class="inspector-section">
@@ -328,6 +338,7 @@ import type {
 } from '../types/domain'
 import { modeLabel } from '../utils/format'
 import { renderMarkdown } from '../utils/markdown'
+import RagSources from '../components/RagSources.vue'
 
 type InspectorPanel = 'session' | 'map' | 'practice' | 'sources' | 'progress'
 
@@ -375,6 +386,11 @@ const quickPromptActions = [
 ]
 
 const currentModeLabel = computed(() => modeLabel(workspaceStore.currentConversation?.mode || 'chat'))
+const isRagConversation = computed(() => workspaceStore.currentConversation?.mode === 'rag')
+const selectedTextbookNames = computed(() => (workspaceStore.currentConversation?.documentIds || [])
+  .map(id => documents.value.find(document => document.id === id)?.fileName || `资料 #${id}（不可用）`).join('、'))
+const unavailableTextbooks = computed(() => !sourcesLoading.value && (workspaceStore.currentConversation?.documentIds || [])
+  .some(id => !documents.value.some(document => document.id === id && document.processStatus === 'completed')))
 const currentChatTitle = computed(() => {
   if (workspaceStore.currentConversation?.title) {
     return workspaceStore.currentConversation.title
@@ -446,7 +462,7 @@ const historySearchLabel = computed(() => {
 
 onMounted(async () => {
   try {
-    await Promise.all([workspaceStore.loadConversations(), loadSourcesSummary(), loadProgressSummary()])
+    await Promise.all([loadSourcesSummary(), loadProgressSummary()])
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载聊天失败')
   }
@@ -511,7 +527,7 @@ function normalizePanel(panel: unknown): InspectorPanel {
 
 async function setActivePanel(panel: InspectorPanel) {
   activePanel.value = panel
-  await router.replace({ name: 'chat', query: panel === 'session' ? {} : { panel } })
+  await router.replace({ name: 'chat', query: { ...route.query, panel: panel === 'session' ? undefined : panel } })
 }
 
 async function loadSourcesSummary() {
@@ -543,7 +559,11 @@ async function loadProgressSummary() {
 
 async function createNewConversation() {
   workspaceStore.startDraftConversation()
-  await setActivePanel('session')
+  await router.push({ name: 'chat' })
+}
+
+function openTextbooks() {
+  return router.push({ name: 'library', query: { conversationId: workspaceStore.currentConversationId || undefined } })
 }
 
 function toggleHistorySearch() {

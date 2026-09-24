@@ -75,11 +75,11 @@ export function saveProfile(profile: StudentProfile) {
   })
 }
 
-export function createConversation(title: string, mode = 'chat') {
+export function createConversation(title: string, mode = 'chat', documentIds?: number[]) {
   return request<ConversationCreateResult>({
     url: '/conversations',
     method: 'POST',
-    data: { title, mode }
+    data: { title, mode, documentIds }
   })
 }
 
@@ -95,6 +95,14 @@ export function listMessages(conversationId: number) {
     url: `/conversations/${conversationId}/messages`,
     method: 'GET'
   })
+}
+
+export function getConversation(conversationId: number) {
+  return request<Conversation>({ url: `/conversations/${conversationId}`, method: 'GET' })
+}
+
+export function updateConversationDocuments(conversationId: number, documentIds: number[]) {
+  return request<Conversation>({ url: `/conversations/${conversationId}/documents`, method: 'PUT', data: { documentIds } })
 }
 
 export function sendAiChat(conversationId: number, message: string) {

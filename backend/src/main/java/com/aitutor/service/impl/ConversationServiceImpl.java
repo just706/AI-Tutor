@@ -8,6 +8,7 @@ import com.aitutor.mapper.ChatHistoryMapper;
 import com.aitutor.mapper.ConversationMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.ConversationService;
+import com.aitutor.service.ConversationDocumentBinding;
 import com.aitutor.vo.ChatMessageVO;
 import com.aitutor.vo.ConversationCreateVO;
 import com.aitutor.vo.ConversationVO;
@@ -25,11 +26,14 @@ public class ConversationServiceImpl implements ConversationService {
 
     private final ConversationMapper conversationMapper;
     private final ChatHistoryMapper chatHistoryMapper;
+    private final ConversationDocumentBinding documentBinding;
 
     public ConversationServiceImpl(ConversationMapper conversationMapper,
-                                   ChatHistoryMapper chatHistoryMapper) {
+                                   ChatHistoryMapper chatHistoryMapper,
+                                   ConversationDocumentBinding documentBinding) {
         this.conversationMapper = conversationMapper;
         this.chatHistoryMapper = chatHistoryMapper;
+        this.documentBinding = documentBinding;
     }
 
     @Override
@@ -42,6 +46,11 @@ public class ConversationServiceImpl implements ConversationService {
         conversation.setUserId(userId);
         conversation.setTitle(request.getTitle().trim());
         conversation.setMode(mode);
+        if (request.getDocumentIds() != null) {
+            if (!"rag".equals(mode)) throw new BusinessException(400, "只有教材会话可以选择教材");
+            conversation.setDocumentIds(documentBinding.serialize(
+                    documentBinding.validateDocuments(userId, request.getDocumentIds())));
+        }
         conversationMapper.insert(conversation);
 
         return new ConversationCreateVO(conversation.getId());
@@ -55,7 +64,7 @@ public class ConversationServiceImpl implements ConversationService {
                         .orderByDesc(Conversation::getUpdateTime)
                         .orderByDesc(Conversation::getId))
                 .stream()
-                .map(ConversationVO::from)
+                .map(this::toVO)
                 .toList();
     }
 
@@ -75,13 +84,40 @@ public class ConversationServiceImpl implements ConversationService {
                 .toList();
     }
 
-    private void requireOwnedConversation(Long userId, Long conversationId) {
-        Long count = conversationMapper.selectCount(new LambdaQueryWrapper<Conversation>()
+    @Override
+    public ConversationVO getCurrentUserConversation(Long conversationId) {
+        return toVO(requireOwnedConversation(UserContext.getRequired().getId(), conversationId));
+    }
+
+    @Override
+    @Transactional
+    public ConversationVO updateDocuments(Long conversationId, List<Long> documentIds) {
+        Long userId = UserContext.getRequired().getId();
+        Conversation conversation = requireOwnedConversation(userId, conversationId);
+        if (!"rag".equals(conversation.getMode())) throw new BusinessException(400, "只有教材会话可以选择教材");
+        String stored = documentBinding.serialize(documentBinding.validateDocuments(userId, documentIds));
+        Conversation update = new Conversation();
+        update.setId(conversationId);
+        update.setDocumentIds(stored);
+        conversationMapper.updateById(update);
+        conversation.setDocumentIds(stored);
+        return toVO(conversation);
+    }
+
+    private ConversationVO toVO(Conversation conversation) {
+        ConversationVO vo = ConversationVO.from(conversation);
+        vo.setDocumentIds(documentBinding.documentIds(conversation));
+        return vo;
+    }
+
+    private Conversation requireOwnedConversation(Long userId, Long conversationId) {
+        Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, conversationId)
                 .eq(Conversation::getUserId, userId));
-        if (count == 0) {
+        if (conversation == null) {
             throw new BusinessException(404, "Conversation not found");
         }
+        return conversation;
     }
 
     private String normalizeMode(String mode) {

@@ -18,6 +18,7 @@ const { values: options } = parseArgs({ options: {
   'output-dir': { type: 'string' },
   'mysql-bin': { type: 'string', default: 'mysql' },
   'java-bin': { type: 'string', default: 'java' },
+  'hold-for-browser': { type: 'boolean', default: false },
 } });
 assert(options['output-dir'], '必须指定 --output-dir，日志和临时上传文件应保存在源码仓库外。');
 const projectRoot = path.resolve(options['project-root']);
@@ -135,12 +136,12 @@ try {
     'stage6-teaching.sql', 'stage7-question-answer.sql', 'stage8-rag.sql', 'stage9-analysis.sql',
     'stage10-agent.sql', 'stage12-learning-session.sql', 'stage13-knowledge-map.sql',
     'stage14-learner-memory.sql', 'stage15-evaluation-governance.sql',
-    'stage16-personal-graph.sql', 'stage17-async-personal-graph.sql',
+    'stage16-personal-graph.sql', 'stage17-async-personal-graph.sql', 'stage18-conversation-documents.sql',
   ];
   for (const migration of migrations) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
   assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 20);
-  for (const migration of migrations.slice(-2)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  pass('15 个数据库脚本初始化；stage16、stage17 重复执行；20 张表');
+  for (const migration of migrations.slice(-3)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
+  pass('16 个数据库脚本初始化；stage16 至 stage18 重复执行；20 张表');
 
   modelServer.listen(0, '127.0.0.1');
   await once(modelServer, 'listening');
@@ -220,6 +221,25 @@ try {
   assert.equal(modelRequests.length, requestCount);
   pass('中文下标读取问题召回证据；无依据问题拒答且不调用模型');
 
+  const bindingPath = `/conversations/${conversation.conversationId}/documents`;
+  assert.deepEqual((await api(`/conversations/${conversation.conversationId}`, { token })).documentIds, [document.documentId]);
+  const savedAnswer = await api('/ai/rag/chat', { token, body: { conversationId: conversation.conversationId, question: question.question } });
+  assert(savedAnswer.sources.every(source => source.documentId === document.documentId));
+  assert(savedAnswer.sources.length > 0);
+  await api(bindingPath, { token: otherToken, method: 'PUT', body: { documentIds: [] }, code: 404 });
+  await api(bindingPath, { token, method: 'PUT', body: { documentIds: [document.documentId, 999999] }, code: 404 });
+  assert.deepEqual((await api(`/conversations/${conversation.conversationId}`, { token })).documentIds, [document.documentId]);
+  await api(bindingPath, { token, method: 'PUT', body: { documentIds: [] } });
+  const beforeEmptySelection = modelRequests.length;
+  await api('/ai/rag/chat', { token, body: { conversationId: conversation.conversationId, question: question.question }, code: 400 });
+  assert.equal(modelRequests.length, beforeEmptySelection);
+  await api(bindingPath, { token, method: 'PUT', body: { documentIds: [document.documentId] } });
+  const createdBound = await api('/conversations', { token, body: { title: '创建时绑定', mode: 'rag', documentIds: [document.documentId] } });
+  assert.deepEqual((await api(`/conversations/${createdBound.conversationId}`, { token })).documentIds, [document.documentId]);
+  const ordinary = await api('/conversations', { token, body: { title: '普通会话', mode: 'chat' } });
+  await api(`/conversations/${ordinary.conversationId}/documents`, { token, method: 'PUT', body: { documentIds: [document.documentId] }, code: 400 });
+  pass('教材绑定保存和恢复；省略教材参数使用已保存选择；空选、混入无权教材和普通会话绑定被拒绝');
+
   for (const route of [`/documents/${document.documentId}`, `/documents/${document.documentId}/chunks`,
     `/personal-graph/extractions/${extraction.id}`, graphPath]) {
     await api(route, { token: otherToken, code: 404 });
@@ -247,9 +267,22 @@ try {
   assert.equal((await api(graphPath, { token })).nodes.length, 0);
   await api(`/documents/${document.documentId}`, { token, method: 'DELETE' });
   await api(`/documents/${largeDocument.documentId}`, { token, method: 'DELETE' });
+  await api('/ai/rag/chat', { token, body: { conversationId: createdBound.conversationId, question: question.question }, code: 404 });
   assert.equal((await api('/documents', { token })).length, 0);
   assert.equal((await api('/personal-graph', { token })).nodes.length, 0);
   pass('重处理清理旧图谱；删除教材清理片段和图谱');
+
+  if (options['hold-for-browser']) {
+    const browserDocument = await upload(textbook, 'browser-collections.txt', token);
+    await waitForExtraction(browserDocument.personalGraphExtractionId, token);
+    const browserConversation = await api('/conversations', { token, body: { title: '浏览器教材会话', mode: 'rag', documentIds: [browserDocument.documentId] } });
+    const finishPath = path.join(outputDir, `${schema}.browser-finished`);
+    writeFileSync(path.join(outputDir, 'browser-fixture.json'), JSON.stringify({ apiBase, username: 'stage0_owner', password,
+      conversationId: browserConversation.conversationId, documentId: browserDocument.documentId, finishPath }, null, 2));
+    console.log(`浏览器验收环境已就绪，临时账号与地址见 ${path.join(outputDir, 'browser-fixture.json')}。完成后创建该文件中 finishPath 指定的标记；30 分钟后自动清理。`);
+    const deadline = Date.now() + 30 * 60 * 1000;
+    while (!existsSync(finishPath) && Date.now() < deadline) await delay(500);
+  }
 } catch (error) {
   failure = error;
 } finally {
