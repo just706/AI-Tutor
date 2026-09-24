@@ -137,11 +137,12 @@ try {
     'stage10-agent.sql', 'stage12-learning-session.sql', 'stage13-knowledge-map.sql',
     'stage14-learner-memory.sql', 'stage15-evaluation-governance.sql',
     'stage16-personal-graph.sql', 'stage17-async-personal-graph.sql', 'stage18-conversation-documents.sql',
+    'stage19-chat-rag-sources.sql',
   ];
   for (const migration of migrations) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
   assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 20);
-  for (const migration of migrations.slice(-3)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  pass('16 个数据库脚本初始化；stage16 至 stage18 重复执行；20 张表');
+  for (const migration of migrations.slice(-4)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
+  pass('17 个数据库脚本初始化；stage16 至 stage19 重复执行；20 张表');
 
   modelServer.listen(0, '127.0.0.1');
   await once(modelServer, 'listening');
@@ -240,6 +241,16 @@ try {
   await api(`/conversations/${ordinary.conversationId}/documents`, { token, method: 'PUT', body: { documentIds: [document.documentId] }, code: 400 });
   pass('教材绑定保存和恢复；省略教材参数使用已保存选择；空选、混入无权教材和普通会话绑定被拒绝');
 
+  const historyPath = `/conversations/${conversation.conversationId}/messages`;
+  const restored = await api(historyPath, { token });
+  const savedSources = restored.filter(message => message.role === 'assistant')[0].sources;
+  assert.deepEqual(savedSources, answer.sources);
+  assert.equal(savedSources[0].snippet, textbook);
+  assert(restored.filter(message => message.role === 'user').every(message => message.sources.length === 0));
+  assert.deepEqual(restored.filter(message => message.role === 'assistant')[1].sources, []);
+  await api(historyPath, { token: otherToken, code: 404 });
+  pass('历史回答恢复原引用顺序、文件名及原文；用户消息与拒答不伪造引用；他人不可读历史');
+
   for (const route of [`/documents/${document.documentId}`, `/documents/${document.documentId}/chunks`,
     `/personal-graph/extractions/${extraction.id}`, graphPath]) {
     await api(route, { token: otherToken, code: 404 });
@@ -249,6 +260,18 @@ try {
   const otherConversation = await api('/conversations', { token: otherToken, body: { title: '权限验收', mode: 'rag' } });
   await api('/ai/rag/chat', { token: otherToken, body: { ...question, conversationId: otherConversation.conversationId }, code: 404 });
   pass('他人教材、片段、会话和图谱均不能读取或发布');
+
+  // 仅在本次临时库构造异常旧记录，验证读取时不会信任快照中的归属。
+  assert(Number.isSafeInteger(otherConversation.conversationId) && Number.isSafeInteger(document.documentId));
+  sql(`INSERT INTO chat_history(user_id,conversation_id,role,message_content,rag_sources)
+       SELECT user_id,id,'assistant','合成权限检查',JSON_ARRAY(JSON_OBJECT('documentId',${document.documentId},
+         'fileName','不应返回的文件名','chunkIndex',0,'snippet','不应返回的原文'))
+       FROM conversation WHERE id=${otherConversation.conversationId};`);
+  const foreignHistory = await api(`/conversations/${otherConversation.conversationId}/messages`, { token: otherToken });
+  assert.equal(foreignHistory[0].sources[0].available, false);
+  assert.equal(foreignHistory[0].sources[0].snippet, null);
+  assert.equal(foreignHistory[0].sources[0].fileName, null);
+  pass('历史引用再次检查教材归属，异常快照不能泄露他人教材内容');
 
   const largeDocument = await upload(textbook.repeat(1400), 'long-collections.txt', token);
   assert.equal(largeDocument.processStatus, 'completed');
@@ -260,17 +283,27 @@ try {
   assert.equal(reprocessedLarge.personalGraphExtractionId, null);
   const largeAnswer = await api('/ai/rag/chat', { token, body: { ...question, documentIds: [largeDocument.documentId] } });
   assert(largeAnswer.sources.length > 0);
+  assert(largeAnswer.sources[0].snippet.length > 180);
+  const changedBindingHistory = await api(historyPath, { token });
+  assert.deepEqual(changedBindingHistory.filter(message => message.role === 'assistant')[0].sources, savedSources);
+  assert.deepEqual(changedBindingHistory.at(-1).sources, largeAnswer.sources);
   pass('超过 100 片段的教材仍可上传、重处理和问答；图谱提取保留限制');
 
   const reprocessed = await api(`/documents/${document.documentId}/reprocess`, { token, method: 'POST' });
   await waitForExtraction(reprocessed.personalGraphExtractionId, token);
   assert.equal((await api(graphPath, { token })).nodes.length, 0);
+  sql(`UPDATE document_chunk SET chunk_text='重新处理后的不同原文' WHERE document_id=${document.documentId};`);
+  assert.deepEqual((await api(historyPath, { token })).filter(message => message.role === 'assistant')[0].sources, savedSources);
   await api(`/documents/${document.documentId}`, { token, method: 'DELETE' });
   await api(`/documents/${largeDocument.documentId}`, { token, method: 'DELETE' });
   await api('/ai/rag/chat', { token, body: { conversationId: createdBound.conversationId, question: question.question }, code: 404 });
   assert.equal((await api('/documents', { token })).length, 0);
   assert.equal((await api('/personal-graph', { token })).nodes.length, 0);
   pass('重处理清理旧图谱；删除教材清理片段和图谱');
+  const deletedSources = (await api(historyPath, { token })).filter(message => message.role === 'assistant')[0].sources;
+  assert.equal(deletedSources.length, savedSources.length);
+  assert(deletedSources.every(source => source.available === false && source.fileName === null && source.snippet === null));
+  pass('重处理不改写旧引用；切换教材不改写旧引用；删除后返回失效引用且隐藏原文');
 
   if (options['hold-for-browser']) {
     const browserDocument = await upload(textbook, 'browser-collections.txt', token);

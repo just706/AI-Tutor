@@ -330,9 +330,10 @@ export interface DocumentUploadResult {
 
 export interface RagSource {
   documentId: number
-  fileName: string
+  fileName: string | null
   chunkIndex: number
-  snippet: string
+  snippet: string | null
+  available?: boolean
 }
 
 export interface RagChatResult {

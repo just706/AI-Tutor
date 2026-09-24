@@ -6,6 +6,13 @@ public class RagSourceVO {
     private String fileName;
     private Integer chunkIndex;
     private String snippet;
+    private boolean available = true;
+
+    public RagSourceVO() { }
+
+    public boolean isAvailable() { return available; }
+
+    public void setAvailable(boolean available) { this.available = available; }
 
     public RagSourceVO(Long documentId, String fileName, Integer chunkIndex, String snippet) {
         this.documentId = documentId;

@@ -9,6 +9,7 @@ import com.aitutor.mapper.ConversationMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.ConversationService;
 import com.aitutor.service.ConversationDocumentBinding;
+import com.aitutor.service.RagCitationService;
 import com.aitutor.vo.ChatMessageVO;
 import com.aitutor.vo.ConversationCreateVO;
 import com.aitutor.vo.ConversationVO;
@@ -27,13 +28,16 @@ public class ConversationServiceImpl implements ConversationService {
     private final ConversationMapper conversationMapper;
     private final ChatHistoryMapper chatHistoryMapper;
     private final ConversationDocumentBinding documentBinding;
+    private final RagCitationService citationService;
 
     public ConversationServiceImpl(ConversationMapper conversationMapper,
                                    ChatHistoryMapper chatHistoryMapper,
-                                   ConversationDocumentBinding documentBinding) {
+                                   ConversationDocumentBinding documentBinding,
+                                   RagCitationService citationService) {
         this.conversationMapper = conversationMapper;
         this.chatHistoryMapper = chatHistoryMapper;
         this.documentBinding = documentBinding;
+        this.citationService = citationService;
     }
 
     @Override
@@ -74,14 +78,12 @@ public class ConversationServiceImpl implements ConversationService {
         // Conversation ownership is checked before reading messages to enforce per-user data isolation.
         requireOwnedConversation(userId, conversationId);
 
-        return chatHistoryMapper.selectList(new LambdaQueryWrapper<ChatHistory>()
+        List<ChatHistory> history = chatHistoryMapper.selectList(new LambdaQueryWrapper<ChatHistory>()
                         .eq(ChatHistory::getUserId, userId)
                         .eq(ChatHistory::getConversationId, conversationId)
                         .orderByAsc(ChatHistory::getCreateTime)
-                        .orderByAsc(ChatHistory::getId))
-                .stream()
-                .map(ChatMessageVO::from)
-                .toList();
+                        .orderByAsc(ChatHistory::getId));
+        return citationService.restoreMessages(userId, history);
     }
 
     @Override

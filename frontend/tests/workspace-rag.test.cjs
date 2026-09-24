@@ -97,3 +97,18 @@ test('an empty saved selection never sends an ungrounded answer request', async 
   assert.equal(calls.length, 0)
   assert.equal(store.messages.length, 0)
 })
+
+test('reopening a conversation restores server citations without leaking the previous conversation', async () => {
+  const { store, api } = workspace()
+  api.listMessages = async id => id === 1 ? [{ role: 'assistant', messageContent: '旧回答', createTime: '2026-09-24', sources: [
+    { documentId: 21, fileName: '原教材.txt', chunkIndex: 7, snippet: '回答时的证据', available: true }
+  ] }] : []
+  await store.loadConversations(1)
+  await store.selectConversation(2)
+  assert.equal(store.messages.length, 0)
+  store.reset()
+  await store.loadConversations(1)
+  assert.equal(store.messages[0].sources[0].snippet, '回答时的证据')
+  assert.equal(store.messages[0].sources[0].chunkIndex, 7)
+  assert.equal(store.messages[0].sources[0].available, true)
+})

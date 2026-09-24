@@ -115,10 +115,7 @@
       </div>
 
       <div v-if="ragSources.length > 0" class="evidence-list">
-        <article v-for="source in ragSources" :key="`${source.documentId}-${source.chunkIndex}`" class="evidence-card">
-          <strong>{{ source.fileName }} · #{{ source.chunkIndex }}</strong>
-          <p>{{ source.snippet }}</p>
-        </article>
+        <RagSources :sources="ragSources" expanded />
       </div>
 
       <div v-else-if="selectedDocumentDetail" v-loading="loadingDocumentDetail" class="document-preview">

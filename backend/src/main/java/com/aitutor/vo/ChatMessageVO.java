@@ -3,12 +3,18 @@ package com.aitutor.vo;
 import com.aitutor.entity.ChatHistory;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class ChatMessageVO {
 
     private String role;
     private String messageContent;
     private LocalDateTime createTime;
+    private List<RagSourceVO> sources = List.of();
+
+    public List<RagSourceVO> getSources() { return sources; }
+
+    public void setSources(List<RagSourceVO> sources) { this.sources = sources; }
 
     public ChatMessageVO() {
     }

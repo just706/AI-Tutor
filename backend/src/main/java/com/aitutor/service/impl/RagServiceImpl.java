@@ -21,6 +21,7 @@ import com.aitutor.mapper.DocumentChunkMapper;
 import com.aitutor.security.UserContext;
 import com.aitutor.service.RagService;
 import com.aitutor.service.ConversationDocumentBinding;
+import com.aitutor.service.RagCitationService;
 import com.aitutor.vo.RagChatVO;
 import com.aitutor.vo.RagSourceVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -28,7 +29,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +44,6 @@ public class RagServiceImpl implements RagService {
     private static final String MODE_RAG = "rag";
     private static final String PROVIDER_DEEPSEEK = "DeepSeek";
     private static final String REQUEST_TYPE_RAG_CHAT = "rag_chat";
-    private static final String STATUS_COMPLETED = "completed";
 
     private final ConversationDocumentBinding documentBinding;
     private final DocumentChunkMapper documentChunkMapper;
@@ -54,6 +53,7 @@ public class RagServiceImpl implements RagService {
     private final DeepSeekClient deepSeekClient;
     private final AiPromptBuilder aiPromptBuilder;
     private final RagProperties ragProperties;
+    private final RagCitationService citationService;
 
     public RagServiceImpl(ConversationDocumentBinding documentBinding,
                           DocumentChunkMapper documentChunkMapper,
@@ -62,7 +62,8 @@ public class RagServiceImpl implements RagService {
                           AiCallLogMapper aiCallLogMapper,
                           DeepSeekClient deepSeekClient,
                           AiPromptBuilder aiPromptBuilder,
-                          RagProperties ragProperties) {
+                          RagProperties ragProperties,
+                          RagCitationService citationService) {
         this.documentBinding = documentBinding;
         this.documentChunkMapper = documentChunkMapper;
         this.conversationMapper = conversationMapper;
@@ -71,6 +72,7 @@ public class RagServiceImpl implements RagService {
         this.deepSeekClient = deepSeekClient;
         this.aiPromptBuilder = aiPromptBuilder;
         this.ragProperties = ragProperties;
+        this.citationService = citationService;
     }
 
     @Override
@@ -108,10 +110,11 @@ public class RagServiceImpl implements RagService {
         AiChatResult result = null;
         try {
             result = deepSeekClient.chat(messages);
-            saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, result.getContent());
+            List<RagSourceVO> sources = toSources(retrievedChunks);
+            saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, result.getContent(), citationService.serialize(sources));
             touchConversation(conversation.getId());
             saveAiCallLog(userId, result.getPromptTokens(), result.getCompletionTokens(), "success", null);
-            return new RagChatVO(conversation.getId(), result.getContent(), toSources(retrievedChunks));
+            return new RagChatVO(conversation.getId(), result.getContent(), sources);
         } catch (AiServiceException ex) {
             Integer promptTokens = result == null ? null : result.getPromptTokens();
             Integer completionTokens = result == null ? null : result.getCompletionTokens();
@@ -175,19 +178,8 @@ public class RagServiceImpl implements RagService {
                         chunk.document().getId(),
                         chunk.document().getFileName(),
                         chunk.chunk().getChunkIndex(),
-                        snippet(chunk.chunk().getChunkText())))
+                        chunk.chunk().getChunkText()))
                 .toList();
-    }
-
-    private String snippet(String text) {
-        if (text == null) {
-            return "";
-        }
-        String normalized = text.replaceAll("\\s+", " ").trim();
-        if (normalized.length() <= 180) {
-            return normalized;
-        }
-        return normalized.substring(0, 180);
     }
 
     private int normalizedTopK() {
@@ -199,11 +191,16 @@ public class RagServiceImpl implements RagService {
     }
 
     private void saveMessage(Long userId, Long conversationId, String role, String content) {
+        saveMessage(userId, conversationId, role, content, null);
+    }
+
+    private void saveMessage(Long userId, Long conversationId, String role, String content, String sources) {
         ChatHistory chatHistory = new ChatHistory();
         chatHistory.setUserId(userId);
         chatHistory.setConversationId(conversationId);
         chatHistory.setRole(role);
         chatHistory.setMessageContent(content);
+        chatHistory.setRagSources(sources);
         chatHistoryMapper.insert(chatHistory);
     }
 

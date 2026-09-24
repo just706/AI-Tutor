@@ -7,6 +7,7 @@ import com.aitutor.ai.DeepSeekClient;
 import com.aitutor.config.RagProperties;
 import com.aitutor.dto.RagChatRequest;
 import com.aitutor.entity.Conversation;
+import com.aitutor.entity.ChatHistory;
 import com.aitutor.entity.DocumentChunk;
 import com.aitutor.entity.LearningDocument;
 import com.aitutor.exception.BusinessException;
@@ -19,6 +20,7 @@ import com.aitutor.security.CurrentUser;
 import com.aitutor.security.UserContext;
 import com.aitutor.vo.RagChatVO;
 import com.aitutor.service.ConversationDocumentBinding;
+import com.aitutor.service.RagCitationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +65,8 @@ class RagServiceImplTest {
         UserContext.set(new CurrentUser(7L, "reader", "student"));
         properties = new RagProperties();
         service = new RagServiceImpl(new ConversationDocumentBinding(documentMapper, new ObjectMapper()), chunkMapper, conversationMapper,
-                historyMapper, logMapper, client, new AiPromptBuilder(), properties);
+                historyMapper, logMapper, client, new AiPromptBuilder(), properties,
+                new RagCitationService(documentMapper, new ObjectMapper()));
     }
 
     @AfterEach
@@ -105,6 +108,31 @@ class RagServiceImplTest {
 
         assertEquals(1, result.getSources().size());
         assertEquals(2, result.getSources().get(0).getChunkIndex());
+    }
+
+    @Test
+    void answerPersistsTheFullOrderedEvidenceOnTheAssistantMessage() throws Exception {
+        prepareDocuments();
+        String original = INDEX_ACCESS + "\n" + "教材中的详细说明。".repeat(30);
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(7, original)));
+        stubModel();
+
+        RagChatVO result = service.chat(request("ArrayList"));
+
+        var saved = ArgumentCaptor.forClass(ChatHistory.class);
+        verify(historyMapper, times(2)).insert(saved.capture());
+        ChatHistory user = saved.getAllValues().get(0);
+        ChatHistory assistant = saved.getAllValues().get(1);
+        assertEquals("user", user.getRole());
+        assertNull(user.getRagSources());
+        assertEquals("assistant", assistant.getRole());
+        assertNotNull(assistant.getRagSources(), "引用必须与对应助手消息一起保存");
+        var sources = new ObjectMapper().readTree(assistant.getRagSources());
+        assertEquals(1, sources.size());
+        assertEquals(21L, sources.get(0).path("documentId").asLong());
+        assertEquals(7, sources.get(0).path("chunkIndex").asInt());
+        assertEquals(original, sources.get(0).path("snippet").asText(), "不能只保存前 180 字");
+        assertEquals(original, result.getSources().get(0).getSnippet());
     }
 
     @Test

@@ -47,7 +47,7 @@ sequenceDiagram
 - 个人图谱提取使用 `@Async` 线程池，按批次生成节点和关系；上传后可自动创建提取任务，客户端轮询状态，发布是显式操作。
 - 学习计划和 Agent 建议主要由规则与已有学习数据生成；它们没有独立的计划表或自动执行器。
 
-资料库与主聊天共用 Pinia 的发送流程：`rag` 会话调用 `/api/ai/rag/chat`，普通会话调用教师接口。教材选择保存到 `conversation.document_ids`，通过会话接口恢复；地址中的 `conversationId` 保留刷新前选中的会话。页面展示当次回答的文件名、片段位置与原文，结构化引用的历史恢复及多轮指代检索仍待实现。
+资料库与主聊天共用 Pinia 的发送流程：`rag` 会话调用 `/api/ai/rag/chat`，普通会话调用教师接口。教材选择保存到 `conversation.document_ids`，通过会话接口恢复；地址中的 `conversationId` 保留刷新前选中的会话。RAG 回答和有序引用快照一起写入 `chat_history.rag_sources`，历史消息接口通过 `RagCitationService` 批量重查教材权限及处理状态，再返回可读原文或失效占位。两个页面共用引用组件，刷新后可恢复文件名、教材位置和回答时的完整片段。多轮指代检索仍待实现。
 
 ## 一致性与故障边界
 

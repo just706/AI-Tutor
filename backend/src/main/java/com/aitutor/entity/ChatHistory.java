@@ -19,6 +19,8 @@ public class ChatHistory {
     private String role;
     @TableField("message_content")
     private String messageContent;
+    @TableField("rag_sources")
+    private String ragSources;
     @TableField("create_time")
     private LocalDateTime createTime;
 
@@ -65,6 +67,10 @@ public class ChatHistory {
     public LocalDateTime getCreateTime() {
         return createTime;
     }
+
+    public String getRagSources() { return ragSources; }
+
+    public void setRagSources(String ragSources) { this.ragSources = ragSources; }
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;

@@ -36,11 +36,14 @@
 - `POST /api/conversations`：创建 `mode=rag` 的会话时可传 `documentIds`；省略或空数组表示尚未选择教材。普通会话不接受非 `null` 的 `documentIds` 字段。返回 `conversationId`。
 - `GET /api/conversations` 和 `GET /api/conversations/{conversationId}`：返回会话及其 `documentIds` 数组。读取会话前校验用户归属；旧会话尚未绑定时返回空数组。教材已删除时保留原 ID，供页面提示重新选择。
 - `PUT /api/conversations/{conversationId}/documents`：请求为 `{"documentIds":[1,2]}`，仅允许更新本人的 RAG 会话，返回更新后的会话。数组必填、最多 20 项，ID 为正整数，去重后保存；传 `[]` 清空教材选择。
-- `POST /api/ai/rag/chat`：`conversationId` 和 `question` 必填。省略 `documentIds`（或传 `null`）使用会话已保存的教材；显式传非空列表则校验并保存为新的会话选择。显式空数组或会话没有教材返回业务码 `400`，不会自动检索全部文档。成功返回回答和引用片段；历史消息暂未保存结构化引用。
+- `POST /api/ai/rag/chat`：`conversationId` 和 `question` 必填。省略 `documentIds`（或传 `null`）使用会话已保存的教材；显式传非空列表则校验并保存为新的会话选择。显式空数组或会话没有教材返回业务码 `400`，不会自动检索全部文档。成功返回回答和引用片段，并将引用快照与对应助手消息一起保存。
+- `GET /api/conversations/{conversationId}/messages`：每条消息增加 `sources` 数组，顺序与该次模型请求的“片段1、片段2……”一致。每项含 `documentId`、`fileName`、从 0 开始的 `chunkIndex`、完整片段原文 `snippet` 和 `available`。界面将原始索引加 1 显示为教材位置；该位置与本次回答的引用序号不同。
 - `POST /api/questions/generate`：`knowledgePointId` 必填；题型支持 `single_choice`、`true_false`、`short_answer`，数量限制 1–5。
 - `POST /api/documents/upload`：表单字段名为 `file`，支持 TXT/Markdown/PDF/DOC/DOCX，默认最大 5 MB。解析完成且分片不超过 100 段时自动创建异步个人图谱提取，需轮询提取端点。超过 100 段仍可上传和教材问答，但 `personalGraphExtractionId` 为 `null`；重处理遵循相同规则。手动提取图谱超过此限制时返回业务码 `400`，需拆分资料。
 - `POST /api/personal-graph/extractions/{id}/publish`：只有完成提取且属于当前用户时可发布；发布不是自动发生的。
 
 教材绑定和每次问答均重新检查所有选中文档的归属及处理状态。任何一份已删除、不存在或属于他人，整个请求返回 `404`；尚未处理完成返回 `409`。无效选择不会写入用户消息或替换已有绑定，不会静默缩小或扩大检索范围。校验通过但没有合格片段时，返回证据不足和空引用，不调用模型。
 
-没有记录在上表中的 SSE、Python 服务、任意工具调用或计划中的学习记录接口，不能作为当前 API 使用。
+历史引用读取再次检查教材归属及处理状态。教材已删除、不属于当前用户或未完成处理时，保留引用数组的位置和文档 ID/索引，返回 `available=false`，`fileName`、`snippet` 为 `null`。切换教材不会改变旧回答的引用；仍有权访问的教材重处理后，旧回答返回回答时保存的原文。用户消息、普通回答、拒答及升级前未保存引用的消息返回 `sources:[]`，不从答案文本推断引用。
+
+引用数组是本次检索提供给模型的证据列表，不代表已经逐句核验模型回答。没有记录在上表中的 SSE、Python 服务、任意工具调用或计划中的学习记录接口，不能作为当前 API 使用。
