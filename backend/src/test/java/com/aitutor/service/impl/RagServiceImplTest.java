@@ -273,6 +273,120 @@ class RagServiceImplTest {
         lenient().when(documentMapper.selectList(any())).thenReturn(List.of(document));
     }
 
+    @Test
+    void comparisonRetrievesDescriptionsEvenWithoutTheWordDifference() {
+        prepareDocuments();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(0,
+                "ArrayList 基于动态数组，实现 List 接口，随机访问速度快。LinkedList 基于双向链表，也实现 List 接口。")));
+        stubModel();
+        assertEquals(1, service.chat(request("ArrayList 和 LinkedList 有什么区别？")).getSources().size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "常见类包括 ArrayList 和 LinkedList。",
+            "ArrayList 基于动态数组，随机访问速度快。"
+    })
+    void comparisonRequiresDescriptionsAndBothNamedClasses(String text) {
+        prepareDocuments();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(0, text)));
+        assertTrue(service.chat(request("ArrayList 和 LinkedList 有什么区别？")).getSources().isEmpty());
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void comparisonDoesNotDropAnUnsupportedSpecificTopic() {
+        prepareDocuments();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(0,
+                "ArrayList 基于动态数组，LinkedList 基于双向链表。")));
+        assertTrue(service.chat(request("ArrayList 和 LinkedList 在线程安全方面有什么区别？")).getSources().isEmpty());
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void singularFollowUpUsesTheNamedTopicButSavesTheOriginalQuestion() {
+        prepareDocuments();
+        lenient().when(historyMapper.selectList(any())).thenReturn(List.of(
+                history("assistant", "ArrayList 也可以与 HashMap 对比。"), history("user", "解释 ArrayList")));
+        when(chunkMapper.selectList(any())).thenReturn(List.of(
+                chunk(0, "ArrayList 的缺点：在中间插入或删除时，需要移动后面的元素。"),
+                chunk(1, "LinkedList 的缺点：按下标读取时需要遍历链表。")));
+        stubModel();
+        RagChatVO result = service.chat(request("那它有什么缺点？"));
+        assertEquals(1, result.getSources().size());
+        assertEquals(0, result.getSources().get(0).getChunkIndex());
+        verify(client).chat(sentMessages.capture());
+        assertTrue(sentMessages.getValue().get(1).getContent().contains("ArrayList"));
+        assertFalse(sentMessages.getValue().get(0).getContent().contains("也可以与 HashMap 对比"));
+        var saved = ArgumentCaptor.forClass(ChatHistory.class);
+        verify(historyMapper, times(2)).insert(saved.capture());
+        assertEquals("那它有什么缺点？", saved.getAllValues().get(0).getMessageContent());
+        assertTrue(result.getAnswer().contains("ArrayList"), "页面应告知本次追问理解的对象");
+    }
+
+    @Test
+    void pluralFollowUpKeepsTheTwoPreviouslyNamedClasses() {
+        prepareDocuments();
+        lenient().when(historyMapper.selectList(any())).thenReturn(List.of(history("user", "介绍 ArrayList 和 LinkedList")));
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(2, COMPARISON)));
+        stubModel();
+        assertEquals(1, service.chat(request("那两种有什么区别？")).getSources().size());
+        verify(client).chat(sentMessages.capture());
+        String question = sentMessages.getValue().get(1).getContent();
+        assertTrue(question.contains("ArrayList")); assertTrue(question.contains("LinkedList"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "那它有什么缺点？", "那两种有什么区别？" })
+    void missingContextAsksForClarificationWithoutCallingTheModel(String question) {
+        prepareDocuments();
+        lenient().when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(2, COMPARISON)));
+        RagChatVO result = service.chat(request(question));
+        assertTrue(result.getSources().isEmpty());
+        assertTrue(result.getAnswer().contains("请明确"), "无法确定指代时应澄清，而非猜测教材主题");
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void singularPronounAfterTwoTopicsAsksWhichOne() {
+        prepareDocuments();
+        lenient().when(historyMapper.selectList(any())).thenReturn(List.of(history("user", "ArrayList 和 LinkedList 有什么区别？")));
+        lenient().when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(2, COMPARISON)));
+        RagChatVO result = service.chat(request("那它的缺点呢？"));
+        assertTrue(result.getAnswer().contains("请明确"));
+        assertTrue(result.getAnswer().contains("ArrayList"));
+        assertTrue(result.getAnswer().contains("LinkedList"));
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void previousAnswerCannotBecomeEvidenceForAnUnsupportedClaim() {
+        prepareDocuments();
+        lenient().when(historyMapper.selectList(any())).thenReturn(List.of(
+                history("assistant", "ArrayList 能测量量子态，这是未经证实的错误回答。"), history("user", "ArrayList 是什么？")));
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(1, INDEX_ACCESS)));
+        RagChatVO result = service.chat(request("它如何测量量子态？"));
+        assertTrue(result.getAnswer().contains("没有找到足够依据"));
+        assertTrue(result.getSources().isEmpty());
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void otherConversationOrUserHistoryCannotResolveAReference() {
+        prepareDocuments();
+        ChatHistory otherConversation = history("user", "解释 ArrayList"); otherConversation.setConversationId(99L);
+        ChatHistory otherUser = history("user", "解释 LinkedList"); otherUser.setUserId(8L);
+        lenient().when(historyMapper.selectList(any())).thenReturn(List.of(otherConversation, otherUser));
+        lenient().when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(2, COMPARISON)));
+        assertTrue(service.chat(request("它是什么？")).getAnswer().contains("请明确"));
+        verifyNoInteractions(client);
+    }
+
+    private ChatHistory history(String role, String content) {
+        ChatHistory value = new ChatHistory(); value.setUserId(7L); value.setConversationId(11L);
+        value.setRole(role); value.setMessageContent(content); return value;
+    }
+
     private void stubModel() {
         lenient().when(client.chat(any())).thenReturn(new AiChatResult("根据片段给出回答。", 10, 5));
         lenient().when(client.getModelName()).thenReturn("test-model");

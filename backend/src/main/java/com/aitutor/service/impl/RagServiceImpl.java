@@ -5,6 +5,7 @@ import com.aitutor.ai.AiMessage;
 import com.aitutor.ai.AiPromptBuilder;
 import com.aitutor.ai.DeepSeekClient;
 import com.aitutor.ai.RagKeywordScorer;
+import com.aitutor.ai.RagFollowUpResolver;
 import com.aitutor.config.RagProperties;
 import com.aitutor.dto.RagChatRequest;
 import com.aitutor.entity.AiCallLog;
@@ -92,10 +93,18 @@ public class RagServiceImpl implements RagService {
             update.setDocumentIds(documentBinding.serialize(documents));
             conversationMapper.updateById(update);
         }
+        RagFollowUpResolver.Resolution resolution = resolveQuestion(userId, conversation.getId(), question);
         saveMessage(userId, conversation.getId(), ROLE_USER, question);
-        List<ScoredChunk> retrievedChunks = retrieveChunks(question, documents);
+        if (resolution.clarification() != null) {
+            saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, resolution.clarification());
+            touchConversation(conversation.getId());
+            return new RagChatVO(conversation.getId(), resolution.clarification(), List.of());
+        }
+        String resolvedQuestion = resolution.question();
+        String contextNote = question.equals(resolvedQuestion) ? "" : "本次按“" + resolvedQuestion + "”理解你的追问。\n\n";
+        List<ScoredChunk> retrievedChunks = retrieveChunks(resolvedQuestion, documents);
         if (retrievedChunks.isEmpty()) {
-            String answer = "资料中没有找到足够依据，请补充相关资料或换个更具体的问题。";
+            String answer = contextNote + "资料中没有找到足够依据，请补充相关资料或换个更具体的问题。";
             saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, answer);
             touchConversation(conversation.getId());
             return new RagChatVO(conversation.getId(), answer, List.of());
@@ -103,18 +112,19 @@ public class RagServiceImpl implements RagService {
 
         String sourceContext = buildSourceContext(retrievedChunks);
         List<AiMessage> messages = List.of(
-                new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildRagPrompt(question, sourceContext)),
-                new AiMessage(ROLE_USER, question)
+                new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildRagPrompt(resolvedQuestion, sourceContext)),
+                new AiMessage(ROLE_USER, resolvedQuestion)
         );
 
         AiChatResult result = null;
         try {
             result = deepSeekClient.chat(messages);
             List<RagSourceVO> sources = toSources(retrievedChunks);
-            saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, result.getContent(), citationService.serialize(sources));
+            String answer = contextNote + result.getContent();
+            saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, answer, citationService.serialize(sources));
             touchConversation(conversation.getId());
             saveAiCallLog(userId, result.getPromptTokens(), result.getCompletionTokens(), "success", null);
-            return new RagChatVO(conversation.getId(), result.getContent(), sources);
+            return new RagChatVO(conversation.getId(), answer, sources);
         } catch (AiServiceException ex) {
             Integer promptTokens = result == null ? null : result.getPromptTokens();
             Integer completionTokens = result == null ? null : result.getCompletionTokens();
@@ -122,6 +132,16 @@ public class RagServiceImpl implements RagService {
             touchConversation(conversation.getId());
             throw ex;
         }
+    }
+
+    private RagFollowUpResolver.Resolution resolveQuestion(Long userId, Long conversationId, String question) {
+        if (!RagFollowUpResolver.needsContext(question)) return new RagFollowUpResolver.Resolution(question, null);
+        List<String> recentQuestions = chatHistoryMapper.selectList(new LambdaQueryWrapper<ChatHistory>()
+                        .eq(ChatHistory::getUserId, userId).eq(ChatHistory::getConversationId, conversationId)
+                        .orderByDesc(ChatHistory::getCreateTime).orderByDesc(ChatHistory::getId).last("LIMIT 10"))
+                .stream().filter(message -> userId.equals(message.getUserId()) && conversationId.equals(message.getConversationId()))
+                .filter(message -> ROLE_USER.equals(message.getRole())).map(ChatHistory::getMessageContent).toList();
+        return RagFollowUpResolver.resolve(question, recentQuestions);
     }
 
     private Conversation requireOwnedRagConversation(Long userId, Long conversationId) {

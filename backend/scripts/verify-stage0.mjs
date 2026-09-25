@@ -251,6 +251,50 @@ try {
   await api(historyPath, { token: otherToken, code: 404 });
   pass('历史回答恢复原引用顺序、文件名及原文；用户消息与拒答不伪造引用；他人不可读历史');
 
+  const followConversation = await api('/conversations', { token, body: {
+    title: '连续追问验收', mode: 'rag', documentIds: [document.documentId] } });
+  const follow = question => api('/ai/rag/chat', { token, body: {
+    conversationId: followConversation.conversationId, question } });
+  const comparison = await follow('ArrayList 和 LinkedList 有什么区别？');
+  assert(comparison.sources.length > 0, '教材没有“区别”字样也应召回两种结构的描述。');
+  const pluralQuestion = '那两种集合有什么区别？';
+  const plural = await follow(pluralQuestion);
+  assert(plural.answer.startsWith('本次按“ArrayList 和 LinkedList有什么区别？”理解你的追问。'));
+  assert.deepEqual(plural.sources, comparison.sources);
+  assert(modelRequests.at(-1).endsWith('ArrayList 和 LinkedList有什么区别？'));
+  const beforeAmbiguity = modelRequests.length;
+  const ambiguous = await follow('那它有什么特点？');
+  assert(ambiguous.answer.includes('请明确') && ambiguous.answer.includes('ArrayList') && ambiguous.answer.includes('LinkedList'));
+  assert.deepEqual(ambiguous.sources, []);
+  assert.equal(modelRequests.length, beforeAmbiguity);
+  const clarified = await follow('我指的是 ArrayList');
+  assert(clarified.sources.length > 0);
+  const singularQuestion = '它的随机访问速度如何？';
+  const singular = await follow(singularQuestion);
+  assert(singular.answer.startsWith('本次按“ArrayList的随机访问速度如何？”理解你的追问。'));
+  assert(singular.sources.length > 0);
+  assert(modelRequests.at(-1).endsWith('ArrayList的随机访问速度如何？'));
+  const followHistory = await api(`/conversations/${followConversation.conversationId}/messages`, { token });
+  assert.equal(followHistory[2].messageContent, pluralQuestion);
+  assert.equal(followHistory.at(-2).messageContent, singularQuestion);
+  assert.equal(followHistory.at(-1).messageContent, singular.answer);
+  assert.deepEqual(followHistory.at(-1).sources, singular.sources);
+  pass('比较结构描述召回；复数追问、歧义澄清、明确对象后连续追问；原问题和引用恢复');
+
+  const isolatedConversation = await api('/conversations', { token, body: {
+    title: '无上下文验收', mode: 'rag', documentIds: [document.documentId] } });
+  const beforeNoContext = modelRequests.length;
+  const noContext = await api('/ai/rag/chat', { token, body: {
+    conversationId: isolatedConversation.conversationId, question: '它是什么？' } });
+  assert(noContext.answer.includes('请明确') && !noContext.answer.includes('ArrayList'));
+  assert.deepEqual(noContext.sources, []);
+  const unsupported = await follow('它的默认扩容倍率是多少？');
+  assert(unsupported.answer.startsWith('本次按“ArrayList的默认扩容倍率是多少？”理解你的追问。'));
+  assert(unsupported.answer.includes('没有找到足够依据'));
+  assert.deepEqual(unsupported.sources, []);
+  assert.equal(modelRequests.length, beforeNoContext);
+  pass('会话间不借用追问对象；历史回答不能替代当前教材证据；澄清和无依据拒答不调用模型');
+
   for (const route of [`/documents/${document.documentId}`, `/documents/${document.documentId}/chunks`,
     `/personal-graph/extractions/${extraction.id}`, graphPath]) {
     await api(route, { token: otherToken, code: 404 });

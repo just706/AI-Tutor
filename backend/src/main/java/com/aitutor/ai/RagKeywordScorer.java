@@ -15,6 +15,7 @@ public final class RagKeywordScorer {
     private static final Pattern TOKEN_PATTERN = Pattern.compile("[a-z0-9_$]+|[\\p{IsHan}]+");
     // Remove question boilerplate within Han runs only, without joining words across gaps.
     private static final List<String> QUESTION_WORDS = List.of(
+            "我指的是", "我说的是",
             "应该选哪一种", "应该选哪种", "哪一种", "哪一个",
             "为什么", "怎么样", "有什么", "是什么", "是多少", "什么时候",
             "请问", "介绍", "解释", "说明", "一下", "经常", "应该", "哪种", "哪个", "哪些",
@@ -26,6 +27,8 @@ public final class RagKeywordScorer {
             "and", "or", "for", "does", "do", "please", "can", "should", "with", "when", "use");
     private static final double MIN_CHINESE_COVERAGE = 0.4;
     private static final double MIN_LATIN_COVERAGE = 0.5;
+    private static final Set<String> COMPARISON_TERMS = Set.of("区别", "比较", "对比", "不同", "相同", "同点", "异同", "差异", "差别");
+    private static final Pattern DESCRIPTION = Pattern.compile("基于|底层|使用|实现|支持|允许|具有|采用|存储|保存|适合|用于|属于|继承|提供|维护|数组|链表|哈希");
 
     private final Terms query;
     private final Map<String, Terms> documents = new HashMap<>();
@@ -67,6 +70,14 @@ public final class RagKeywordScorer {
         double latinCoverage = coverage(latinMatches, query.latin().size());
         double chineseCoverage = coverage(chineseMatches, query.chinese().size());
 
+        // 比较是提问意图，不要求正文恰好出现“区别”；但仍须同时有双方名称与描述线索。
+        boolean genericComparison = query.latin().size() >= 2 && !query.chinese().isEmpty()
+                && COMPARISON_TERMS.containsAll(query.chinese());
+        if (genericComparison && latinCoverage < 1.0) return 0;
+        boolean descriptionFallback = genericComparison && chineseCoverage < MIN_CHINESE_COVERAGE
+                && DESCRIPTION.matcher(text).find();
+        if (descriptionFallback) chineseCoverage = 1.0;
+
         // A class name alone cannot support a missing Chinese topic (e.g. capacity growth).
         // Likewise a generic Chinese word cannot substitute for a missing class name.
         if (latinCoverage < MIN_LATIN_COVERAGE || chineseCoverage < MIN_CHINESE_COVERAGE) {
@@ -76,7 +87,8 @@ public final class RagKeywordScorer {
         // BM25 term weighting favors distinguishing terms while saturating repetition.
         double relevance = weightedMatches(query.latin(), document)
                 + weightedMatches(query.chinese(), document);
-        return relevance * latinCoverage * chineseCoverage;
+        // 明确比较正文优先于仅描述各对象的候选，保留原来的区分词排序。
+        return relevance * latinCoverage * chineseCoverage * (descriptionFallback ? 0.5 : 1.0);
     }
 
     private double weightedMatches(Set<String> terms, Terms document) {
