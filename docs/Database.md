@@ -26,6 +26,7 @@ stage16-personal-graph.sql
 stage17-async-personal-graph.sql
 stage18-conversation-documents.sql
 stage19-chat-rag-sources.sql
+stage20-rag-retry.sql
 ```
 
 `repair-stage6-encoding.sql` 是针对已有环境的字符集修复脚本，不属于新库必跑步骤。脚本中的 `INSERT IGNORE`、更新和条件加列行为仍应在目标库上先检查。
@@ -62,7 +63,30 @@ USE ai_tutor;
 SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage19-chat-rag-sources.sql;
 ```
 
-JSON 数组按回答时的证据顺序保存文档 ID、当时文件名、从 0 开始的片段索引及完整片段原文（最多 8 段）。助手回答与引用在同一事务内写入；历史读取时重新检查文档归属及可用性。普通消息和无依据拒答不保存引用快照。
+JSON 数组按回答时的证据顺序保存文档 ID、当时文件名、从 0 开始的片段索引及完整片段原文（最多 8 段）。助手回答与引用在同一事务内写入；历史读取时重新检查文档归属及可用性。普通消息不保存引用快照，无依据拒答的引用为空数组。
+
+## 已有库升级失败重试
+
+启动新后端前执行以下脚本，可重复执行，仅增加可空字段和唯一索引，不更新既有消息内容：
+
+```sql
+USE ai_tutor;
+SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage20-rag-retry.sql;
+```
+
+新增字段均位于 `chat_history`，没有新增表：
+
+| 字段 | 类型 | 用途 |
+| --- | --- | --- |
+| `rag_request_id` | VARCHAR(36)，ascii_bin | 客户端请求标识，问题与回答共享 |
+| `rag_status` | VARCHAR(16) | 用户消息的 processing / failed / completed 状态 |
+| `rag_attempt` | INT | 用户请求当前尝试次数，从 1 开始 |
+| `rag_context` | JSON | 当时教材 ID、明确后的问题、可选澄清；不直接返回客户端 |
+| `rag_retry_after` | DATETIME(6) | 处理中请求允许恢复的时间边界 |
+
+唯一索引 `uk_chat_rag_request_role(user_id, conversation_id, rag_request_id, role)` 保证同一请求至多一条用户消息和一条助手消息。旧消息的标识保持 NULL，不受该去重约束影响，也不会被推断为可重试。历史接口将已过期的 processing 展示为 interrupted，不需要读取时写库。处理中有效期为 `max(180 秒, (2 × 模型 timeoutMs + 30000) / 1000 秒向下取整)`。
+
+升级前保存表结构并核对消息数量。回滚应用时可以保留新增字段；不要为了回滚删除已产生的请求状态或引用数据。问题先单独提交，回答、引用、完成状态和成功日志在另一个短事务中写入。模型失败后的状态与失败日志单独提交；数据库不可用时状态可能暂留 processing，恢复后可检查或等待过期再重试。
 
 ## 表清单
 
@@ -71,7 +95,7 @@ JSON 数组按回答时的证据顺序保存文档 ID、当时文件名、从 0 
 | `user` | 账号与角色 | `username` 唯一 |
 | `student_profile` | 学习方向、目标、水平、偏好 | 每用户一份 |
 | `conversation` | 会话与教材选择 | 归属 `user_id`；`document_ids` 保存最多 20 个去重的教材 ID |
-| `chat_history` | 用户/助手消息与 RAG 引用快照 | 通过会话归属用户；`rag_sources` 可空 JSON |
+| `chat_history` | 消息、RAG 引用与请求恢复状态 | 通过会话归属用户；引用及上下文为可空 JSON；同一请求的角色唯一 |
 | `ai_call_log` | 模型调用、错误和时延 | 关联用户/会话可为空 |
 | `knowledge_point` | 公共知识点树 | `subject,parent_id,name` 唯一组合 |
 | `learning_record` | 用户知识点状态 | `user_id,knowledge_point_id` 组合唯一 |

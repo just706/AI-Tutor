@@ -311,11 +311,11 @@ export function deleteDocument(documentId: number) {
   })
 }
 
-export function sendRagChat(conversationId: number, question: string, documentIds?: number[]) {
+export function sendRagChat(conversationId: number, question: string, documentIds?: number[], requestId?: string, attempt = 1) {
   return request<RagChatResult>({
     url: '/ai/rag/chat',
     method: 'POST',
-    data: { conversationId, question, documentIds }
+    data: { conversationId, question, documentIds, requestId, attempt }
   })
 }
 

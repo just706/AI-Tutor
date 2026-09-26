@@ -95,6 +95,7 @@
           />
           <div v-else class="message-bubble">{{ message.messageContent }}</div>
           <RagSources :sources="message.sources" />
+          <RagRetry :message="message" />
           <div v-if="message.role === 'assistant' && message.memoryUpdates?.length" class="message-memory-updates">
             <span v-for="update in message.memoryUpdates" :key="update">{{ update }}</span>
           </div>
@@ -339,6 +340,7 @@ import type {
 import { modeLabel } from '../utils/format'
 import { renderMarkdown } from '../utils/markdown'
 import RagSources from '../components/RagSources.vue'
+import RagRetry from '../components/RagRetry.vue'
 
 type InspectorPanel = 'session' | 'map' | 'practice' | 'sources' | 'progress'
 

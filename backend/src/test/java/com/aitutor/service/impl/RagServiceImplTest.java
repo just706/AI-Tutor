@@ -57,6 +57,11 @@ class RagServiceImplTest {
     @Mock private DeepSeekClient client;
     @Captor private ArgumentCaptor<List<AiMessage>> sentMessages;
 
+    private final java.util.Map<String, ChatHistory> stored = new java.util.HashMap<>();
+    private ChatHistory copy(ChatHistory value) {
+        if (value == null) return null;
+        ChatHistory result = new ChatHistory(); org.springframework.beans.BeanUtils.copyProperties(value, result); return result;
+    }
     private RagProperties properties;
     private RagServiceImpl service;
 
@@ -64,9 +69,29 @@ class RagServiceImplTest {
     void setUp() {
         UserContext.set(new CurrentUser(7L, "reader", "student"));
         properties = new RagProperties();
+        var tx = new org.springframework.transaction.support.AbstractPlatformTransactionManager() {
+            protected Object doGetTransaction() { return new Object(); }
+            protected void doBegin(Object transaction, org.springframework.transaction.TransactionDefinition definition) {}
+            protected void doCommit(org.springframework.transaction.support.DefaultTransactionStatus status) {}
+            protected void doRollback(org.springframework.transaction.support.DefaultTransactionStatus status) {}
+        };
+        lenient().when(historyMapper.insert(any(ChatHistory.class))).thenAnswer(invocation -> {
+            ChatHistory value = invocation.getArgument(0); value.setId((long) stored.size() + 1);
+            stored.put(value.getRagRequestId() + value.getRole(), copy(value)); return 1;
+        });
+        lenient().when(historyMapper.updateById(any(ChatHistory.class))).thenAnswer(invocation -> {
+            ChatHistory value = invocation.getArgument(0);
+            stored.put(value.getRagRequestId() + value.getRole(), copy(value)); return 1;
+        });
+        lenient().when(historyMapper.selectOne(any())).thenAnswer(invocation -> {
+            var wrapper = (com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ChatHistory>) invocation.getArgument(0);
+            wrapper.getSqlSegment(); var values = wrapper.getParamNameValuePairs().values();
+            String key = values.stream().filter(v -> v instanceof String && ((String)v).matches("[0-9a-f-]{36}")).map(Object::toString).findFirst().orElse("");
+            return copy(stored.get(key + (values.contains("assistant") ? "assistant" : "user")));
+        });
         service = new RagServiceImpl(new ConversationDocumentBinding(documentMapper, new ObjectMapper()), chunkMapper, conversationMapper,
                 historyMapper, logMapper, client, new AiPromptBuilder(), properties,
-                new RagCitationService(documentMapper, new ObjectMapper()));
+                new RagCitationService(documentMapper, new ObjectMapper()), tx, new ObjectMapper(), new com.aitutor.ai.DeepSeekProperties());
     }
 
     @AfterEach
@@ -219,7 +244,8 @@ class RagServiceImplTest {
         request.setDocumentIds(List.of());
         BusinessException failure = assertThrows(BusinessException.class, () -> service.chat(request));
         assertEquals(400, failure.getCode());
-        verifyNoInteractions(chunkMapper, client, historyMapper);
+        verifyNoInteractions(chunkMapper, client);
+        verify(historyMapper, org.mockito.Mockito.never()).insert(any(ChatHistory.class));
     }
 
     @Test
@@ -229,7 +255,8 @@ class RagServiceImplTest {
         request.setDocumentIds(null);
         BusinessException failure = assertThrows(BusinessException.class, () -> service.chat(request));
         assertEquals(400, failure.getCode());
-        verifyNoInteractions(chunkMapper, client, historyMapper);
+        verifyNoInteractions(chunkMapper, client);
+        verify(historyMapper, org.mockito.Mockito.never()).insert(any(ChatHistory.class));
     }
 
     @Test
@@ -239,7 +266,8 @@ class RagServiceImplTest {
         request.setDocumentIds(List.of(21L, 999L));
         BusinessException failure = assertThrows(BusinessException.class, () -> service.chat(request));
         assertEquals(404, failure.getCode());
-        verifyNoInteractions(chunkMapper, client, historyMapper);
+        verifyNoInteractions(chunkMapper, client);
+        verify(historyMapper, org.mockito.Mockito.never()).insert(any(ChatHistory.class));
     }
 
     @Test
@@ -414,6 +442,97 @@ class RagServiceImplTest {
         assertTrue(result.getAnswer().contains("没有找到足够依据"));
         assertTrue(result.getSources().isEmpty());
         verifyNoInteractions(client);
+    }
+
+
+    private RagChatRequest retryRequest(int attempt) {
+        RagChatRequest request = request("ArrayList");
+        request.setRequestId("11111111-1111-4111-8111-111111111111"); request.setAttempt(attempt); return request;
+    }
+
+    private void retryFixture() {
+        prepareDocuments();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(1, INDEX_ACCESS)));
+        stubModel();
+    }
+
+    @Test
+    void failurePersistsOneQuestionAndExplicitRetryCompletesThatQuestion() {
+        retryFixture();
+        when(client.chat(any())).thenThrow(new com.aitutor.exception.AiServiceException("offline"))
+                .thenReturn(new AiChatResult("恢复后的回答", 10, 5));
+        assertThrows(com.aitutor.exception.AiServiceException.class, () -> service.chat(retryRequest(1)));
+        assertEquals(1, stored.size()); assertEquals("failed", stored.values().iterator().next().getRagStatus());
+        assertEquals("恢复后的回答", service.chat(retryRequest(2)).getAnswer());
+        assertEquals(2, stored.size());
+        assertEquals("completed", stored.get(retryRequest(1).getRequestId()+"user").getRagStatus());
+        assertEquals(2, stored.get(retryRequest(1).getRequestId()+"user").getRagAttempt());
+        verify(client, times(2)).chat(any());
+    }
+
+    @Test
+    void repeatingAFailedAttemptDoesNotCallTheModelAgain() {
+        retryFixture(); when(client.chat(any())).thenThrow(new com.aitutor.exception.AiServiceException("offline"));
+        assertThrows(com.aitutor.exception.AiServiceException.class, () -> service.chat(retryRequest(1)));
+        assertThrows(com.aitutor.exception.AiServiceException.class, () -> service.chat(retryRequest(1)));
+        assertEquals(1, stored.size()); verify(client).chat(any());
+    }
+
+    @Test
+    void completedRequestReturnsSavedAnswerAndRechecksCitationAccess() {
+        retryFixture(); RagChatVO first = service.chat(retryRequest(1));
+        when(documentMapper.selectList(any())).thenReturn(List.of());
+        RagChatVO replay = service.chat(retryRequest(1));
+        assertEquals(first.getAnswer(), replay.getAnswer());
+        assertFalse(replay.getSources().get(0).isAvailable());
+        assertNull(replay.getSources().get(0).getSnippet());
+        assertEquals(2, stored.size()); verify(client).chat(any());
+    }
+
+    @Test
+    void requestKeyCannotBeReusedForDifferentQuestionOrTextbooks() {
+        retryFixture(); service.chat(retryRequest(1));
+        RagChatRequest changed = retryRequest(1); changed.setQuestion("LinkedList");
+        assertEquals(409, assertThrows(BusinessException.class, () -> service.chat(changed)).getCode());
+        changed.setQuestion("ArrayList"); changed.setDocumentIds(List.of(22L));
+        assertEquals(409, assertThrows(BusinessException.class, () -> service.chat(changed)).getCode());
+        verify(client).chat(any());
+    }
+
+    @Test
+    void activeRequestRejectsConcurrentRetryAndExpiredAttemptCannotSaveLateAnswer() {
+        retryFixture();
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        when(client.chat(any())).thenAnswer(invocation -> {
+            if (calls.incrementAndGet() == 1) {
+                assertEquals(409, assertThrows(BusinessException.class, () -> service.chat(retryRequest(2))).getCode());
+                stored.get(retryRequest(1).getRequestId()+"user").setRagRetryAfter(java.time.LocalDateTime.now().minusSeconds(1));
+                assertEquals("新尝试回答", service.chat(retryRequest(2)).getAnswer());
+                return new AiChatResult("迟到的旧回答", 10, 5);
+            }
+            return new AiChatResult("新尝试回答", 10, 5);
+        });
+        assertEquals(409, assertThrows(BusinessException.class, () -> service.chat(retryRequest(1))).getCode());
+        assertEquals(2, stored.size());
+        assertEquals("新尝试回答", stored.get(retryRequest(1).getRequestId()+"assistant").getMessageContent());
+        assertEquals("completed", stored.get(retryRequest(1).getRequestId()+"user").getRagStatus());
+    }
+
+    @Test
+    void expiredProcessingIsRecoverableAfterReloadButOldMessagesHaveNoRetryState() {
+        ChatHistory old = history("user", "旧问题");
+        assertNull(com.aitutor.vo.ChatMessageVO.from(old).getRagStatus());
+        old.setRagStatus("processing"); old.setRagRetryAfter(java.time.LocalDateTime.now().minusSeconds(1));
+        assertEquals("interrupted", com.aitutor.vo.ChatMessageVO.from(old).getRagStatus());
+    }
+
+    @Test
+    void lateAnswerIsDisplayedNextToItsOriginalQuestion() {
+        ChatHistory first = history("user", "第一问"); first.setRagRequestId("first");
+        ChatHistory second = history("user", "第二问");
+        ChatHistory reply = history("assistant", "第一问的迟到回答"); reply.setRagRequestId("first");
+        var messages = new RagCitationService(documentMapper, new ObjectMapper()).restoreMessages(7L, List.of(first, second, reply));
+        assertEquals(List.of("第一问", "第一问的迟到回答", "第二问"), messages.stream().map(com.aitutor.vo.ChatMessageVO::getMessageContent).toList());
     }
 
     private void stubModel() {

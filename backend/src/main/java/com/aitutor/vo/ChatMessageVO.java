@@ -25,12 +25,29 @@ public class ChatMessageVO {
         this.createTime = createTime;
     }
 
+    private String ragRequestId;
+    public String getRagRequestId() { return ragRequestId; }
+    public void setRagRequestId(String value) { ragRequestId = value; }
+    private String ragStatus;
+    public String getRagStatus() { return ragStatus; }
+    public void setRagStatus(String value) { ragStatus = value; }
+    private Integer ragAttempt;
+    public Integer getRagAttempt() { return ragAttempt; }
+    public void setRagAttempt(Integer value) { ragAttempt = value; }
+
     public static ChatMessageVO from(ChatHistory chatHistory) {
-        return new ChatMessageVO(
+        ChatMessageVO result = new ChatMessageVO(
                 chatHistory.getRole(),
                 chatHistory.getMessageContent(),
                 chatHistory.getCreateTime()
         );
+        result.setRagRequestId(chatHistory.getRagRequestId());
+        result.setRagAttempt(chatHistory.getRagAttempt());
+        String status = chatHistory.getRagStatus();
+        if ("processing".equals(status) && chatHistory.getRagRetryAfter() != null
+                && !chatHistory.getRagRetryAfter().isAfter(LocalDateTime.now())) status = "interrupted";
+        result.setRagStatus(status);
+        return result;
     }
 
     public String getRole() {

@@ -41,6 +41,10 @@ export interface ConversationCreateResult {
 }
 
 export interface ChatMessage {
+  ragRequestId?: string
+  ragStatus?: 'processing' | 'failed' | 'completed' | 'interrupted' | 'uncertain'
+  ragAttempt?: number
+  ragDocumentIds?: number[]
   role: 'user' | 'assistant' | 'system'
   messageContent: string
   createTime: string
@@ -337,6 +341,8 @@ export interface RagSource {
 }
 
 export interface RagChatResult {
+  requestId?: string
+  attempt?: number
   conversationId: number
   answer: string
   sources: RagSource[]

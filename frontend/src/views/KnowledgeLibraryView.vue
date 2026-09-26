@@ -47,6 +47,7 @@
           />
           <div v-else class="message-bubble">{{ message.messageContent }}</div>
           <RagSources :sources="message.sources" />
+          <RagRetry :message="message" />
         </article>
       </div>
       <el-empty v-else description="创建资料会话后开始问答" :image-size="90" />
@@ -230,6 +231,7 @@ import type {
 } from '../types/domain'
 import { renderMarkdown } from '../utils/markdown'
 import RagSources from '../components/RagSources.vue'
+import RagRetry from '../components/RagRetry.vue'
 
 const workspaceStore = useWorkspaceStore()
 const router = useRouter()
@@ -516,8 +518,8 @@ async function sendRagQuestion() {
     if (!workspaceStore.currentConversationId) {
       return
     }
-    await workspaceStore.sendMessage(question)
     ragQuestion.value = ''
+    await workspaceStore.sendMessage(question)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '资料问答失败')
   } finally {

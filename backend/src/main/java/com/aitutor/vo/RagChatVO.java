@@ -4,6 +4,12 @@ import java.util.List;
 
 public class RagChatVO {
 
+    private String requestId;
+    private Integer attempt;
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String value) { requestId = value; }
+    public Integer getAttempt() { return attempt; }
+    public void setAttempt(Integer value) { attempt = value; }
     private Long conversationId;
     private String answer;
     private List<RagSourceVO> sources;

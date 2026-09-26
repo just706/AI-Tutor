@@ -13,6 +13,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -60,7 +63,21 @@ public class RagCitationService {
             }).toList());
             messages.add(message);
         }
-        return messages;
+        Map<String, ChatMessageVO> replies = new HashMap<>();
+        Set<String> questions = new HashSet<>();
+        for (ChatMessageVO message : messages) {
+            if (message.getRagRequestId() == null) continue;
+            if ("user".equals(message.getRole())) questions.add(message.getRagRequestId());
+            if ("assistant".equals(message.getRole())) replies.put(message.getRagRequestId(), message);
+        }
+        List<ChatMessageVO> ordered = new ArrayList<>();
+        for (ChatMessageVO message : messages) {
+            if ("assistant".equals(message.getRole()) && questions.contains(message.getRagRequestId())) continue;
+            ordered.add(message);
+            if ("user".equals(message.getRole()) && replies.containsKey(message.getRagRequestId()))
+                ordered.add(replies.get(message.getRagRequestId()));
+        }
+        return ordered;
     }
 
     private List<RagSourceVO> decode(String stored) {

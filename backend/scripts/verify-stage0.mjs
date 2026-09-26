@@ -2,11 +2,11 @@
 // 示例见 docs/Development.md。需要先构建后端 jar，并安装 MySQL 客户端。
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createServer as createTcpServer } from 'node:net';
 import { once } from 'node:events';
-import { createWriteStream, existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -60,6 +60,9 @@ function sql(statement, selectSchema = true) {
 const checks = [];
 const pass = name => { checks.push(name); console.log(`PASS ${name}`); };
 const modelRequests = [];
+let failNextRag = false;
+let modelGate;
+const browserFailureControl = path.join(outputDir, 'fail-next-rag');
 const textbook = 'ArrayList 基于动态数组，实现 List 接口，随机访问速度快，适合经常通过索引访问元素。LinkedList 基于双向链表，也实现 List 接口。ArrayList 和 LinkedList 都是 List 的常见实现类。';
 const mathTextbook = '导数表示函数的局部变化率。导数的用途是研究函数的变化趋势。积分表示累积量。积分的用途是计算曲线下方的面积。';
 const physicsTextbook = '牛顿第二定律描述力和加速度的关系。牛顿第二定律的适用条件包括惯性参考系。平均速度表示总位移与总时间的比值。瞬时速度描述某一时刻的运动状态。';
@@ -70,6 +73,16 @@ const modelServer = createServer(async (request, response) => {
     const payload = JSON.parse(body);
     const prompt = payload.messages.map(message => message.content).join('\n');
     modelRequests.push(prompt);
+    const isRag = !prompt.includes('个人知识图谱节点抽取助手') && !prompt.includes('个人知识图谱关系抽取助手');
+    if (isRag && modelGate) {
+      const gate = modelGate; modelGate = undefined; gate.started(); await gate.release;
+    }
+    if (isRag && (failNextRag || existsSync(browserFailureControl))) {
+      failNextRag = false;
+      if (existsSync(browserFailureControl)) unlinkSync(browserFailureControl);
+      response.writeHead(503, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: { message: 'synthetic model outage' } })); return;
+    }
     const indexes = [...prompt.matchAll(/\[chunkIndex=(\d+)\]/g)].map(match => Number(match[1]));
     const evidence = [indexes[0] ?? 0];
     let content;
@@ -142,12 +155,12 @@ try {
     'stage10-agent.sql', 'stage12-learning-session.sql', 'stage13-knowledge-map.sql',
     'stage14-learner-memory.sql', 'stage15-evaluation-governance.sql',
     'stage16-personal-graph.sql', 'stage17-async-personal-graph.sql', 'stage18-conversation-documents.sql',
-    'stage19-chat-rag-sources.sql',
+    'stage19-chat-rag-sources.sql', 'stage20-rag-retry.sql',
   ];
   for (const migration of migrations) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
   assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 20);
-  for (const migration of migrations.slice(-4)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  pass('17 个数据库脚本初始化；stage16 至 stage19 重复执行；20 张表');
+  for (const migration of migrations.slice(-5)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
+  pass('18 个数据库脚本初始化；stage16 至 stage20 重复执行；20 张表');
 
   modelServer.listen(0, '127.0.0.1');
   await once(modelServer, 'listening');
@@ -405,6 +418,90 @@ try {
   await api(`/conversations/${mathConversation.conversationId}/documents`, { token, method: 'PUT', body: { documentIds: [mathDocument.documentId] } });
   pass('物理教材：中文长名称与属性分别匹配、无依据拒答、跨会话隔离和同会话切换学科');
 
+
+  const retryConversation = await api('/conversations', { token, body: {
+    title: '重试验收', mode: 'rag', documentIds: [mathDocument.documentId] } });
+  const retryId = retryConversation.conversationId;
+  const retryHistory = () => api(`/conversations/${retryId}/messages`, { token });
+  await askSubject(retryId, '什么是导数？');
+  const retryQuestion = { conversationId: retryId, question: '它有什么用途？', requestId: randomUUID(), attempt: 1 };
+  failNextRag = true;
+  await api('/ai/rag/chat', { token, body: retryQuestion, code: 600 });
+  let failedHistory = await retryHistory();
+  assert.equal(failedHistory.at(-1).ragStatus, 'failed');
+  assert.equal(failedHistory.at(-1).ragAttempt, 1);
+  assert.equal(failedHistory.at(-1).ragRequestId, retryQuestion.requestId);
+  const afterFailure = modelRequests.length;
+  await api('/ai/rag/chat', { token, body: retryQuestion, code: 600 });
+  assert.equal(modelRequests.length, afterFailure);
+  assert.equal((await retryHistory()).length, failedHistory.length);
+  pass('模型失败后问题和状态持久化；重复失败提交不重复记录、不再次调用模型');
+
+  await api(`/conversations/${retryId}/documents`, { token, method: 'PUT', body: { documentIds: [physicsDocument.documentId] } });
+  await askSubject(retryId, '牛顿第二定律是什么？');
+  const recovered = await api('/ai/rag/chat', { token, body: { ...retryQuestion, attempt: 2 } });
+  assert(recovered.answer.startsWith('本次按“导数有什么用途？”'));
+  assert(recovered.sources.length > 0 && recovered.sources.every(source => source.documentId === mathDocument.documentId));
+  assert(modelRequests.at(-1).endsWith('导数有什么用途？'));
+  const recoveredHistory = await retryHistory();
+  const pair = recoveredHistory.filter(message => message.ragRequestId === retryQuestion.requestId);
+  assert.equal(pair.length, 2); assert.equal(pair[0].ragStatus, 'completed'); assert.equal(pair[0].ragAttempt, 2);
+  assert.equal(recoveredHistory[3].messageContent, recovered.answer);
+  assert.equal(recoveredHistory[4].messageContent, '牛顿第二定律是什么？');
+  const afterRecovery = modelRequests.length;
+  const replay = await api('/ai/rag/chat', { token, body: retryQuestion });
+  assert.deepEqual(replay, recovered); assert.equal(modelRequests.length, afterRecovery);
+  await api('/ai/rag/chat', { token, body: { ...retryQuestion, question: '积分是什么？' }, code: 409 });
+  await api('/ai/rag/chat', { token, body: { ...retryQuestion, documentIds: [physicsDocument.documentId] }, code: 409 });
+  await api('/ai/rag/chat', { token: otherToken, body: retryQuestion, code: 404 });
+  await api('/ai/rag/chat', { token, body: { ...retryQuestion, requestId: 'invalid-key' }, code: 400 });
+  pass('重试固定原教材及追问对象；迟到回答归位；成功重放、参数冲突与用户隔离');
+
+  const concurrentQuestion = { conversationId: retryId, question: '牛顿第二定律是什么？', requestId: randomUUID(), attempt: 1 };
+  let release;
+  const started = new Promise(resolve => { modelGate = { started: resolve, release: new Promise(r => { release = r; }) }; });
+  const inFlight = api('/ai/rag/chat', { token, body: concurrentQuestion });
+  try {
+    await Promise.race([started, delay(10000).then(() => { throw new Error('model gate was not reached'); })]);
+    const processing = (await retryHistory()).find(message => message.ragRequestId === concurrentQuestion.requestId);
+    assert.equal(processing.ragStatus, 'processing');
+    await api('/ai/rag/chat', { token, body: concurrentQuestion, code: 409 });
+    await api('/ai/rag/chat', { token, body: { ...concurrentQuestion, attempt: 2 }, code: 409 });
+  } finally { release(); }
+  await inFlight;
+  const concurrentReplayCount = modelRequests.length;
+  await Promise.all([api('/ai/rag/chat', { token, body: concurrentQuestion }), api('/ai/rag/chat', { token, body: concurrentQuestion })]);
+  assert.equal(modelRequests.length, concurrentReplayCount);
+  assert.equal((await retryHistory()).filter(message => message.ragRequestId === concurrentQuestion.requestId).length, 2);
+  pass('模型调用期间问题已可刷新读取；并发重复提交不增加模型调用；每个请求只有一问一答');
+
+  const interrupted = { conversationId: retryId, question: '牛顿第二定律是什么？', requestId: randomUUID(), attempt: 1 };
+  failNextRag = true;
+  await api('/ai/rag/chat', { token, body: interrupted, code: 600 });
+  // 仅在临时库模拟进程中断后的过期记录。
+  sql(`UPDATE chat_history SET rag_status='processing', rag_retry_after=DATE_SUB(NOW(), INTERVAL 1 SECOND)
+       WHERE conversation_id=${retryId} AND rag_request_id='${interrupted.requestId}' AND role='user';`);
+  assert.equal((await retryHistory()).find(message => message.ragRequestId === interrupted.requestId).ragStatus, 'interrupted');
+  await api('/ai/rag/chat', { token, body: { ...interrupted, attempt: 2 } });
+  assert.equal((await retryHistory()).filter(message => message.ragRequestId === interrupted.requestId).length, 2);
+  pass('过期处理中状态可恢复，重试完成后仍只保存一问一答');
+
+  const removedDocument = await upload(mathTextbook, 'retry-removed.txt', token);
+  await waitForExtraction(removedDocument.personalGraphExtractionId, token);
+  const removedQuestion = { conversationId: retryId, question: '什么是导数？', documentIds: [removedDocument.documentId], requestId: randomUUID(), attempt: 1 };
+  failNextRag = true;
+  await api('/ai/rag/chat', { token, body: removedQuestion, code: 600 });
+  await api(`/documents/${removedDocument.documentId}`, { token, method: 'DELETE' });
+  const beforeRemovedRetry = modelRequests.length;
+  await api('/ai/rag/chat', { token, body: { ...removedQuestion, attempt: 2 }, code: 404 });
+  assert.equal(modelRequests.length, beforeRemovedRetry);
+  assert.equal((await retryHistory()).find(message => message.ragRequestId === removedQuestion.requestId).ragAttempt, 1);
+  // NULL 旧消息保持可读，不冒充有状态的新请求。
+  sql(`INSERT INTO chat_history(user_id, conversation_id, role, message_content)
+       SELECT user_id, id, 'user', 'legacy question' FROM conversation WHERE id=${retryId};`);
+  assert.equal((await retryHistory()).at(-1).ragStatus, null);
+  pass('教材删除后重试拒绝越权或无依据调用；历史无状态消息兼容');
+
   if (options['hold-for-browser']) {
     const browserDocument = await upload(textbook, 'browser-collections.txt', token);
     await waitForExtraction(browserDocument.personalGraphExtractionId, token);
@@ -412,7 +509,7 @@ try {
     const finishPath = path.join(outputDir, `${schema}.browser-finished`);
     writeFileSync(path.join(outputDir, 'browser-fixture.json'), JSON.stringify({ apiBase, username: 'stage0_owner', password,
       conversationId: browserConversation.conversationId, documentId: browserDocument.documentId,
-      mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId, finishPath }, null, 2));
+      mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId, browserFailureControl, finishPath }, null, 2));
     console.log(`浏览器验收环境已就绪，临时账号与地址见 ${path.join(outputDir, 'browser-fixture.json')}。完成后创建该文件中 finishPath 指定的标记；30 分钟后自动清理。`);
     const deadline = Date.now() + 30 * 60 * 1000;
     while (!existsSync(finishPath) && Date.now() < deadline) await delay(500);

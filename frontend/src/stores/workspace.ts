@@ -117,15 +117,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       if (!conversationId || lifecycle !== lifecycleVersion) return
       const isRag = currentConversation.value?.mode === 'rag'
       if (isRag && !currentConversation.value?.documentIds?.length) throw new Error('请先为当前会话选择教材')
-      appendMessage('user', content)
       if (isRag) {
-        const result = await sendRagChat(conversationId, content)
-        if (currentConversationId.value === conversationId && lifecycle === lifecycleVersion) {
-          activeLearningSession.value = null
-          messages.value.push({ role: 'assistant', messageContent: result.answer,
-            createTime: new Date().toISOString(), sources: result.sources || [] })
-        }
+        const message: ChatMessage = { role: 'user', messageContent: content, createTime: new Date().toISOString(),
+          ragRequestId: crypto.randomUUID(), ragStatus: 'processing', ragAttempt: 1,
+          ragDocumentIds: [...(currentConversation.value?.documentIds || [])] }
+        messages.value.push(message)
+        await performRagRequest(conversationId, message, lifecycle)
       } else {
+        appendMessage('user', content)
         const result = await sendTutorAgentChat(conversationId, content, activeLearningSession.value?.id)
         if (currentConversationId.value === conversationId && lifecycle === lifecycleVersion) {
           activeLearningSession.value = result.learningSession || null
@@ -134,6 +133,68 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }
       if (lifecycle !== lifecycleVersion) return
       await loadConversations()
+    } finally {
+      sending.value = false
+    }
+  }
+
+
+  function isCurrent(conversationId: number, lifecycle: number) {
+    return currentConversationId.value === conversationId && lifecycle === lifecycleVersion
+  }
+
+  async function restoreRagRequest(conversationId: number, requestId: string, lifecycle: number) {
+    const history = await listMessages(conversationId)
+    const question = history.find(item => item.role === 'user' && item.ragRequestId === requestId)
+    if (question && isCurrent(conversationId, lifecycle)) messages.value = history
+    return question
+  }
+
+  async function performRagRequest(conversationId: number, message: ChatMessage, lifecycle: number) {
+    const key = message.ragRequestId!
+    try {
+      const result = await sendRagChat(conversationId, message.messageContent, message.ragDocumentIds, key, message.ragAttempt)
+      if (!isCurrent(conversationId, lifecycle)) return
+      const index = messages.value.findIndex(item => item.role === 'user' && item.ragRequestId === key)
+      if (index < 0) return
+      messages.value[index] = { ...messages.value[index], ragStatus: 'completed', ragAttempt: result.attempt || message.ragAttempt }
+      messages.value = messages.value.filter(item => !(item.role === 'assistant' && item.ragRequestId === key))
+      messages.value.splice(index + 1, 0, { role: 'assistant', messageContent: result.answer,
+        createTime: new Date().toISOString(), sources: result.sources || [], ragRequestId: key })
+      activeLearningSession.value = null
+    } catch (error) {
+      if (isCurrent(conversationId, lifecycle)) {
+        const question = messages.value.find(item => item.role === 'user' && item.ragRequestId === key)
+        if (question) question.ragStatus = 'uncertain'
+        try {
+          const saved = await restoreRagRequest(conversationId, key, lifecycle)
+          if (saved?.ragStatus === 'completed') return
+        } catch { /* 网络中断时保留原请求标识，下次先检查服务端状态。 */ }
+      }
+      throw error
+    }
+  }
+
+  async function retryRagMessage(message: ChatMessage) {
+    if (sending.value || loadingMessages.value || savingDocuments.value) throw new Error('请等待当前操作完成')
+    const conversationId = currentConversationId.value
+    if (!conversationId || currentConversation.value?.mode !== 'rag' || message.role !== 'user'
+        || !message.ragRequestId || !messages.value.some(item => item === message)) return
+    const lifecycle = lifecycleVersion
+    sending.value = true
+    try {
+      // 先确认是否已成功，断网不等于模型失败，不能盲目增加尝试次数。
+      const saved = await restoreRagRequest(conversationId, message.ragRequestId, lifecycle)
+      if (!isCurrent(conversationId, lifecycle)) return
+      if (saved?.ragStatus === 'completed' || saved?.ragStatus === 'processing') return
+      const retry = { ...(saved || message) }
+      if (saved?.ragStatus === 'failed' || saved?.ragStatus === 'interrupted') retry.ragAttempt = (saved.ragAttempt || 1) + 1
+      retry.ragStatus = 'processing'
+      const index = messages.value.findIndex(item => item.role === 'user' && item.ragRequestId === retry.ragRequestId)
+      if (index < 0) return
+      messages.value[index] = retry
+      await performRagRequest(conversationId, retry, lifecycle)
+      if (lifecycle === lifecycleVersion) await loadConversations()
     } finally {
       sending.value = false
     }
@@ -243,6 +304,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     addConversation,
     selectConversation,
     sendMessage,
+    retryRagMessage,
     setConversationDocuments,
     completeActiveLearningSession,
     appendMessage,
