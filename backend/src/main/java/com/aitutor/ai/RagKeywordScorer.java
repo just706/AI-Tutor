@@ -27,16 +27,20 @@ public final class RagKeywordScorer {
             "and", "or", "for", "does", "do", "please", "can", "should", "with", "when", "use");
     private static final double MIN_CHINESE_COVERAGE = 0.4;
     private static final double MIN_LATIN_COVERAGE = 0.5;
-    private static final Set<String> COMPARISON_TERMS = Set.of("区别", "比较", "对比", "不同", "相同", "同点", "异同", "差异", "差别");
-    private static final Pattern DESCRIPTION = Pattern.compile("基于|底层|使用|实现|支持|允许|具有|采用|存储|保存|适合|用于|属于|继承|提供|维护|数组|链表|哈希");
+    private static final Pattern COMPARISON = Pattern.compile("区别|比较|对比|不同|相同|异同|差异|差别");
+    private static final Pattern DESCRIPTION = Pattern.compile("是|为|表示|描述|衡量|用于|由|基于|具有|采用|实现|支持|包含|属于|反映|定义");
 
     private final Terms query;
+    private final RagQuestionParser.Question question;
+    private final Terms focus;
     private final Map<String, Terms> documents = new HashMap<>();
     private final Map<String, Double> inverseDocumentFrequency = new HashMap<>();
     private final double averageLength;
 
     public RagKeywordScorer(String question, List<String> texts) {
         query = tokenize(question);
+        this.question = RagQuestionParser.parse(question);
+        focus = tokenize(this.question.focus());
         double totalLength = 0;
         Map<String, Integer> documentFrequency = new HashMap<>();
         for (String text : texts) {
@@ -70,13 +74,16 @@ public final class RagKeywordScorer {
         double latinCoverage = coverage(latinMatches, query.latin().size());
         double chineseCoverage = coverage(chineseMatches, query.chinese().size());
 
-        // 比较是提问意图，不要求正文恰好出现“区别”；但仍须同时有双方名称与描述线索。
-        boolean genericComparison = query.latin().size() >= 2 && !query.chinese().isEmpty()
-                && COMPARISON_TERMS.containsAll(query.chinese());
-        if (genericComparison && latinCoverage < 1.0) return 0;
-        boolean descriptionFallback = genericComparison && chineseCoverage < MIN_CHINESE_COVERAGE
-                && DESCRIPTION.matcher(text).find();
-        if (descriptionFallback) chineseCoverage = 1.0;
+        // 对象和所问属性分别校验，避免长中文名称掩盖完全缺失的属性证据。
+        if (question.subjects().stream().anyMatch(name -> !RagQuestionParser.containsName(text, name))) return 0;
+        if (!question.subjects().isEmpty() && !question.comparison()
+                && (coverage(overlap(focus.latin(), document.latin()), focus.latin().size()) < MIN_LATIN_COVERAGE
+                || coverage(overlap(focus.chinese(), document.chinese()), focus.chinese().size()) < MIN_CHINESE_COVERAGE)) return 0;
+
+        // 比较意图与对象名称分离；相同规则适用于中文概念和英文名称。
+        boolean descriptionFallback = question.comparison() && !COMPARISON.matcher(text).find();
+        if (descriptionFallback && !DESCRIPTION.matcher(text).find()) return 0;
+        if (question.comparison()) chineseCoverage = 1.0;
 
         // A class name alone cannot support a missing Chinese topic (e.g. capacity growth).
         // Likewise a generic Chinese word cannot substitute for a missing class name.

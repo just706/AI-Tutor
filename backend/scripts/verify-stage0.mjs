@@ -61,6 +61,8 @@ const checks = [];
 const pass = name => { checks.push(name); console.log(`PASS ${name}`); };
 const modelRequests = [];
 const textbook = 'ArrayList 基于动态数组，实现 List 接口，随机访问速度快，适合经常通过索引访问元素。LinkedList 基于双向链表，也实现 List 接口。ArrayList 和 LinkedList 都是 List 的常见实现类。';
+const mathTextbook = '导数表示函数的局部变化率。导数的用途是研究函数的变化趋势。积分表示累积量。积分的用途是计算曲线下方的面积。';
+const physicsTextbook = '牛顿第二定律描述力和加速度的关系。牛顿第二定律的适用条件包括惯性参考系。平均速度表示总位移与总时间的比值。瞬时速度描述某一时刻的运动状态。';
 const modelServer = createServer(async (request, response) => {
   try {
     let body = '';
@@ -73,14 +75,17 @@ const modelServer = createServer(async (request, response) => {
     let content;
     if (prompt.includes('个人知识图谱节点抽取助手')) {
       assert.equal(payload.response_format?.type, 'json_object');
-      content = JSON.stringify({ nodes: [
+      content = JSON.stringify({ nodes: prompt.includes('ArrayList') ? [
         { name: 'ArrayList', description: '动态数组，索引访问快。', confidence: 95, evidenceChunkIndexes: evidence },
         { name: 'LinkedList', description: '双向链表。', confidence: 90, evidenceChunkIndexes: evidence },
-      ] });
+      ] : [] });
     } else if (prompt.includes('个人知识图谱关系抽取助手')) {
       assert.equal(payload.response_format?.type, 'json_object');
       content = JSON.stringify({ edges: [{ sourceName: 'ArrayList', targetName: 'LinkedList',
         relationType: 'related', relationReason: '都是 List 的实现。', confidence: 90, evidenceChunkIndexes: evidence }] });
+    } else if (prompt.includes(mathTextbook) || prompt.includes(physicsTextbook)) {
+      // 只验证证据和明确后的问题能到达模型，不冒充真实回答质量评测。
+      content = `${prompt.includes(mathTextbook) ? mathTextbook : physicsTextbook}参考来源：片段1。`;
     } else {
       assert(prompt.includes('ArrayList'), '教材证据没有进入模型请求。');
       content = '经常按下标读取元素，应该选 ArrayList。它基于动态数组，随机访问较快。参考来源：片段1。';
@@ -349,13 +354,65 @@ try {
   assert(deletedSources.every(source => source.available === false && source.fileName === null && source.snippet === null));
   pass('重处理不改写旧引用；切换教材不改写旧引用；删除后返回失效引用且隐藏原文');
 
+  const mathDocument = await upload(mathTextbook, 'calculus.txt', token);
+  const physicsDocument = await upload(physicsTextbook, 'mechanics.txt', token);
+  await waitForExtraction(mathDocument.personalGraphExtractionId, token);
+  await waitForExtraction(physicsDocument.personalGraphExtractionId, token);
+  const mathConversation = await api('/conversations', { token, body: {
+    title: '数学教材会话', mode: 'rag', documentIds: [mathDocument.documentId] } });
+  const physicsConversation = await api('/conversations', { token, body: {
+    title: '物理教材会话', mode: 'rag', documentIds: [physicsDocument.documentId] } });
+  const askSubject = (conversationId, question) => api('/ai/rag/chat', { token, body: { conversationId, question } });
+  assert((await askSubject(mathConversation.conversationId, '什么是导数？')).sources.length > 0);
+  const mathFollow = await askSubject(mathConversation.conversationId, '它有什么用途？');
+  assert(mathFollow.answer.startsWith('本次按“导数有什么用途？”理解你的追问。'));
+  assert(mathFollow.sources.every(source => source.documentId === mathDocument.documentId));
+  assert(mathFollow.sources.length > 0);
+  assert(modelRequests.at(-1).endsWith('导数有什么用途？'));
+  assert((await askSubject(mathConversation.conversationId, '导数和积分有什么区别？')).sources.length > 0);
+  const mathPair = await askSubject(mathConversation.conversationId, '那两个概念有什么区别？');
+  assert(mathPair.sources.length > 0);
+  assert(mathPair.answer.startsWith('本次按“导数 和 积分有什么区别？”理解你的追问。'));
+  const beforeMathAmbiguity = modelRequests.length;
+  assert((await askSubject(mathConversation.conversationId, '它有什么用途？')).answer.includes('请明确'));
+  assert.equal(modelRequests.length, beforeMathAmbiguity);
+  const mathHistory = await api(`/conversations/${mathConversation.conversationId}/messages`, { token });
+  assert.equal(mathHistory[2].messageContent, '它有什么用途？');
+  assert.deepEqual(mathHistory[3].sources, mathFollow.sources);
+  pass('数学教材：中文概念追问、两概念比较、歧义澄清及原问题和引用恢复');
+
+  const beforePhysicsContext = modelRequests.length;
+  const noPhysicsContext = await askSubject(physicsConversation.conversationId, '它是什么？');
+  assert(noPhysicsContext.answer.includes('请明确') && !noPhysicsContext.answer.includes('导数'));
+  assert.equal(modelRequests.length, beforePhysicsContext);
+  assert((await askSubject(physicsConversation.conversationId, '牛顿第二定律是什么？')).sources.length > 0);
+  const physicsFollow = await askSubject(physicsConversation.conversationId, '它的适用条件是什么？');
+  assert(physicsFollow.answer.startsWith('本次按“牛顿第二定律的适用条件是什么？”理解你的追问。'));
+  assert(physicsFollow.sources.length > 0);
+  assert(physicsFollow.sources.every(source => source.documentId === physicsDocument.documentId));
+  assert(modelRequests.at(-1).endsWith('牛顿第二定律的适用条件是什么？'));
+  const beforePhysicsRefusal = modelRequests.length;
+  const physicsRefusal = await askSubject(physicsConversation.conversationId, '它的发现年份是多少？');
+  assert(physicsRefusal.answer.includes('没有找到足够依据'));
+  assert.deepEqual(physicsRefusal.sources, []);
+  assert.equal(modelRequests.length, beforePhysicsRefusal);
+  await api(`/conversations/${mathConversation.conversationId}/documents`, { token, method: 'PUT', body: { documentIds: [physicsDocument.documentId] } });
+  await askSubject(mathConversation.conversationId, '什么是牛顿第二定律？');
+  const changedSubject = await askSubject(mathConversation.conversationId, '它的适用条件是什么？');
+  assert(changedSubject.sources.length > 0);
+  assert(changedSubject.sources.every(source => source.documentId === physicsDocument.documentId));
+  assert(changedSubject.answer.startsWith('本次按“牛顿第二定律的适用条件是什么？”理解你的追问。'));
+  await api(`/conversations/${mathConversation.conversationId}/documents`, { token, method: 'PUT', body: { documentIds: [mathDocument.documentId] } });
+  pass('物理教材：中文长名称与属性分别匹配、无依据拒答、跨会话隔离和同会话切换学科');
+
   if (options['hold-for-browser']) {
     const browserDocument = await upload(textbook, 'browser-collections.txt', token);
     await waitForExtraction(browserDocument.personalGraphExtractionId, token);
     const browserConversation = await api('/conversations', { token, body: { title: '浏览器教材会话', mode: 'rag', documentIds: [browserDocument.documentId] } });
     const finishPath = path.join(outputDir, `${schema}.browser-finished`);
     writeFileSync(path.join(outputDir, 'browser-fixture.json'), JSON.stringify({ apiBase, username: 'stage0_owner', password,
-      conversationId: browserConversation.conversationId, documentId: browserDocument.documentId, finishPath }, null, 2));
+      conversationId: browserConversation.conversationId, documentId: browserDocument.documentId,
+      mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId, finishPath }, null, 2));
     console.log(`浏览器验收环境已就绪，临时账号与地址见 ${path.join(outputDir, 'browser-fixture.json')}。完成后创建该文件中 finishPath 指定的标记；30 分钟后自动清理。`);
     const deadline = Date.now() + 30 * 60 * 1000;
     while (!existsSync(finishPath) && Date.now() < deadline) await delay(500);

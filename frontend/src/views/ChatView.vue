@@ -70,7 +70,7 @@
       <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list wide">
         <div v-if="workspaceStore.messages.length === 0" class="empty-chat">
           <h3>把问题交给 AI Tutor</h3>
-          <p v-if="isRagConversation">先选择教材，再输入具体问题，例如“ArrayList 和 LinkedList 有什么区别？”。</p>
+          <p v-if="isRagConversation">先选择教材，再围绕其中的概念提问。讨论过明确概念后，可以继续问“它有什么用途？”。</p>
           <p v-else>可以直接输入“我想学习 HashMap”，学习会话、图谱、练习和进度会在右侧自动承接。</p>
         </div>
 

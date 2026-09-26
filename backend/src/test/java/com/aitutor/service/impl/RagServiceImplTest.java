@@ -387,6 +387,35 @@ class RagServiceImplTest {
         value.setRole(role); value.setMessageContent(content); return value;
     }
 
+    @Test
+    void mathFollowUpRetrievesOnlyTheNamedSubjectAndIgnoresAssistantClaims() {
+        prepareDocuments();
+        when(historyMapper.selectList(any())).thenReturn(List.of(
+                history("assistant", "导数和积分都能用于任何计算，这是合成的错误回答。"), history("user", "什么是导数？")));
+        when(chunkMapper.selectList(any())).thenReturn(List.of(
+                chunk(0, "导数的用途是研究函数的局部变化率。"),
+                chunk(1, "积分的用途是计算累积量。")));
+        stubModel();
+        RagChatVO result = service.chat(request("它有什么用途？"));
+        assertEquals(1, result.getSources().size());
+        assertEquals(0, result.getSources().get(0).getChunkIndex());
+        verify(client).chat(sentMessages.capture());
+        assertEquals("导数有什么用途？", sentMessages.getValue().get(1).getContent());
+        assertFalse(sentMessages.getValue().get(0).getContent().contains("合成的错误回答"));
+    }
+
+    @Test
+    void physicsFollowUpDoesNotUseOnlyALongTopicNameAsEvidenceForAnUnsupportedDetail() {
+        prepareDocuments();
+        when(historyMapper.selectList(any())).thenReturn(List.of(history("user", "牛顿第二定律是什么？")));
+        lenient().when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(0, "牛顿第二定律描述力和加速度的关系。")));
+        RagChatVO result = service.chat(request("它的发现年份是多少？"));
+        assertTrue(result.getAnswer().startsWith("本次按“牛顿第二定律的发现年份是多少？”"));
+        assertTrue(result.getAnswer().contains("没有找到足够依据"));
+        assertTrue(result.getSources().isEmpty());
+        verifyNoInteractions(client);
+    }
+
     private void stubModel() {
         lenient().when(client.chat(any())).thenReturn(new AiChatResult("根据片段给出回答。", 10, 5));
         lenient().when(client.getModelName()).thenReturn("test-model");

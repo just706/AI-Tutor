@@ -24,7 +24,7 @@
           type="textarea"
           resize="none"
           :rows="5"
-          placeholder="基于已上传资料提问，例如：请总结 HashMap 的核心知识点..."
+          placeholder="输入教材中的概念名称和问题，例如：某概念有什么用途？"
         />
         <el-button type="primary" :icon="Promotion" :loading="ragSending"
           :disabled="loadingDocuments || !selectedDocumentIds.length || unavailableDocumentIds.length > 0 || workspaceStore.savingDocuments || workspaceStore.loadingMessages" @click="sendRagQuestion">
