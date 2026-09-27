@@ -41,6 +41,12 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RagServiceImplTest {
+    @org.junit.jupiter.api.BeforeAll
+    static void initializeHistoryMapping() {
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(new com.baomidou.mybatisplus.core.MybatisConfiguration(), "rag-test"),
+                ChatHistory.class);
+    }
     private static final String INDEX_ACCESS = "8.7 ArrayList 的性能特点\n"
             + "由于 ArrayList 底层类似数组，所以通过索引读取元素非常快。"
             + "ArrayList 随机访问的时间复杂度通常为 O(1)。"
@@ -533,6 +539,47 @@ class RagServiceImplTest {
         ChatHistory reply = history("assistant", "第一问的迟到回答"); reply.setRagRequestId("first");
         var messages = new RagCitationService(documentMapper, new ObjectMapper()).restoreMessages(7L, List.of(first, second, reply));
         assertEquals(List.of("第一问", "第一问的迟到回答", "第二问"), messages.stream().map(com.aitutor.vo.ChatMessageVO::getMessageContent).toList());
+    }
+
+    @Test
+    void separateQuestionsReserveEvidenceForEachPartWithinTopK() {
+        prepareDocuments(); stubModel(); properties.setTopK(2);
+        when(chunkMapper.selectList(any())).thenReturn(List.of(
+                chunk(0, "HashSet 判断自定义对象重复与 equals() 和 hashCode() 有关。"),
+                chunk(1, "HashSet 判断自定义对象重复要合理重写 equals() 和 hashCode()。"),
+                chunk(2, "遍历集合时安全删除元素可以使用 Iterator 的 remove()。")));
+        RagChatVO result = service.chat(request("HashSet 如何判断自定义对象重复？遍历集合时怎样安全删除元素？"));
+        assertEquals(2, result.getSources().size());
+        assertTrue(result.getSources().stream().anyMatch(source -> source.getChunkIndex() == 2));
+        assertTrue(result.getSources().stream().anyMatch(source -> source.getChunkIndex() < 2));
+    }
+
+    @Test
+    void missingOneExplicitQuestionDoesNotPretendToAnswerTheWholeRequest() {
+        prepareDocuments(); stubModel();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(0, "导数表示局部变化率。")));
+        assertTrue(service.chat(request("导数是什么？量子纠缠的测量误差是多少？")).getAnswer().contains("没有找到足够依据"));
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void aComparisonCanUseTwoSeparateDescriptiveChunks() {
+        prepareDocuments(); stubModel();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(
+                chunk(0, "机会成本是放弃的最佳替代选择的价值。"),
+                chunk(1, "沉没成本是已经发生且无法收回的支出。")));
+        var result = service.chat(request("机会成本与沉没成本有什么区别？"));
+        assertEquals(2, result.getSources().size());
+        assertEquals(java.util.Set.of(0, 1), result.getSources().stream().map(com.aitutor.vo.RagSourceVO::getChunkIndex).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void aSplitComparisonRequiresBothDescriptionsAndRoomInTheEvidenceBudget() {
+        prepareDocuments(); stubModel(); properties.setTopK(1);
+        when(chunkMapper.selectList(any())).thenReturn(List.of(
+                chunk(0, "机会成本表示放弃的最佳替代方案的价值。"), chunk(1, "沉没成本表示无法收回的既有支出。")));
+        assertTrue(service.chat(request("机会成本和沉没成本有什么区别？")).getSources().isEmpty());
+        verifyNoInteractions(client);
     }
 
     private void stubModel() {

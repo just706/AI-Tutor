@@ -15,13 +15,14 @@ public final class RagKeywordScorer {
     private static final Pattern TOKEN_PATTERN = Pattern.compile("[a-z0-9_$]+|[\\p{IsHan}]+");
     // Remove question boilerplate within Han runs only, without joining words across gaps.
     private static final List<String> QUESTION_WORDS = List.of(
-            "我指的是", "我说的是",
+            "我指的是", "我说的是", "会发生什么", "会怎样", "希望", "一个", "一份",
+            "较快", "较慢", "较高", "较低",
             "应该选哪一种", "应该选哪种", "哪一种", "哪一个",
             "为什么", "怎么样", "有什么", "是什么", "是多少", "什么时候",
             "请问", "介绍", "解释", "说明", "一下", "经常", "应该", "哪种", "哪个", "哪些",
             "什么", "怎么", "如何", "这些", "那些", "这个", "那个", "怎样", "能否",
             "是否", "可以", "需要", "通常", "时候",
-            "请", "的", "了", "吗", "呢", "和", "与", "或", "是", "按", "通过");
+            "请", "的", "了", "吗", "呢", "和", "与", "或", "是", "按", "通过", "只", "给", "再");
     private static final Set<String> ENGLISH_STOP_WORDS = Set.of(
             "the", "a", "an", "is", "are", "what", "which", "how", "why", "to", "of", "in", "on",
             "and", "or", "for", "does", "do", "please", "can", "should", "with", "when", "use");
@@ -33,18 +34,21 @@ public final class RagKeywordScorer {
     private final Terms query;
     private final RagQuestionParser.Question question;
     private final Terms focus;
+    private final boolean genericFeatures;
     private final Map<String, Terms> documents = new HashMap<>();
     private final Map<String, Double> inverseDocumentFrequency = new HashMap<>();
     private final double averageLength;
 
     public RagKeywordScorer(String question, List<String> texts) {
-        query = tokenize(question);
         this.question = RagQuestionParser.parse(question);
-        focus = tokenize(this.question.focus());
+        genericFeatures = !this.question.subjects().isEmpty()
+                && this.question.focus().matches("(?:的|有什么|有何)?(?:特点|特征)(?:是什么|有哪些)?");
+        query = tokenize(genericFeatures ? String.join(" ", this.question.subjects()) : question);
+        focus = tokenize(genericFeatures ? "" : this.question.focus());
         double totalLength = 0;
         Map<String, Integer> documentFrequency = new HashMap<>();
         for (String text : texts) {
-            Terms terms = tokenize(text);
+            Terms terms = tokenize(evidenceText(text));
             documents.put(text, terms);
             totalLength += terms.length();
             for (String term : terms.frequency().keySet()) {
@@ -75,14 +79,16 @@ public final class RagKeywordScorer {
         double chineseCoverage = coverage(chineseMatches, query.chinese().size());
 
         // 对象和所问属性分别校验，避免长中文名称掩盖完全缺失的属性证据。
-        if (question.subjects().stream().anyMatch(name -> !RagQuestionParser.containsName(text, name))) return 0;
+        String evidence = evidenceText(text);
+        if (question.subjects().stream().anyMatch(name -> !RagQuestionParser.containsName(evidence, name))) return 0;
+        if (genericFeatures && question.subjects().stream().anyMatch(name -> !describesSubject(text, name))) return 0;
         if (!question.subjects().isEmpty() && !question.comparison()
                 && (coverage(overlap(focus.latin(), document.latin()), focus.latin().size()) < MIN_LATIN_COVERAGE
                 || coverage(overlap(focus.chinese(), document.chinese()), focus.chinese().size()) < MIN_CHINESE_COVERAGE)) return 0;
 
         // 比较意图与对象名称分离；相同规则适用于中文概念和英文名称。
-        boolean descriptionFallback = question.comparison() && !COMPARISON.matcher(text).find();
-        if (descriptionFallback && !DESCRIPTION.matcher(text).find()) return 0;
+        boolean descriptionFallback = question.comparison() && !COMPARISON.matcher(evidence).find();
+        if (descriptionFallback && !DESCRIPTION.matcher(evidence).find()) return 0;
         if (question.comparison()) chineseCoverage = 1.0;
 
         // A class name alone cannot support a missing Chinese topic (e.g. capacity growth).
@@ -109,6 +115,21 @@ public final class RagKeywordScorer {
         return score;
     }
 
+    public static List<String> comparisonSubjects(String question) {
+        RagQuestionParser.Question parsed = RagQuestionParser.parse(question);
+        return parsed.comparison() ? parsed.subjects() : List.of();
+    }
+
+    public static boolean describesSubject(String text, String subject) {
+        return java.util.Arrays.stream(evidenceText(text).split("[。！？；;]"))
+                .anyMatch(sentence -> RagQuestionParser.containsName(sentence, subject) && DESCRIPTION.matcher(sentence).find());
+    }
+
+    private static String evidenceText(String text) {
+        // 思考题的重复问句不能增加答案证据的得分；展示及保存的引用仍保留原文。
+        return text.replaceAll("(?m)(?:^|(?<=[。！？?]))[^。！？?\\r\\n]*[？?]", " ");
+    }
+
     private static Terms tokenize(String value) {
         String normalized = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFKC)
                 .toLowerCase(Locale.ROOT);
@@ -126,7 +147,7 @@ public final class RagKeywordScorer {
                 continue;
             }
             // Keep the same normalization on the question and source text.
-            token = token.replace("下标", "索引").replace("读取", "访问");
+            token = token.replace("下标", "索引").replace("读取", "访问").replace("同一个", "相同");
             for (String word : QUESTION_WORDS) {
                 token = token.replace(word, " ");
             }

@@ -7,6 +7,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RagFollowUpResolverTest {
+    @Test void anUnmarkedStructuralAttributeAfterAReferenceKeepsTheNamedObject() {
+        var result = RagFollowUpResolver.resolve("后者底层是什么结构？", List.of("ArrayList 和 LinkedList 有什么区别？"));
+        assertNull(result.clarification());
+        assertEquals("LinkedList底层是什么结构？", result.question());
+    }
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = {
             "什么是导数？|它有什么用途？|导数有什么用途？",

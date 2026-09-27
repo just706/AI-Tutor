@@ -14,11 +14,11 @@ final class RagQuestionParser {
             Pattern.CASE_INSENSITIVE);
     private static final Pattern COMPARISON = Pattern.compile(
             "^(.+?)(?:有什么|有何|的)?(?:区别|差异|差别|异同|不同|相同点)(?:是什么|有哪些|在哪里|呢)?$");
-    private static final Pattern FOCUS = Pattern.compile("^(.+?)(的|在|有什么|有何|是什么|如何|怎么样|怎么)(.*)$");
+    private static final Pattern FOCUS = Pattern.compile("^(.+?)(的|在|有什么|有何|是什么|如何|怎么样|怎么|底层)(.*)$");
     private static final Pattern SEPARATOR = Pattern.compile("\\s*(?:和|与|及|、|\\band\\b|\\bversus\\b|\\bvs\\b)\\s*", Pattern.CASE_INSENSITIVE);
     private static final Pattern NAME = Pattern.compile("[\\p{L}\\p{N}_$+.#'’\\- ]{1,80}");
     private static final Pattern QUESTION_OR_CLAUSE = Pattern.compile(
-            "为什么|什么|怎么|如何|多少|哪里|是否|能否|应该|需要|可以|经常|方面|[的在吗呢]|^(?:今天|明天|昨天|现在|接下来|先|再|我|你)|\\b(?:how|why|does|do|should|can|please)\\b",
+            "为什么|什么|怎么|怎样|如何|多少|哪里|是否|能否|应该|需要|可以|经常|方面|时$|[的在吗呢]|^(?:今天|明天|昨天|现在|接下来|先|再|我|你)|\\b(?:how|why|does|do|should|can|please)\\b",
             Pattern.CASE_INSENSITIVE);
 
     private RagQuestionParser() { }

@@ -37,6 +37,9 @@ import java.util.Objects;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -264,14 +267,52 @@ public class RagServiceImpl implements RagService {
                 .orderByAsc(DocumentChunk::getDocumentId)
                 .orderByAsc(DocumentChunk::getChunkIndex));
 
-        RagKeywordScorer scorer = new RagKeywordScorer(question,
-                chunks.stream().map(DocumentChunk::getChunkText).toList());
+        List<String> parts = Arrays.stream(question.split("[？?；;]+"))
+                .map(String::trim).filter(part -> !part.isEmpty()).toList();
         int topK = normalizedTopK();
+        if (parts.size() > 4) return List.of();
+        List<List<ScoredChunk>> groups = new ArrayList<>();
+        for (String part : parts) {
+            List<ScoredChunk> candidates = rankChunks(part, chunks, documentMap, null);
+            if (!candidates.isEmpty()) {
+                groups.add(candidates);
+                continue;
+            }
+            // 双方分处不同片段时，各自必须有描述；不能只凭名单或另一方的资料补全比较。
+            List<String> subjects = RagKeywordScorer.comparisonSubjects(part);
+            if (subjects.size() != 2) return List.of();
+            for (String subject : subjects) {
+                List<ScoredChunk> descriptions = rankChunks(subject, chunks, documentMap, subject);
+                if (descriptions.isEmpty()) return List.of();
+                groups.add(descriptions);
+            }
+        }
+        Map<Long, ScoredChunk> selected = new LinkedHashMap<>();
+        // 先为每个子问题保留证据，再补充高分候选，避免一个问题占满全部引用位置。
+        for (List<ScoredChunk> group : groups) selected.putIfAbsent(group.get(0).chunk().getId(), group.get(0));
+        if (selected.size() > topK) return List.of();
+        for (int position = 1; selected.size() < topK; position++) {
+            boolean added = false;
+            for (List<ScoredChunk> group : groups) {
+                if (position >= group.size()) continue;
+                added = true;
+                ScoredChunk chunk = group.get(position);
+                selected.putIfAbsent(chunk.chunk().getId(), chunk);
+                if (selected.size() == topK) break;
+            }
+            if (!added) break;
+        }
+        return List.copyOf(selected.values());
+    }
+
+    private List<ScoredChunk> rankChunks(String question, List<DocumentChunk> chunks,
+                                        Map<Long, LearningDocument> documentMap, String requiredDescription) {
+        RagKeywordScorer scorer = new RagKeywordScorer(question, chunks.stream().map(DocumentChunk::getChunkText).toList());
         return chunks.stream()
+                .filter(chunk -> requiredDescription == null || RagKeywordScorer.describesSubject(chunk.getChunkText(), requiredDescription))
                 .map(chunk -> new ScoredChunk(chunk, documentMap.get(chunk.getDocumentId()), scorer.score(chunk.getChunkText())))
                 .filter(scored -> scored.score() > 0)
                 .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed())
-                .limit(topK)
                 .toList();
     }
 
