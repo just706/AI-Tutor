@@ -1,6 +1,8 @@
 package com.aitutor.service.impl;
 
 import com.aitutor.dto.AiChatRequest;
+import com.aitutor.ai.TutorChatPlan;
+import com.aitutor.ai.TutorTurnContext;
 import com.aitutor.entity.KnowledgePoint;
 import com.aitutor.mapper.KnowledgePointMapper;
 import com.aitutor.service.AiChatService;
@@ -52,14 +54,24 @@ public class TutorOrchestratorServiceImpl implements TutorOrchestratorService {
 
     @Override
     public OrchestratorChatVO chat(AiChatRequest request) {
-        // MVP orchestration reuses normal AI chat, then adds confirmable learning actions.
-        AiChatVO chat = aiChatService.chat(request);
-        KnowledgePoint matchedPoint = findMatchedKnowledgePoint(request.getMessage());
-        String intent = detectIntent(request.getMessage(), matchedPoint);
-        String topic = extractTopic(request.getMessage(), matchedPoint);
+        return chat(request, plan(request.getMessage()), null);
+    }
+
+    @Override
+    public TutorChatPlan plan(String message) {
+        KnowledgePoint matchedPoint = findMatchedKnowledgePoint(message);
+        String intent = detectIntent(message, matchedPoint);
+        String topic = extractTopic(message, matchedPoint);
         List<OrchestratorActionVO> actions = buildActions(intent, matchedPoint, topic);
         KnowledgePointVO pointVO = matchedPoint == null ? null : KnowledgePointVO.from(matchedPoint);
-        return new OrchestratorChatVO(chat.getAnswer(), intent, pointVO, actions);
+        return new TutorChatPlan(intent, pointVO, actions);
+    }
+
+    @Override
+    public OrchestratorChatVO chat(AiChatRequest request, TutorChatPlan plan, TutorTurnContext context) {
+        // 教师复用已确定的计划，同一次模型调用仍由普通聊天服务负责历史及调用记录。
+        AiChatVO chat = aiChatService.chat(request, context);
+        return new OrchestratorChatVO(chat.getAnswer(), plan.intent(), plan.matchedKnowledgePoint(), plan.actions());
     }
 
     private KnowledgePoint findMatchedKnowledgePoint(String message) {

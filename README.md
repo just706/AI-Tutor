@@ -13,7 +13,7 @@
 | 表、索引和脚本顺序 | [docs/Database.md](docs/Database.md) |
 | 整体开发路线、当前进度、阶段验收与本地开发 | [docs/Development.md](docs/Development.md) |
 
-整体规划统一维护在 [Development 的总体路线](docs/Development.md#总体路线与当前进度)。阶段 0、阶段 1 已验收：教材问答已统一入口、保存会话教材和回答引用，支持跨学科的简单连续追问、失败恢复与重试。[20 道主测题及 12 道补充题](backend/evaluation/stage1-cases.json) 已完成真实模型逐题审阅；自动检查 31/32，另 1 题确认为措辞误报并保留复核理由，详见 [评测记录](backend/evaluation/stage1-results.json)。下一项是阶段 2 的“教学策略在回答生成前生效”。Java 入门教材是教学闭环的首批试点；教材问答不依赖 Java 概念名单，数学、物理、经济学及自定义概念共用检索规则。Python / LangGraph 等架构方案按评测结果决定是否采用。
+整体规划统一维护在 [Development 的总体路线](docs/Development.md#总体路线与当前进度)。阶段 0、阶段 1 已验收：教材问答已统一入口、保存会话教材和回答引用，支持跨学科的简单连续追问、失败恢复与重试。[20 道主测题及 12 道补充题](backend/evaluation/stage1-cases.json) 已完成真实模型逐题审阅；自动检查 31/32，另 1 题确认为措辞误报并保留复核理由，详见 [评测记录](backend/evaluation/stage1-results.json)。阶段 2 进行中：“教学策略在回答生成前生效”已完成，下一项是控制诊断、讲解、检查、练习和反馈的状态迁移。Java 入门教材是教学闭环的首批试点；教材问答不依赖 Java 概念名单，数学、物理、经济学及自定义概念共用检索规则。Python / LangGraph 等架构方案按评测结果决定是否采用。
 
 历史方案和阶段记录放在 `docs/archive/2026-09-21/`，只用于追溯背景，不作为当前实现或验收依据。
 

@@ -1,4 +1,4 @@
-// 阶段 0 接口验收：使用临时 MySQL 库和本地模型替身，不调用真实模型。
+// 接口验收默认使用临时 MySQL 库和本地模型替身；teacher-model=real 仅评测自编教师问题。
 // 示例见 docs/Development.md。需要先构建后端 jar，并安装 MySQL 客户端。
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -19,16 +19,20 @@ const { values: options } = parseArgs({ options: {
   'mysql-bin': { type: 'string', default: 'mysql' },
   'java-bin': { type: 'string', default: 'java' },
   'hold-for-browser': { type: 'boolean', default: false },
+  'teacher-model': { type: 'string', default: 'stub' },
 } });
 assert(options['output-dir'], '必须指定 --output-dir，日志和临时上传文件应保存在源码仓库外。');
 const projectRoot = path.resolve(options['project-root']);
 const outputDir = path.resolve(options['output-dir']);
+const outputRelative = path.relative(projectRoot, outputDir);
+assert(outputRelative.startsWith('..' + path.sep) || path.isAbsolute(outputRelative), '输出目录必须在源码仓库外。');
+assert(!existsSync(path.join(outputDir,'result.json')), '输出目录已有验收结果，请使用新目录。');
 const backendRoot = path.join(projectRoot, 'backend');
 const jarPath = path.join(backendRoot, 'target/ai-tutor-backend-0.0.1-SNAPSHOT.jar');
 assert(existsSync(jarPath), '请先执行后端 verify，生成可运行 jar。');
 mkdirSync(outputDir, { recursive: true });
 
-// 只读取数据库连接参数；凭据不进入命令行或验收报告。
+// 读取运行配置；凭据不进入命令行或验收报告。
 const config = {};
 if (options['env-file']) {
   for (const line of readFileSync(options['env-file'], 'utf8').split(/\r?\n/)) {
@@ -37,6 +41,16 @@ if (options['env-file']) {
   }
 }
 const setting = (name, fallback) => process.env[name] ?? config[name] ?? fallback;
+assert(['stub','real'].includes(options['teacher-model']));
+const realTeacher = options['teacher-model'] === 'real';
+const teacherModel = setting('DEEPSEEK_MODEL_NAME','deepseek-v4-flash');
+const teacherKey = setting('DEEPSEEK_API_KEY','');
+const teacherProvider = new URL(setting('DEEPSEEK_BASE_URL','https://api.deepseek.com'));
+if(realTeacher) {
+  assert(teacherKey, '真实模型密钥未配置');
+  assert.equal(teacherProvider.origin,'https://api.deepseek.com');
+  assert(!teacherProvider.username && !teacherProvider.password && !teacherProvider.search && !teacherProvider.hash);
+}
 const configuredUrl = setting('SPRING_DATASOURCE_URL', 'jdbc:mysql://localhost:3306/ai_tutor');
 const dbUrl = new URL(configuredUrl.replace(/^jdbc:/, '').replace(/^mysql:/, 'http:'));
 assert(['localhost', '127.0.0.1'].includes(dbUrl.hostname), '验收脚本仅允许连接本机 MySQL。');
@@ -60,6 +74,8 @@ function sql(statement, selectSchema = true) {
 const checks = [];
 const pass = name => { checks.push(name); console.log(`PASS ${name}`); };
 const modelRequests = [];
+const teacherRequests = [];
+let realTeacherCalls = 0;
 let failNextRag = false;
 let modelGate;
 const browserFailureControl = path.join(outputDir, 'fail-next-rag');
@@ -96,6 +112,35 @@ const modelServer = createServer(async (request, response) => {
       assert.equal(payload.response_format?.type, 'json_object');
       content = JSON.stringify({ edges: [{ sourceName: 'ArrayList', targetName: 'LinkedList',
         relationType: 'related', relationReason: '都是 List 的实现。', confidence: 90, evidenceChunkIndexes: evidence }] });
+    } else if (payload.messages.some(message => message.role === 'system' && message.content.startsWith('{'))) {
+      const context = JSON.parse(payload.messages.find(message => message.role === 'system' && message.content.startsWith('{')).content);
+      assert(context.teachingStrategy && context.intent && Array.isArray(context.strategySource));
+      const record = { context, messages: payload.messages, requestedModel:payload.model, startedAt:new Date().toISOString() };
+      teacherRequests.push(record);
+      const replies = {
+        concept_first: '先理解导数表示局部变化率，再用一个问题检查理解。',
+        example_first: '先看一个例子：观察某一时刻的速度，再理解局部变化率。',
+        source_code_first: '先检查给出的实现流程；没有具体源码时不猜测版本细节。',
+        prerequisite_first: '先回顾函数这一前置知识，再回到导数的变化率。',
+        practice_first: '请先完成一道练习：用自己的话说明局部变化率，回答后再反馈。',
+        debug_misconception: '先定位困难：你卡在函数取值，还是变化率的含义？',
+        summary_review: '回顾核心要点：导数描述局部变化率，接下来检查理解。'
+      };
+      assert(replies[context.teachingStrategy]);
+      content = replies[context.teachingStrategy];
+      if(realTeacher) {
+        assert(realTeacherCalls < 16, '教师真实模型验收单次最多16次调用'); realTeacherCalls++;
+        const upstream = await fetch(teacherProvider.href.replace(/\/$/,'')+'/chat/completions', {
+          method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+teacherKey},
+          body:JSON.stringify(payload),signal:AbortSignal.timeout(60000),redirect:'error'
+        });
+        assert(upstream.ok, '教师模型返回非成功状态：'+upstream.status);
+        const result = await upstream.json();
+        content = result.choices?.[0]?.message?.content;
+        assert(typeof content === 'string' && content.trim(), '教师模型未返回回答');
+        record.responseModel = result.model; record.usage = result.usage;
+      }
+      record.answer = content; record.finishedAt = new Date().toISOString();
     } else if (prompt.includes(mathTextbook) || prompt.includes(physicsTextbook)) {
       // 只验证证据和明确后的问题能到达模型，不冒充真实回答质量评测。
       content = `${prompt.includes(mathTextbook) ? mathTextbook : physicsTextbook}参考来源：片段1。`;
@@ -107,7 +152,7 @@ const modelServer = createServer(async (request, response) => {
     response.end(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 20, completion_tokens: 10 } }));
   } catch (error) {
     response.writeHead(400, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ error: { message: error.message } }));
+    response.end(JSON.stringify({ error: { message: 'verification model failure' } }));
   }
 });
 let javaProcess;
@@ -123,7 +168,7 @@ const api = async (route, { token, body, method = body === undefined ? 'GET' : '
     method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(!form && body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
     body: body === undefined ? undefined : form ? body : JSON.stringify(body),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(realTeacher ? 90000 : 30000),
   });
   const result = await response.json();
   assert.equal(result.code, code, `${method} ${route}: ${result.message}`);
@@ -180,7 +225,7 @@ try {
       JWT_SECRET: randomBytes(48).toString('hex'), RAG_STORAGE_DIR: path.join(outputDir, 'uploads'),
       RAG_CHUNK_SIZE: '800', RAG_CHUNK_OVERLAP: '120', RAG_TOP_K: '4',
       DEEPSEEK_BASE_URL: `http://127.0.0.1:${modelPort}`, DEEPSEEK_API_KEY: 'local-verification-only',
-      DEEPSEEK_MODEL_NAME: 'local-verification', DEEPSEEK_TIMEOUT_MS: '5000' },
+      DEEPSEEK_MODEL_NAME: realTeacher ? teacherModel : 'local-verification', DEEPSEEK_TIMEOUT_MS: realTeacher ? '60000' : '5000' },
   });
   javaProcess.stdout.pipe(backendLog, { end: false });
   javaProcess.stderr.pipe(backendLog, { end: false });
@@ -502,6 +547,83 @@ try {
   assert.equal((await retryHistory()).at(-1).ragStatus, null);
   pass('教材删除后重试拒绝越权或无依据调用；历史无状态消息兼容');
 
+  // 合成数学知识点只存在于本次临时库，用于验证策略不依赖 Java 名单。
+  sql("INSERT INTO knowledge_point(subject,name,sort_order) VALUES ('数学','函数',1),('数学','导数',2);");
+  sql("INSERT INTO knowledge_map_dependency(prerequisite_point_id,dependent_point_id,relation_reason) SELECT a.id,b.id,'先理解函数再研究变化率' FROM knowledge_point a JOIN knowledge_point b ON b.subject=a.subject WHERE a.subject='数学' AND a.name='函数' AND b.name='导数';");
+  const strategyCases = [
+    ['解释导数的含义','concept_first','learn','核心概念'],
+    ['举个例子解释导数','example_first','learn','例子'],
+    ['导数在这段源码里如何计算','source_code_first','learn','源码'],
+    ['补基础，导数的前置知识是什么','prerequisite_first','learn','前置知识'],
+    ['给我一道导数练习','practice_first','practice','不要提前给出答案'],
+    ['导数我还是不懂','debug_misconception','concept_difficulty','误区'],
+    ['复盘导数','summary_review','analysis','核心要点']
+  ];
+  const strategyConversations = {};
+  for (const [message,strategy,intent,instruction] of strategyCases) {
+    const conversation = await api('/conversations', {token,body:{title:'策略验收 '+strategy,mode:'chat'}});
+    const before = modelRequests.length;
+    const response = await api('/tutor-agent/chat', {token,body:{conversationId:conversation.conversationId,message,
+      teachingStrategy:'client_must_not_control_strategy'}});
+    assert.equal(modelRequests.length,before+1);
+    const sent = teacherRequests.at(-1);
+    assert.equal(sent.context.teachingStrategy,strategy);
+    assert.equal(sent.context.intent,intent);
+    assert.equal(sent.context.topic,'导数');
+    assert(sent.messages[0].content.includes(instruction));
+    assert.equal(sent.messages.filter(item=>item.role==='user' && item.content===message).length,1);
+    assert(sent.context.knowledgeMap.unmetPrerequisites.some(item=>item.knowledgePointName==='函数'));
+    assert.equal(response.teachingStrategy,strategy);
+    assert.equal(response.learningSession.teachingStrategy,strategy);
+    assert.equal(response.intent,intent);
+    assert.equal(response.learningSession.nextAction,sent.context.nextAction);
+    assert.deepEqual(response.strategySource,sent.context.strategySource);
+    const active = await api('/learning-sessions/active?conversationId='+conversation.conversationId,{token});
+    assert.equal(active.teachingStrategy,strategy);
+    assert.deepEqual(active.strategySource,response.strategySource);
+    const history = await api('/conversations/'+conversation.conversationId+'/messages',{token});
+    assert.equal(history.length,2); assert.equal(history[1].messageContent,response.answer);
+    assert.equal(sql(`SELECT teaching_strategy FROM learning_session_step WHERE session_id=${active.id} ORDER BY id DESC LIMIT 1;`),strategy);
+    assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_session_step s JOIN chat_history h ON h.conversation_id=s.conversation_id AND h.role='assistant' AND h.message_content=s.agent_response WHERE s.session_id=${active.id};`)),1);
+    strategyConversations[strategy] = {conversationId:conversation.conversationId,learningSessionId:active.id};
+  }
+  pass('七种教师策略及数学前置知识进入同一次模型请求；页面响应、学习步骤、聊天历史与刷新读取一致；客户端不能指定策略');
+
+  const difficulty = strategyConversations.debug_misconception;
+  const repeated = await api('/tutor-agent/chat',{token,body:{...difficulty,message:'我还是不懂'}});
+  assert.equal(repeated.teachingStrategy,'prerequisite_first');
+  assert.equal(teacherRequests.at(-1).context.topic,'导数');
+  assert(teacherRequests.at(-1).context.nextAction.includes('函数'));
+  const customConversation = await api('/conversations',{token,body:{title:'自定义主题策略',mode:'chat'}});
+  const customResponse = await api('/tutor-agent/chat',{token,body:{conversationId:customConversation.conversationId,message:'举个例子解释星云投影'}});
+  assert.equal(customResponse.teachingStrategy,'example_first');
+  assert(teacherRequests.at(-1).context.topic.includes('星云投影'));
+  assert.equal(teacherRequests.at(-1).context.knowledgeMap.knowledgePointId,null);
+  assert.deepEqual(teacherRequests.at(-1).context.knowledgeMap.unmetPrerequisites,[]);
+  pass('连续困难反馈沿用当前主题并先补前置知识；未收录的自定义主题仍可选择策略，不虚构知识地图');
+
+  const beforeInvalid = modelRequests.length;
+  await api('/tutor-agent/chat',{token,body:{conversationId:customConversation.conversationId,learningSessionId:difficulty.learningSessionId,message:'解释导数'},code:404});
+  await api('/tutor-agent/chat',{token:otherToken,body:{...difficulty,message:'解释导数'},code:404});
+  assert.equal(modelRequests.length,beforeInvalid);
+  const failedConversation = await api('/conversations',{token,body:{title:'教师失败回滚',mode:'chat'}});
+  failNextRag = true;
+  await api('/tutor-agent/chat',{token,body:{conversationId:failedConversation.conversationId,message:'举个例子解释导数'},code:600});
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_session WHERE conversation_id=${failedConversation.conversationId};`)),0);
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_session_step WHERE conversation_id=${failedConversation.conversationId};`)),0);
+  assert.deepEqual(await api('/conversations/'+failedConversation.conversationId+'/messages',{token}),[]);
+  pass('无效学习会话与他人会话在模型调用前拒绝；教师生成失败时事务回滚，不保留成功策略或步骤');
+
+  for(const route of ['/ai/chat','/ai/orchestrator/chat']) {
+    const conversation = await api('/conversations',{token,body:{title:'普通聊天兼容',mode:'chat'}});
+    const before = teacherRequests.length;
+    const response = await api(route,{token,body:{conversationId:conversation.conversationId,message:'解释 ArrayList'}});
+    assert(response.answer.includes('ArrayList')); assert.equal(teacherRequests.length,before);
+    assert.equal((await api('/conversations/'+conversation.conversationId+'/messages',{token})).length,2);
+  }
+  writeFileSync(path.join(outputDir,'teacher-requests.json'),JSON.stringify(teacherRequests,null,2));
+  pass('普通聊天与原编排接口保持兼容；教材问答继续使用独立证据流程');
+
   if (options['hold-for-browser']) {
     const browserDocument = await upload(textbook, 'browser-collections.txt', token);
     await waitForExtraction(browserDocument.personalGraphExtractionId, token);
@@ -509,7 +631,8 @@ try {
     const finishPath = path.join(outputDir, `${schema}.browser-finished`);
     writeFileSync(path.join(outputDir, 'browser-fixture.json'), JSON.stringify({ apiBase, username: 'stage0_owner', password,
       conversationId: browserConversation.conversationId, documentId: browserDocument.documentId,
-      mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId, browserFailureControl, finishPath }, null, 2));
+      mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId,
+      strategyConversations, browserFailureControl, finishPath }, null, 2));
     console.log(`浏览器验收环境已就绪，临时账号与地址见 ${path.join(outputDir, 'browser-fixture.json')}。完成后创建该文件中 finishPath 指定的标记；30 分钟后自动清理。`);
     const deadline = Date.now() + 30 * 60 * 1000;
     while (!existsSync(finishPath) && Date.now() < deadline) await delay(500);
@@ -517,6 +640,7 @@ try {
 } catch (error) {
   failure = error;
 } finally {
+  writeFileSync(path.join(outputDir,'teacher-requests.json'),JSON.stringify(teacherRequests,null,2));
   if (javaProcess?.pid && javaProcess.exitCode === null) {
     javaProcess.kill();
     await javaExited;
@@ -531,7 +655,8 @@ try {
     catch (error) { failure ??= error; }
   }
   writeFileSync(path.join(outputDir, 'result.json'), JSON.stringify({
-    passed: !failure, checks, model: 'local deterministic stub; not a model-quality evaluation',
+    passed: !failure, checks, model: realTeacher ? teacherModel : 'local deterministic stub; not a model-quality evaluation',
+    teacherModelMode:options['teacher-model'],realTeacherCalls,requiresTeacherAnswerReview:realTeacher,
     temporaryDatabase: schema, cleanup: databaseCreated ? (databaseRemoved ? 'removed' : 'failed') : 'not needed',
     error: failure?.message, time: new Date().toISOString(),
   }, null, 2));

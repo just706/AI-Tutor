@@ -1,6 +1,8 @@
 package com.aitutor.service.impl;
 
 import com.aitutor.dto.AiChatRequest;
+import com.aitutor.ai.TutorChatPlan;
+import com.aitutor.ai.TutorTurnContext;
 import com.aitutor.dto.TutorAgentChatRequest;
 import com.aitutor.entity.Conversation;
 import com.aitutor.entity.LearningSession;
@@ -96,10 +98,10 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         AiChatRequest chatRequest = new AiChatRequest();
         chatRequest.setConversationId(conversation.getId());
         chatRequest.setMessage(request.getMessage());
-        OrchestratorChatVO orchestratorResult = tutorOrchestratorService.chat(chatRequest);
+        TutorChatPlan plan = tutorOrchestratorService.plan(request.getMessage());
 
-        String intent = normalizeIntent(orchestratorResult.getIntent(), request.getMessage());
-        String detectedTopic = resolveTopic(orchestratorResult.getMatchedKnowledgePoint(), request.getMessage());
+        String intent = normalizeIntent(plan.intent(), request.getMessage());
+        String detectedTopic = resolveTopic(plan.matchedKnowledgePoint(), request.getMessage());
         String previousStatus;
         LearningSession session = findOrCreateSession(userId, conversation.getId(), request.getLearningSessionId(), intent, detectedTopic);
         String topic = resolveEffectiveTopic(session, intent, detectedTopic);
@@ -111,6 +113,10 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         KnowledgeMapContextVO knowledgeMapContext = knowledgeMapService.resolve(userId, topic);
         TeachingStrategyDecisionVO strategyDecision = teachingStrategyService.decide(
                 intent, request.getMessage(), session, topic, recentStep, knowledgeMapContext);
+
+        TutorTurnContext context = new TutorTurnContext(intent, topic, strategyDecision.getTeachingStrategy(),
+                strategyDecision.getNextAction(), strategyDecision.getStrategySource(), knowledgeMapContext);
+        OrchestratorChatVO orchestratorResult = tutorOrchestratorService.chat(chatRequest, plan, context);
 
         updateSession(session, intent, topic, nextStatus, stepType, strategyDecision.getTeachingStrategy(),
                 strategyDecision.getNextAction());

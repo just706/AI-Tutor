@@ -3,6 +3,7 @@ package com.aitutor.service.impl;
 import com.aitutor.ai.AiChatResult;
 import com.aitutor.ai.AiMessage;
 import com.aitutor.ai.AiPromptBuilder;
+import com.aitutor.ai.TutorTurnContext;
 import com.aitutor.ai.DeepSeekClient;
 import com.aitutor.ai.DeepSeekProperties;
 import com.aitutor.dto.AiChatRequest;
@@ -67,6 +68,11 @@ public class AiChatServiceImpl implements AiChatService {
 
     @Override
     public AiChatVO chat(AiChatRequest request) {
+        return chat(request, null);
+    }
+
+    @Override
+    public AiChatVO chat(AiChatRequest request, TutorTurnContext context) {
         Long userId = UserContext.getRequired().getId();
         Conversation conversation = requireOwnedConversation(userId, request.getConversationId());
         String userMessage = request.getMessage().trim();
@@ -75,7 +81,7 @@ public class AiChatServiceImpl implements AiChatService {
         saveMessage(userId, conversation.getId(), ROLE_USER, userMessage);
 
         StudentProfile profile = findProfile(userId);
-        List<AiMessage> messages = buildMessages(profile, userId, conversation.getId());
+        List<AiMessage> messages = buildMessages(profile, userId, conversation.getId(), context);
 
         long requestStartedAt = System.nanoTime();
         try {
@@ -109,9 +115,10 @@ public class AiChatServiceImpl implements AiChatService {
                 .last("LIMIT 1"));
     }
 
-    private List<AiMessage> buildMessages(StudentProfile profile, Long userId, Long conversationId) {
+    private List<AiMessage> buildMessages(StudentProfile profile, Long userId, Long conversationId, TutorTurnContext context) {
         List<AiMessage> messages = new ArrayList<>();
-        messages.add(new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildTutorPrompt(profile)));
+        messages.add(new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildTutorPrompt(profile, context)));
+        if (context != null) messages.add(new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildTutorTurnContext(context)));
         List<LearnerMemory> memories = learnerMemoryService.getActiveMemories(userId);
         String memoryContext = aiPromptBuilder.buildLearnerMemoryContext(memories);
         if (!memoryContext.isBlank()) {
