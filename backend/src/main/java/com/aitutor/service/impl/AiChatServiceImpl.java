@@ -109,6 +109,37 @@ public class AiChatServiceImpl implements AiChatService {
         return conversation;
     }
 
+    @Override
+    public com.aitutor.ai.TutorLearningFlow.Lesson generateLesson(String topic, String source) {
+        Long userId = UserContext.getRequired().getId();
+        long started = System.nanoTime();
+        try {
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String data = mapper.writeValueAsString(java.util.Map.of("topic", topic, "source", source));
+            AiChatResult result = deepSeekClient.chatJson(List.of(new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildLessonPrompt()),
+                    new AiMessage(ROLE_USER, data)));
+            var json = mapper.readTree(result.getContent());
+            if (!json.path("supported").asBoolean(false)) throw new BusinessException(400, "资料不足，请补充该主题的定义、例子或教材片段。");
+            var lesson = mapper.treeToValue(json.path("lesson"), com.aitutor.ai.TutorLearningFlow.Lesson.class);
+            com.aitutor.ai.TutorLearningFlow.validate(lesson);
+            saveAiCallLog(userId, result.getPromptTokens(), result.getCompletionTokens(), "success", null,
+                    elapsedMilliseconds(started), "tutor_lesson");
+            return lesson;
+        } catch (BusinessException ex) { throw ex; }
+        catch (Exception ex) {
+            throw new AiServiceException("教学内容生成失败，请重试；原学习进度已保留。");
+        }
+    }
+
+    @Override
+    public void recordExchange(Long conversationId, String message, String answer) {
+        Long userId = UserContext.getRequired().getId();
+        requireOwnedConversation(userId, conversationId);
+        saveMessage(userId, conversationId, ROLE_USER, message);
+        saveMessage(userId, conversationId, ROLE_ASSISTANT, answer);
+        touchConversation(conversationId);
+    }
+
     private StudentProfile findProfile(Long userId) {
         return studentProfileMapper.selectOne(new LambdaQueryWrapper<StudentProfile>()
                 .eq(StudentProfile::getUserId, userId)
@@ -173,11 +204,16 @@ public class AiChatServiceImpl implements AiChatService {
                                String status,
                                String errorMessage,
                                int durationMs) {
+        saveAiCallLog(userId, promptTokens, completionTokens, status, errorMessage, durationMs, REQUEST_TYPE_CHAT);
+    }
+
+    private void saveAiCallLog(Long userId, Integer promptTokens, Integer completionTokens,
+                               String status, String errorMessage, int durationMs, String requestType) {
         AiCallLog log = new AiCallLog();
         log.setUserId(userId);
         log.setProvider(PROVIDER_DEEPSEEK);
         log.setModelName(deepSeekClient.getModelName());
-        log.setRequestType(REQUEST_TYPE_CHAT);
+        log.setRequestType(requestType);
         log.setDurationMs(durationMs);
         log.setPromptTokens(promptTokens == null ? 0 : promptTokens);
         log.setCompletionTokens(completionTokens == null ? 0 : completionTokens);

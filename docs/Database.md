@@ -27,6 +27,7 @@ stage17-async-personal-graph.sql
 stage18-conversation-documents.sql
 stage19-chat-rag-sources.sql
 stage20-rag-retry.sql
+stage21-tutor-flow.sql
 ```
 
 `repair-stage6-encoding.sql` 是针对已有环境的字符集修复脚本，不属于新库必跑步骤。脚本中的 `INSERT IGNORE`、更新和条件加列行为仍应在目标库上先检查。
@@ -88,6 +89,19 @@ SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage20-rag-retry.sql;
 
 升级前保存表结构并核对消息数量。回滚应用时可以保留新增字段；不要为了回滚删除已产生的请求状态或引用数据。问题先单独提交，回答、引用、完成状态和成功日志在另一个短事务中写入。模型失败后的状态与失败日志单独提交；数据库不可用时状态可能暂留 processing，恢复后可检查或等待过期再重试。
 
+## 已有库升级循序学习
+
+启动新后端前执行以下脚本，数据库名须与运行配置一致：
+
+```sql
+USE ai_tutor;
+SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage21-tutor-flow.sql;
+```
+
+脚本只在字段不存在时新增可空 JSON 列 `learning_session.flow_state`，可重复执行；旧会话保持 NULL，不修改消息、成绩或掌握度。升级前保存表结构和记录数量，应用回滚时保留新增字段即可。
+
+该字段保存流程版本、阶段、主题、用户补充的参考资料、备课内容、当前题目位置、作答证据和反馈。正确选项仅供服务端核对，学习会话接口只返回当前题干、选项、阶段、版本和可执行动作，不返回答案键或后续题库。教师请求与结束会话使用同一所属会话行锁；版本过期返回 409。每次成功推进在同一事务内保存进度、教学步骤及聊天记录，失败回滚到上一步。没有增加新表，也不写 `learning_record` 掌握度。
+
 ## 表清单
 
 | 表 | 用途 | 所有权/关键约束 |
@@ -105,7 +119,7 @@ SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage20-rag-retry.sql;
 | `document_chunk` | 文档分片 | 通过 `document_id` 继承所有权 |
 | `agent_suggestion` | 规则生成的建议 | 归属用户，状态可确认/完成/驳回 |
 | `agent_event_log` | 建议事件 | 通过建议归属用户 |
-| `learning_session` | 教师学习会话 | 归属用户和会话 |
+| `learning_session` | 教师学习会话与循序学习进度 | 归属用户和会话；`flow_state` 为服务端私有快照 |
 | `learning_session_step` | 会话步骤与快照 | 通过 session/user 归属 |
 | `knowledge_map_dependency` | 公共知识点前置关系 | 前置点和依赖点组合唯一 |
 | `learner_memory` | 偏好、困难模式、误解 | 归属用户，状态可过期/停用 |

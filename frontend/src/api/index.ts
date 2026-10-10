@@ -121,11 +121,12 @@ export function sendOrchestratorChat(conversationId: number, message: string) {
   })
 }
 
-export function sendTutorAgentChat(conversationId: number, message: string, learningSessionId?: number) {
+export function sendTutorAgentChat(conversationId: number, message: string, learningSessionId?: number,
+  flowAction?: import('../types/domain').LearningFlowAction, flowVersion?: number) {
   return request<TutorAgentChatResult>({
     url: '/tutor-agent/chat',
     method: 'POST',
-    data: { conversationId, message, learningSessionId }
+    data: { conversationId, message, learningSessionId, flowAction, flowVersion }
   })
 }
 

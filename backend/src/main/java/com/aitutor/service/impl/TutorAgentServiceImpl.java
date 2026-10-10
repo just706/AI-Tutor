@@ -70,6 +70,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
     private final LearningSessionMapper learningSessionMapper;
     private final LearningSessionStepMapper learningSessionStepMapper;
     private final ObjectMapper objectMapper;
+    private final LearningFlowService learningFlowService;
 
     public TutorAgentServiceImpl(TutorOrchestratorService tutorOrchestratorService,
                                  TeachingStrategyService teachingStrategyService,
@@ -78,7 +79,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
                                  ConversationMapper conversationMapper,
                                  LearningSessionMapper learningSessionMapper,
                                  LearningSessionStepMapper learningSessionStepMapper,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper, LearningFlowService learningFlowService) {
         this.tutorOrchestratorService = tutorOrchestratorService;
         this.teachingStrategyService = teachingStrategyService;
         this.knowledgeMapService = knowledgeMapService;
@@ -87,6 +88,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         this.learningSessionMapper = learningSessionMapper;
         this.learningSessionStepMapper = learningSessionStepMapper;
         this.objectMapper = objectMapper;
+        this.learningFlowService = learningFlowService;
     }
 
     @Override
@@ -94,6 +96,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
     public TutorAgentChatVO chat(TutorAgentChatRequest request) {
         Long userId = UserContext.getRequired().getId();
         Conversation conversation = requireOwnedConversation(userId, request.getConversationId());
+        if ("rag".equals(conversation.getMode())) throw new BusinessException(400, "教材会话请使用教材问答入口。");
 
         AiChatRequest chatRequest = new AiChatRequest();
         chatRequest.setConversationId(conversation.getId());
@@ -104,6 +107,10 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         String detectedTopic = resolveTopic(plan.matchedKnowledgePoint(), request.getMessage());
         String previousStatus;
         LearningSession session = findOrCreateSession(userId, conversation.getId(), request.getLearningSessionId(), intent, detectedTopic);
+        if (STATUS_COMPLETED.equals(session.getStatus())) throw new BusinessException(409, "本次学习已结束，请重新打开会话后开始新的学习。");
+        if (request.getFlowAction() != null || session.getFlowState() != null) {
+            return learningFlowService.advance(session, request, detectedTopic);
+        }
         String topic = resolveEffectiveTopic(session, intent, detectedTopic);
         previousStatus = session.getStatus();
 
@@ -149,7 +156,7 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, conversationId)
                 .eq(Conversation::getUserId, userId)
-                .last("LIMIT 1"));
+                .last("LIMIT 1 FOR UPDATE"));
         if (conversation == null) {
             throw new BusinessException(404, "Conversation not found");
         }

@@ -10,6 +10,15 @@ public class TutorAgentChatRequest {
     private Long conversationId;
 
     private Long learningSessionId;
+    @jakarta.validation.constraints.Pattern(regexp = "start|clarify|answer|continue")
+    private String flowAction;
+    @jakarta.validation.constraints.Min(1)
+    private Integer flowVersion;
+
+    public String getFlowAction() { return flowAction; }
+    public void setFlowAction(String flowAction) { this.flowAction = flowAction; }
+    public Integer getFlowVersion() { return flowVersion; }
+    public void setFlowVersion(Integer flowVersion) { this.flowVersion = flowVersion; }
 
     @NotBlank
     @Size(max = 4000)

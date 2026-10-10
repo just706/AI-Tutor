@@ -9,4 +9,8 @@ public interface AiChatService {
     AiChatVO chat(AiChatRequest request);
 
     AiChatVO chat(AiChatRequest request, TutorTurnContext context);
+
+    com.aitutor.ai.TutorLearningFlow.Lesson generateLesson(String topic, String source);
+
+    void recordExchange(Long conversationId, String message, String answer);
 }

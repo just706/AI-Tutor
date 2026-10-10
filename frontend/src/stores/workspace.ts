@@ -107,7 +107,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  async function sendMessage(content: string) {
+  async function sendMessage(content: string, flowAction?: import('../types/domain').LearningFlowAction) {
     if (sending.value || loadingMessages.value || savingDocuments.value) throw new Error('请等待当前操作完成')
     const lifecycle = lifecycleVersion
     sending.value = true
@@ -124,9 +124,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         messages.value.push(message)
         await performRagRequest(conversationId, message, lifecycle)
       } else {
-        appendMessage('user', content)
-        const result = await sendTutorAgentChat(conversationId, content, activeLearningSession.value?.id)
+        const flow = activeLearningSession.value?.flow
+        let result
+        try {
+          result = await sendTutorAgentChat(conversationId, content, activeLearningSession.value?.id,
+            flowAction, flow?.version)
+        } catch (error) {
+          // 网络结果不明或版本冲突时读取已提交记录，不自动重发备课请求。
+          if ((flow || flowAction) && isCurrent(conversationId, lifecycle)) {
+            try {
+              const [history, session] = await Promise.all([listMessages(conversationId), getActiveLearningSession(conversationId)])
+              if (isCurrent(conversationId, lifecycle)) { messages.value = history; activeLearningSession.value = session }
+            } catch { /* 保留原进度，提示用户重新打开会话 */ }
+          }
+          throw error
+        }
         if (currentConversationId.value === conversationId && lifecycle === lifecycleVersion) {
+          appendMessage('user', content)
           activeLearningSession.value = result.learningSession || null
           appendMessage('assistant', result.answer, result.actions, result.intent, result.memoryUpdates)
         }

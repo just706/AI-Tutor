@@ -84,6 +84,7 @@ export type LearningSessionStatus =
   | 'COMPLETED'
 
 export interface LearningSession {
+  flow?: LearningFlow | null
   id: number
   conversationId: number
   goal: string
@@ -98,6 +99,18 @@ export interface LearningSession {
   createTime?: string
   updateTime?: string
   completeTime?: string
+}
+
+export type LearningFlowAction = 'start' | 'clarify' | 'answer' | 'continue'
+export interface LearningFlow {
+  version: number
+  stage: 'CLARIFYING' | 'DIAGNOSING' | 'TEACHING' | 'CHECKING' | 'RETEACHING' | 'PRACTICE' | 'FEEDBACK' | 'REVIEW'
+  topic: string
+  prompt: string
+  options: string[]
+  canContinue: boolean
+  passed: boolean
+  feedback: string
 }
 
 export interface TutorAgentChatResult extends AiChatResult {

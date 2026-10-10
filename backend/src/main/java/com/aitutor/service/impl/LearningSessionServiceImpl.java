@@ -84,12 +84,19 @@ public class LearningSessionServiceImpl implements LearningSessionService {
         if (session == null) {
             throw new BusinessException(404, "Learning session not found");
         }
+        // 与教师请求使用同一会话锁，防止结束操作被迟到的教学请求覆盖。
+        conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
+                .eq(Conversation::getId, session.getConversationId()).eq(Conversation::getUserId, userId)
+                .last("LIMIT 1 FOR UPDATE"));
+        session = learningSessionMapper.selectOne(new LambdaQueryWrapper<LearningSession>()
+                .eq(LearningSession::getId, learningSessionId).eq(LearningSession::getUserId, userId)
+                .last("LIMIT 1 FOR UPDATE"));
         if (!"COMPLETED".equals(session.getStatus())) {
             String previousStatus = session.getStatus();
             LocalDateTime now = LocalDateTime.now();
             session.setStatus("COMPLETED");
             session.setCurrentStepType("completed");
-            session.setNextAction("本次学习会话已完成。");
+            session.setNextAction("本次会话已结束；结束会话不代表已经掌握。");
             session.setCompleteTime(now);
             session.setUpdateTime(now);
             learningSessionMapper.updateById(session);

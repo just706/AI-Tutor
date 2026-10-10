@@ -76,6 +76,8 @@ const pass = name => { checks.push(name); console.log(`PASS ${name}`); };
 const modelRequests = [];
 const teacherRequests = [];
 let realTeacherCalls = 0;
+let malformedLessonNext = false;
+let unsupportedLessonNext = false;
 let failNextRag = false;
 let modelGate;
 const browserFailureControl = path.join(outputDir, 'fail-next-rag');
@@ -102,7 +104,19 @@ const modelServer = createServer(async (request, response) => {
     const indexes = [...prompt.matchAll(/\[chunkIndex=(\d+)\]/g)].map(match => Number(match[1]));
     const evidence = [indexes[0] ?? 0];
     let content;
-    if (prompt.includes('个人知识图谱节点抽取助手')) {
+    if (prompt.includes('循序学习备课助手')) {
+      assert.equal(payload.response_format?.type, 'json_object');
+      const data = JSON.parse(payload.messages.at(-1).content);
+      assert(data.topic && data.source);
+      const question = (label, correctOption) => ({prompt:`${data.topic}：${label}`,
+        options:['与所给定义一致','与所给定义不一致'],correctOption,explanation:'请对照定义核对当前判断。'});
+      content = JSON.stringify({supported:true,lesson:{explanation:`先理解本次资料：${data.source}`,
+        remedialExplanation:`先回顾定义，再比较容易混淆的含义：${data.source}`,
+        diagnosis:question('诊断题','A'),checks:[question('检查题一','B'),question('检查题二','A')],
+        practices:[question('应用题一','A'),question('应用题二','B')]}});
+      if (malformedLessonNext) { malformedLessonNext=false; content='{"supported":true,"lesson":{}}'; }
+      if (unsupportedLessonNext) { unsupportedLessonNext=false; content='{"supported":false}'; }
+    } else if (prompt.includes('个人知识图谱节点抽取助手')) {
       assert.equal(payload.response_format?.type, 'json_object');
       content = JSON.stringify({ nodes: prompt.includes('ArrayList') ? [
         { name: 'ArrayList', description: '动态数组，索引访问快。', confidence: 95, evidenceChunkIndexes: evidence },
@@ -200,12 +214,12 @@ try {
     'stage10-agent.sql', 'stage12-learning-session.sql', 'stage13-knowledge-map.sql',
     'stage14-learner-memory.sql', 'stage15-evaluation-governance.sql',
     'stage16-personal-graph.sql', 'stage17-async-personal-graph.sql', 'stage18-conversation-documents.sql',
-    'stage19-chat-rag-sources.sql', 'stage20-rag-retry.sql',
+    'stage19-chat-rag-sources.sql', 'stage20-rag-retry.sql', 'stage21-tutor-flow.sql',
   ];
   for (const migration of migrations) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
   assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 20);
-  for (const migration of migrations.slice(-5)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  pass('18 个数据库脚本初始化；stage16 至 stage20 重复执行；20 张表');
+  for (const migration of migrations.slice(-6)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
+  pass('19 个数据库脚本初始化；stage16 至 stage21 重复执行；20 张表');
 
   modelServer.listen(0, '127.0.0.1');
   await once(modelServer, 'listening');
@@ -624,6 +638,81 @@ try {
   writeFileSync(path.join(outputDir,'teacher-requests.json'),JSON.stringify(teacherRequests,null,2));
   pass('普通聊天与原编排接口保持兼容；教材问答继续使用独立证据流程');
 
+  const flowConversations = {};
+  const flowStart = async topic => {
+    const created=await api('/conversations',{token,body:{title:'循序学习 '+topic,mode:'chat'}});
+    const before=modelRequests.length;
+    const result=await api('/tutor-agent/chat',{token,body:{conversationId:created.conversationId,message:topic,flowAction:'start'}});
+    assert.equal(result.learningSession.flow.stage,'CLARIFYING'); assert.equal(modelRequests.length,before);
+    assert(!JSON.stringify(result).includes('correctOption'));
+    return {conversationId:created.conversationId,result};
+  };
+  const flowSend = async (turn,flowAction,message,code=200) => api('/tutor-agent/chat',{token,code,
+    body:{conversationId:turn.conversationId,learningSessionId:turn.result.learningSession.id,
+      flowVersion:turn.result.learningSession.flow.version,flowAction,message}});
+  const flowStep = async (turn,action,message,stage) => {
+    turn.result=await flowSend(turn,action,message);
+    assert.equal(turn.result.learningSession.flow.stage,stage);
+    const active=await api('/learning-sessions/active?conversationId='+turn.conversationId,{token});
+    assert.deepEqual(active.flow,turn.result.learningSession.flow);
+    assert(!JSON.stringify(active).includes('correctOption')); assert(!JSON.stringify(active).includes('"lesson"'));
+  };
+  for(const [topic,source] of [['ArrayList','Java：ArrayList 使用动态数组，按下标访问通常较快。'],
+    ['HashMap','Java：HashMap 保存键值对，相同键再次放入会替换原值。'],['导数','数学：导数表示函数在某点的瞬时变化率，可用切线斜率理解。']]) {
+    const turn=await flowStart(topic); const before=modelRequests.length;
+    await flowStep(turn,'clarify',source,'DIAGNOSING'); assert.equal(modelRequests.length,before+1);
+    await flowSend(turn,'answer','懂了',400); await flowSend(turn,'continue','跳过诊断',400);
+    await flowStep(turn,'answer','A','TEACHING'); await flowStep(turn,'continue','开始理解检查','CHECKING');
+    await flowStep(turn,'answer','B','PRACTICE'); await flowStep(turn,'answer','A','FEEDBACK');
+    assert(turn.result.learningSession.flow.passed); assert.equal(modelRequests.length,before+1);
+    assert.equal((await api('/conversations/'+turn.conversationId+'/messages',{token})).length,12);
+    flowConversations[topic]=turn.conversationId;
+  }
+  pass('两个 Java 知识点及数学走通确认、诊断、讲解、检查、练习和反馈；每步刷新一致，答案键不返回页面，不以“懂了”推进');
+
+  const remediation=await flowStart('导数');
+  await flowStep(remediation,'clarify','数学：导数表示瞬时变化率，需要先区分平均变化率。','DIAGNOSING');
+  await flowStep(remediation,'answer','B','TEACHING'); await flowStep(remediation,'continue','开始理解检查','CHECKING');
+  const firstCheck=remediation.result.learningSession.flow.prompt;
+  await flowStep(remediation,'answer','A','RETEACHING'); await flowStep(remediation,'continue','再次检查','CHECKING');
+  assert.notEqual(remediation.result.learningSession.flow.prompt,firstCheck);
+  await flowStep(remediation,'answer','B','REVIEW'); assert(!remediation.result.learningSession.flow.passed);
+  await flowSend(remediation,'continue','直接通过',400);
+  const savedFlow=JSON.parse(sql(`SELECT flow_state FROM learning_session WHERE id=${remediation.result.learningSession.id};`));
+  assert.equal(savedFlow.evidence.length,3); assert.equal(savedFlow.evidence[2].correct,false);
+  pass('答错后补讲并改用不同检查题；题目用尽停在复习，保存错误证据且不标记通过');
+
+  const pending=await flowStart('星云投影');
+  await flowSend(pending,'clarify','就是这个',400);
+  const beforeFailedHistory=await api('/conversations/'+pending.conversationId+'/messages',{token});
+  for(const failureMode of ['outage','malformed','unsupported']) {
+    if(failureMode==='outage') failNextRag=true;
+    if(failureMode==='malformed') malformedLessonNext=true;
+    if(failureMode==='unsupported') unsupportedLessonNext=true;
+    await flowSend(pending,'clarify','测试领域：星云投影是把编号映射为颜色的自定义规则。',failureMode==='unsupported'?400:600);
+    assert.deepEqual(await api('/conversations/'+pending.conversationId+'/messages',{token}),beforeFailedHistory);
+    assert.equal((await api('/learning-sessions/active?conversationId='+pending.conversationId,{token})).flow.version,1);
+  }
+  pass('未定义术语先要求领域和资料；模型调用失败、格式错误或资料不足不跳步、不覆盖进度，原步骤仍可继续');
+
+  await flowStep(pending,'clarify','测试领域：星云投影是把编号映射为颜色的自定义规则。','DIAGNOSING');
+  const beforeConcurrent=modelRequests.length;
+  const concurrent=await Promise.allSettled([flowSend(pending,'answer','A'),flowSend(pending,'answer','A')]);
+  assert.equal(concurrent.filter(result=>result.status==='fulfilled').length,1);
+  pending.result=concurrent.find(result=>result.status==='fulfilled').value;
+  assert.equal(pending.result.learningSession.flow.stage,'TEACHING'); assert.equal(modelRequests.length,beforeConcurrent);
+  assert.equal((await api('/conversations/'+pending.conversationId+'/messages',{token})).length,6);
+  await api('/tutor-agent/chat',{token:otherToken,body:{conversationId:pending.conversationId,message:'A',flowAction:'answer',flowVersion:3},code:404});
+  await flowStep(pending,'continue','开始理解检查','CHECKING');
+  flowConversations['浏览器检查']=pending.conversationId;
+  pass('同一版本并发提交只保存一轮；他人不能推进，切换主题使用各自会话进度');
+
+  await api('/learning-sessions/'+remediation.result.learningSession.id+'/close',{token,body:{}});
+  await flowSend(remediation,'answer','A',409);
+  assert.equal(await api('/learning-sessions/active?conversationId='+remediation.conversationId,{token}),null);
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_record WHERE user_id=(SELECT user_id FROM conversation WHERE id=${pending.conversationId});`)),0);
+  pass('结束会话后旧请求不能重新开启流程；循序学习不写入掌握度或学习记录分数');
+
   if (options['hold-for-browser']) {
     const browserDocument = await upload(textbook, 'browser-collections.txt', token);
     await waitForExtraction(browserDocument.personalGraphExtractionId, token);
@@ -632,7 +721,7 @@ try {
     writeFileSync(path.join(outputDir, 'browser-fixture.json'), JSON.stringify({ apiBase, username: 'stage0_owner', password,
       conversationId: browserConversation.conversationId, documentId: browserDocument.documentId,
       mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId,
-      strategyConversations, browserFailureControl, finishPath }, null, 2));
+      strategyConversations, flowConversations, browserFailureControl, finishPath }, null, 2));
     console.log(`浏览器验收环境已就绪，临时账号与地址见 ${path.join(outputDir, 'browser-fixture.json')}。完成后创建该文件中 finishPath 指定的标记；30 分钟后自动清理。`);
     const deadline = Date.now() + 30 * 60 * 1000;
     while (!existsSync(finishPath) && Date.now() < deadline) await delay(500);

@@ -99,7 +99,7 @@
           <div v-if="message.role === 'assistant' && message.memoryUpdates?.length" class="message-memory-updates">
             <span v-for="update in message.memoryUpdates" :key="update">{{ update }}</span>
           </div>
-          <div v-if="message.role === 'assistant' && !isRagConversation" class="message-quick-actions">
+          <div v-if="message.role === 'assistant' && !isRagConversation && !learningFlow" class="message-quick-actions">
             <el-button
               v-for="action in quickPromptActions"
               :key="action.prompt"
@@ -129,6 +129,19 @@
         </article>
       </div>
 
+      <section v-if="learningFlow" class="learning-flow" aria-label="循序学习进度">
+        <strong>循序学习 · {{ flowStageLabel }}</strong>
+        <p v-if="learningFlow.stage === 'CLARIFYING'">请在下方补充所属领域、定义或一小段参考资料，再发送。</p>
+        <p v-else-if="learningFlow.options.length">根据上方题目选择一个答案；不确定时可以回顾资料。</p>
+        <div class="flow-actions">
+          <el-button v-for="(option, index) in learningFlow.options" :key="index"
+            :disabled="workspaceStore.sending || workspaceStore.loadingMessages"
+            @click="sendFlow(String.fromCharCode(65 + index), 'answer')">{{ String.fromCharCode(65 + index) }}. {{ option }}</el-button>
+          <el-button v-if="learningFlow.canContinue" type="primary" :disabled="workspaceStore.sending || workspaceStore.loadingMessages"
+            @click="sendFlow('开始理解检查', 'continue')">开始理解检查</el-button>
+        </div>
+        <small>仅记录本轮作答；题目和参考答案由模型依据所提供资料生成，不等同于掌握度评定。</small>
+      </section>
       <footer class="composer">
         <el-input
           v-model="draft"
@@ -138,10 +151,14 @@
           placeholder="问一个问题，或让 AI Tutor 继续解释当前知识点..."
           @keydown.enter.exact.prevent="send"
         />
-        <el-button type="primary" :icon="Promotion" :loading="workspaceStore.sending"
-          :disabled="workspaceStore.loadingMessages || workspaceStore.savingDocuments || (isRagConversation && (sourcesLoading || !workspaceStore.currentConversation?.documentIds.length || unavailableTextbooks))" @click="send">
-          发送
-        </el-button>
+        <div class="composer-actions">
+          <el-button type="primary" :icon="Promotion" :loading="workspaceStore.sending"
+            :disabled="workspaceStore.loadingMessages || workspaceStore.savingDocuments || (isRagConversation && (sourcesLoading || !workspaceStore.currentConversation?.documentIds.length || unavailableTextbooks))" @click="send">
+            发送
+          </el-button>
+          <el-button v-if="!isRagConversation && !learningFlow" :disabled="!draft.trim() || workspaceStore.sending || workspaceStore.loadingMessages"
+            @click="sendFlow(draft, 'start')">循序学习</el-button>
+        </div>
       </footer>
     </section>
 
@@ -389,6 +406,9 @@ const quickPromptActions = [
 
 const currentModeLabel = computed(() => modeLabel(workspaceStore.currentConversation?.mode || 'chat'))
 const isRagConversation = computed(() => workspaceStore.currentConversation?.mode === 'rag')
+const learningFlow = computed(() => workspaceStore.activeLearningSession?.flow)
+const flowStageLabel = computed(() => learningFlow.value ? ({CLARIFYING:'确认主题', DIAGNOSING:'诊断理解',
+  TEACHING:'针对性讲解', CHECKING:'理解检查', RETEACHING:'补充讲解', PRACTICE:'应用练习', FEEDBACK:'本轮反馈', REVIEW:'需要复习'}[learningFlow.value.stage]) : '')
 const selectedTextbookNames = computed(() => (workspaceStore.currentConversation?.documentIds || [])
   .map(id => documents.value.find(document => document.id === id)?.fileName || `资料 #${id}（不可用）`).join('、'))
 const unavailableTextbooks = computed(() => !sourcesLoading.value && (workspaceStore.currentConversation?.documentIds || [])
@@ -722,14 +742,20 @@ async function sendPrompt(content: string) {
   if (!message) {
     return
   }
-  if (content === draft.value) {
-    draft.value = ''
-  }
   try {
     await workspaceStore.sendMessage(message)
+    if (content === draft.value) draft.value = ''
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '发送失败')
   }
+}
+
+async function sendFlow(content: string, action: import('../types/domain').LearningFlowAction) {
+  if (!content.trim()) return
+  try {
+    await workspaceStore.sendMessage(content.trim(), action)
+    if (content === draft.value) draft.value = ''
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '学习步骤未保存，请重试或重新打开会话') }
 }
 
 async function completeLearningSession() {
@@ -768,3 +794,13 @@ function goKnowledgeGraph() {
   router.push({ name: 'knowledgeGraph', query })
 }
 </script>
+
+<style scoped>
+.composer-actions { display: flex; flex-direction: column; gap: 8px; }
+.composer-actions .el-button { margin-left: 0; }
+.learning-flow { flex: 0 0 auto; max-height: 240px; overflow: auto; padding: 12px 20px; border-top: 1px solid var(--el-border-color); }
+.learning-flow p { margin: 8px 0; }
+.learning-flow small { display: block; color: var(--el-text-color-secondary); margin-top: 8px; }
+.flow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.flow-actions .el-button { margin-left: 0; white-space: normal; height: auto; min-height: 32px; text-align: left; }
+</style>

@@ -13,7 +13,9 @@
 | 表、索引和脚本顺序 | [docs/Database.md](docs/Database.md) |
 | 整体开发路线、当前进度、阶段验收与本地开发 | [docs/Development.md](docs/Development.md) |
 
-整体规划统一维护在 [Development 的总体路线](docs/Development.md#总体路线与当前进度)。阶段 0、阶段 1 已验收：教材问答已统一入口、保存会话教材和回答引用，支持跨学科的简单连续追问、失败恢复与重试。[20 道主测题及 12 道补充题](backend/evaluation/stage1-cases.json) 已完成真实模型逐题审阅；自动检查 31/32，另 1 题确认为措辞误报并保留复核理由，详见 [评测记录](backend/evaluation/stage1-results.json)。阶段 2 进行中：“教学策略在回答生成前生效”已完成，下一项是控制诊断、讲解、检查、练习和反馈的状态迁移。Java 入门教材是教学闭环的首批试点；教材问答不依赖 Java 概念名单，数学、物理、经济学及自定义概念共用检索规则。Python / LangGraph 等架构方案按评测结果决定是否采用。
+整体规划统一维护在 [Development 的总体路线](docs/Development.md#总体路线与当前进度)。阶段 0、阶段 1 已验收：教材问答已统一入口、保存会话教材和回答引用，支持跨学科的简单连续追问、失败恢复与重试。[20 道主测题及 12 道补充题](backend/evaluation/stage1-cases.json) 已完成真实模型逐题审阅；自动检查 31/32，另 1 题确认为措辞误报并保留复核理由，详见 [评测记录](backend/evaluation/stage1-results.json)。阶段 2 进行中，策略前置已验收，后续流程进展见下段。Java 入门教材是教学闭环的首批试点；教材问答不依赖 Java 概念名单，数学、物理、经济学及自定义概念共用检索规则。Python / LangGraph 等架构方案按评测结果决定是否采用。
+
+阶段 2 的选择题式循序学习已实现并通过本地自动验证，页面交互和真实备课内容待验收。在普通聊天输入一个主题，点击“循序学习”，补充所属领域及一段定义或参考资料，再按提示完成诊断、讲解、检查和练习。答错先补讲，再使用另一道题；模糊回答不能跳过检查。重新打开会话可恢复进度，结束会话不代表掌握。启动新后端前需执行 [stage21 升级](docs/Database.md#已有库升级循序学习)，旧会话保持普通问答。
 
 历史方案和阶段记录放在 `docs/archive/2026-09-21/`，只用于追溯背景，不作为当前实现或验收依据。
 
@@ -35,7 +37,7 @@
 
 ## 启动（Windows PowerShell）
 
-准备 Java 17、Node.js（Vite 8 要求 Node `^20.19.0` 或 `>=22.12.0`），并启动 MySQL。首次建库按 [docs/Database.md](docs/Database.md) 执行脚本；已有数据库在启动新后端前，按其中的升级说明执行 `stage18-conversation-documents.sql`、`stage19-chat-rag-sources.sql` 和 `stage20-rag-retry.sql`，三者均可重复执行。旧教材会话需要重新选择一次教材；旧回答没有保存过引用时，不会自动补出引用；升级前的失败消息没有请求状态，不补造重试入口。
+准备 Java 17、Node.js（Vite 8 要求 Node `^20.19.0` 或 `>=22.12.0`），并启动 MySQL。首次建库按 [docs/Database.md](docs/Database.md) 执行脚本；已有数据库在启动新后端前，按其中的升级说明执行 `stage18-conversation-documents.sql`、`stage19-chat-rag-sources.sql`、`stage20-rag-retry.sql` 和 `stage21-tutor-flow.sql`，均可重复执行。旧教材会话需要重新选择一次教材；旧回答没有保存过引用时，不会自动补出引用；升级前的失败消息没有请求状态，不补造重试入口。
 
 以下命令以项目位于 `D:\AI-Tutor` 为例；项目放在其他位置时，替换对应路径。只复制代码块中的命令，不要复制终端里的 `PS D:\AI-Tutor>` 或 `>>` 提示符。
 

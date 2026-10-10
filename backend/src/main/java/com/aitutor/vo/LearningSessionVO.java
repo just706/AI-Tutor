@@ -19,6 +19,9 @@ public class LearningSessionVO {
     private List<String> strategySource = new ArrayList<>();
     private KnowledgeMapContextVO knowledgeMap;
     private String nextAction;
+    private com.aitutor.ai.TutorLearningFlow.View flow;
+    public com.aitutor.ai.TutorLearningFlow.View getFlow() { return flow; }
+    public void setFlow(com.aitutor.ai.TutorLearningFlow.View flow) { this.flow = flow; }
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private LocalDateTime completeTime;
@@ -37,6 +40,8 @@ public class LearningSessionVO {
         vo.setCurrentStepType(session.getCurrentStepType());
         vo.setTeachingStrategy(session.getTeachingStrategy());
         vo.setNextAction(session.getNextAction());
+        var flowState = com.aitutor.ai.TutorLearningFlow.read(session.getFlowState());
+        if (flowState != null) vo.setFlow(com.aitutor.ai.TutorLearningFlow.view(flowState));
         vo.setCreateTime(session.getCreateTime());
         vo.setUpdateTime(session.getUpdateTime());
         vo.setCompleteTime(session.getCompleteTime());

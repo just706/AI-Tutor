@@ -26,6 +26,11 @@ public class LearningSession {
     private String teachingStrategy;
     @TableField("next_action")
     private String nextAction;
+    @TableField("flow_state")
+    private String flowState;
+
+    public String getFlowState() { return flowState; }
+    public void setFlowState(String flowState) { this.flowState = flowState; }
     @TableField("create_time")
     private LocalDateTime createTime;
     @TableField("update_time")

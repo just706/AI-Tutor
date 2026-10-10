@@ -40,6 +40,50 @@ function workspace() {
   return { store: context.exports.useWorkspaceStore(), api, calls, conversations }
 }
 
+test('guided answers use restored server version and save the returned step', async () => {
+  const {store,api}=workspace()
+  api.getActiveLearningSession=async()=>({id:8,flow:{version:4,stage:'CHECKING'}})
+  await store.loadConversations(2)
+  let sent
+  api.sendTutorAgentChat=async(...args)=>{sent=args;return {answer:'进入练习',learningSession:{id:8,flow:{version:5,stage:'PRACTICE'}}}}
+  await store.sendMessage('B','answer')
+  assert.deepEqual(sent,[2,'B',8,'answer',4])
+  assert.equal(store.activeLearningSession.flow.stage,'PRACTICE')
+  assert.equal(store.messages.length,2)
+})
+
+test('failed guided submission reloads committed progress without a phantom message or retry', async () => {
+  const {store,api}=workspace()
+  api.getActiveLearningSession=async()=>({id:8,flow:{version:4,stage:'CHECKING'}})
+  await store.loadConversations(2)
+  let requests=0
+  api.sendTutorAgentChat=async()=>{
+    requests++
+    api.listMessages=async()=>[{role:'user',messageContent:'B'},{role:'assistant',messageContent:'进入练习'}]
+    api.getActiveLearningSession=async()=>({id:8,flow:{version:5,stage:'PRACTICE'}})
+    throw new Error('response lost')
+  }
+  await assert.rejects(store.sendMessage('B','answer'),/response lost/)
+  assert.equal(requests,1)
+  assert.equal(store.messages.length,2)
+  assert.equal(store.activeLearningSession.flow.version,5)
+})
+
+test('guided state and late answers cannot leak into another selected conversation', async () => {
+  const {store,api}=workspace()
+  api.getActiveLearningSession=async id=>id===2?{id:8,flow:{version:4,stage:'CHECKING'}}:null
+  await store.loadConversations(2)
+  let finish
+  api.sendTutorAgentChat=()=>new Promise(resolve=>{finish=resolve})
+  const pending=store.sendMessage('A','answer')
+  await new Promise(resolve=>setImmediate(resolve))
+  await store.selectConversation(1)
+  finish({answer:'旧流程回答',learningSession:{id:8,flow:{version:5,stage:'PRACTICE'}}})
+  await pending
+  assert.equal(store.activeLearningSession,null)
+  assert.equal(store.messages.length,0)
+})
+
 test('a textbook conversation uses RAG and keeps source evidence on its answer', async () => {
   const { store, calls } = workspace()
   await store.loadConversations()

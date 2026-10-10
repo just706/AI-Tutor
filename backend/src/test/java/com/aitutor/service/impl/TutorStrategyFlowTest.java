@@ -79,7 +79,7 @@ class TutorStrategyFlowTest {
         chat = new AiChatServiceImpl(conversations, histories, profiles, logs, client,
                 new DeepSeekProperties(), new AiPromptBuilder(), memories);
         tutor = new TutorAgentServiceImpl(new TutorOrchestratorServiceImpl(chat, points),
-                new TeachingStrategyServiceImpl(), maps, memories, conversations, sessions, steps, json);
+                new TeachingStrategyServiceImpl(), maps, memories, conversations, sessions, steps, json, null);
     }
 
     @AfterEach void clearUser() { UserContext.clear(); }
