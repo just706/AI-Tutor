@@ -2,7 +2,7 @@
 // 示例见 docs/Development.md。需要先构建后端 jar，并安装 MySQL 客户端。
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { createServer as createTcpServer } from 'node:net';
 import { once } from 'node:events';
@@ -20,6 +20,7 @@ const { values: options } = parseArgs({ options: {
   'java-bin': { type: 'string', default: 'java' },
   'hold-for-browser': { type: 'boolean', default: false },
   'teacher-model': { type: 'string', default: 'stub' },
+  'flow-evaluation': { type: 'string', default: 'off' },
 } });
 assert(options['output-dir'], '必须指定 --output-dir，日志和临时上传文件应保存在源码仓库外。');
 const projectRoot = path.resolve(options['project-root']);
@@ -42,11 +43,21 @@ if (options['env-file']) {
 }
 const setting = (name, fallback) => process.env[name] ?? config[name] ?? fallback;
 assert(['stub','real'].includes(options['teacher-model']));
+assert(['off','stub','real'].includes(options['flow-evaluation']));
 const realTeacher = options['teacher-model'] === 'real';
+const realFlow = options['flow-evaluation'] === 'real';
+assert(!(realTeacher && realFlow), '两类真实模型验收请分别运行，以明确数据和调用预算。');
+const flowSuitePath = path.join(backendRoot, 'evaluation/stage2-flow-cases.json');
+const flowSuite = options['flow-evaluation'] === 'off' ? null : JSON.parse(readFileSync(flowSuitePath, 'utf8'));
+if (flowSuite) {
+  assert.equal(flowSuite.cases.length, 5);
+  assert.equal(new Set(flowSuite.cases.map(item => item.id)).size, 5);
+  assert(flowSuite.cases.every(item => ['correct','remediate','insufficient'].includes(item.path)));
+}
 const teacherModel = setting('DEEPSEEK_MODEL_NAME','deepseek-v4-flash');
 const teacherKey = setting('DEEPSEEK_API_KEY','');
 const teacherProvider = new URL(setting('DEEPSEEK_BASE_URL','https://api.deepseek.com'));
-if(realTeacher) {
+if(realTeacher || realFlow) {
   assert(teacherKey, '真实模型密钥未配置');
   assert.equal(teacherProvider.origin,'https://api.deepseek.com');
   assert(!teacherProvider.username && !teacherProvider.password && !teacherProvider.search && !teacherProvider.hash);
@@ -71,11 +82,22 @@ function sql(statement, selectSchema = true) {
   return result.stdout.trim();
 }
 
+function readSavedFlow(sessionId) {
+  assert(Number.isSafeInteger(sessionId) && sessionId > 0);
+  // MySQL batch 输出会二次转义 JSON 中的反斜杠；HEX 保留原始 UTF-8 字节。
+  const hex = sql(`SELECT HEX(flow_state) FROM learning_session WHERE id=${sessionId};`);
+  return JSON.parse(Buffer.from(hex, 'hex').toString('utf8'));
+}
+
 const checks = [];
 const pass = name => { checks.push(name); console.log(`PASS ${name}`); };
 const modelRequests = [];
 const teacherRequests = [];
+const flowRequests = [];
+const flowCaseResults = [];
 let realTeacherCalls = 0;
+let realFlowCalls = 0;
+let activeFlowCase;
 let malformedLessonNext = false;
 let unsupportedLessonNext = false;
 let failNextRag = false;
@@ -116,6 +138,31 @@ const modelServer = createServer(async (request, response) => {
         practices:[question('应用题一','A'),question('应用题二','B')]}});
       if (malformedLessonNext) { malformedLessonNext=false; content='{"supported":true,"lesson":{}}'; }
       if (unsupportedLessonNext) { unsupportedLessonNext=false; content='{"supported":false}'; }
+      if (activeFlowCase) {
+        assert.equal(data.source, activeFlowCase.source, '只允许发送固定题集内的自编资料');
+        assert.equal(data.topic, activeFlowCase.resolvedTopic);
+        const record = {caseId:activeFlowCase.id, messages:payload.messages, requestedModel:payload.model,
+          mode:options['flow-evaluation'], startedAt:new Date().toISOString()};
+        flowRequests.push(record);
+        try {
+          if (realFlow) {
+            assert(realFlowCalls < 5, '此固定题集单次最多5次真实调用，不自动重试');
+            realFlowCalls++;
+            const upstream = await fetch(teacherProvider.href.replace(/\/$/,'')+'/chat/completions', {
+              method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+teacherKey},
+              body:JSON.stringify(payload), signal:AbortSignal.timeout(60000), redirect:'error'
+            });
+            record.httpStatus = upstream.status;
+            assert(upstream.ok, '备课模型返回非成功状态');
+            const result = await upstream.json();
+            content = result.choices?.[0]?.message?.content;
+            assert(typeof content === 'string' && content.trim(), '备课模型未返回内容');
+            record.responseModel = result.model; record.usage = result.usage;
+          } else if (!activeFlowCase.supported) content='{"supported":false}';
+          record.answer = content;
+        } catch (error) { record.errorType = error.name; throw error; }
+        finally { record.finishedAt = new Date().toISOString(); }
+      }
     } else if (prompt.includes('个人知识图谱节点抽取助手')) {
       assert.equal(payload.response_format?.type, 'json_object');
       content = JSON.stringify({ nodes: prompt.includes('ArrayList') ? [
@@ -182,7 +229,7 @@ const api = async (route, { token, body, method = body === undefined ? 'GET' : '
     method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(!form && body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
     body: body === undefined ? undefined : form ? body : JSON.stringify(body),
-    signal: AbortSignal.timeout(realTeacher ? 90000 : 30000),
+    signal: AbortSignal.timeout(realTeacher || realFlow ? 90000 : 30000),
   });
   const result = await response.json();
   assert.equal(result.code, code, `${method} ${route}: ${result.message}`);
@@ -239,7 +286,8 @@ try {
       JWT_SECRET: randomBytes(48).toString('hex'), RAG_STORAGE_DIR: path.join(outputDir, 'uploads'),
       RAG_CHUNK_SIZE: '800', RAG_CHUNK_OVERLAP: '120', RAG_TOP_K: '4',
       DEEPSEEK_BASE_URL: `http://127.0.0.1:${modelPort}`, DEEPSEEK_API_KEY: 'local-verification-only',
-      DEEPSEEK_MODEL_NAME: realTeacher ? teacherModel : 'local-verification', DEEPSEEK_TIMEOUT_MS: realTeacher ? '60000' : '5000' },
+      DEEPSEEK_MODEL_NAME: realTeacher || realFlow ? teacherModel : 'local-verification',
+      DEEPSEEK_TIMEOUT_MS: realTeacher || realFlow ? '60000' : '5000' },
   });
   javaProcess.stdout.pipe(backendLog, { end: false });
   javaProcess.stderr.pipe(backendLog, { end: false });
@@ -678,7 +726,7 @@ try {
   assert.notEqual(remediation.result.learningSession.flow.prompt,firstCheck);
   await flowStep(remediation,'answer','B','REVIEW'); assert(!remediation.result.learningSession.flow.passed);
   await flowSend(remediation,'continue','直接通过',400);
-  const savedFlow=JSON.parse(sql(`SELECT flow_state FROM learning_session WHERE id=${remediation.result.learningSession.id};`));
+  const savedFlow=readSavedFlow(remediation.result.learningSession.id);
   assert.equal(savedFlow.evidence.length,3); assert.equal(savedFlow.evidence[2].correct,false);
   pass('答错后补讲并改用不同检查题；题目用尽停在复习，保存错误证据且不标记通过');
 
@@ -713,6 +761,69 @@ try {
   assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_record WHERE user_id=(SELECT user_id FROM conversation WHERE id=${pending.conversationId});`)),0);
   pass('结束会话后旧请求不能重新开启流程；循序学习不写入掌握度或学习记录分数');
 
+  // 这些路径只验证 Java 按参考选项推进；事实正确性另按固定 rubric 审阅原始备课。
+  if (flowSuite) {
+    writeFileSync(path.join(outputDir,'flow-cases.json'), JSON.stringify(flowSuite,null,2));
+    writeFileSync(path.join(outputDir,'flow-provenance.json'), JSON.stringify({version:flowSuite.version,
+      suiteSha256:createHash('sha256').update(readFileSync(flowSuitePath)).digest('hex'),
+      scriptSha256:createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex'),
+      jarSha256:createHash('sha256').update(readFileSync(jarPath)).digest('hex'),
+      requestedModel:realFlow ? teacherModel : 'local-verification', mode:options['flow-evaluation']},null,2));
+    for (const item of flowSuite.cases) {
+      const record = {id:item.id, passed:false, expectedSupported:item.supported, states:[]};
+      flowCaseResults.push(record);
+      try {
+        const turn = await flowStart(item.topic);
+        record.conversationId = turn.conversationId;
+        const before = modelRequests.length;
+        const initialHistory = await api('/conversations/'+turn.conversationId+'/messages',{token});
+        record.states.push(turn.result.learningSession.flow);
+        activeFlowCase = {...item, resolvedTopic:turn.result.learningSession.flow.topic};
+        try {
+          if (item.supported) await flowStep(turn,'clarify',item.source,'DIAGNOSING');
+          else await flowSend(turn,'clarify',item.source,400);
+        } finally { activeFlowCase = undefined; }
+        assert.equal(modelRequests.length, before+1);
+        const prepared = JSON.parse(flowRequests.find(request => request.caseId === item.id).answer);
+        assert.equal(prepared.supported, item.supported);
+        if (!item.supported) {
+          assert.deepEqual(await api('/conversations/'+turn.conversationId+'/messages',{token}), initialHistory);
+          const active = await api('/learning-sessions/active?conversationId='+turn.conversationId,{token});
+          assert.deepEqual(active.flow, turn.result.learningSession.flow);
+          record.states.push(active.flow);
+        } else {
+          const lesson = prepared.lesson;
+          const step = async (action, message, stage) => {
+            await flowStep(turn,action,message,stage); record.states.push(turn.result.learningSession.flow);
+          };
+          record.states.push(turn.result.learningSession.flow);
+          await flowSend(turn,'answer','懂了',400);
+          const chooseWrong = key => key === 'A' ? 'B' : 'A';
+          await step('answer',item.path === 'remediate' ? chooseWrong(lesson.diagnosis.correctOption) : lesson.diagnosis.correctOption,'TEACHING');
+          await step('continue','开始理解检查','CHECKING');
+          let checkIndex = 0;
+          if (item.path === 'remediate') {
+            const firstPrompt = turn.result.learningSession.flow.prompt;
+            await step('answer',chooseWrong(lesson.checks[0].correctOption),'RETEACHING');
+            await step('continue','再次检查','CHECKING');
+            assert.notEqual(turn.result.learningSession.flow.prompt,firstPrompt);
+            checkIndex = 1;
+          }
+          await step('answer',lesson.checks[checkIndex].correctOption,'PRACTICE');
+          await step('answer',lesson.practices[0].correctOption,'FEEDBACK');
+          assert(turn.result.learningSession.flow.passed);
+          assert.equal(modelRequests.length,before+1, '判分和推进不得再次调用模型');
+          record.history = await api('/conversations/'+turn.conversationId+'/messages',{token});
+          const saved = readSavedFlow(turn.result.learningSession.id);
+          record.evidence = saved.evidence;
+        }
+        record.passed = true;
+        pass('固定备课案例 '+item.id+'：'+item.topic+'，接口与进度验证通过，内容仍须独立审阅');
+      } catch (error) { record.error = error.message; }
+    }
+    assert(flowCaseResults.every(item => item.passed), '循序学习固定案例未全部通过，详见 flow-case-results.json');
+  }
+
   if (options['hold-for-browser']) {
     const browserDocument = await upload(textbook, 'browser-collections.txt', token);
     await waitForExtraction(browserDocument.personalGraphExtractionId, token);
@@ -730,6 +841,8 @@ try {
   failure = error;
 } finally {
   writeFileSync(path.join(outputDir,'teacher-requests.json'),JSON.stringify(teacherRequests,null,2));
+  writeFileSync(path.join(outputDir,'flow-requests.json'),JSON.stringify(flowRequests,null,2));
+  writeFileSync(path.join(outputDir,'flow-case-results.json'),JSON.stringify(flowCaseResults,null,2));
   if (javaProcess?.pid && javaProcess.exitCode === null) {
     javaProcess.kill();
     await javaExited;
@@ -744,8 +857,10 @@ try {
     catch (error) { failure ??= error; }
   }
   writeFileSync(path.join(outputDir, 'result.json'), JSON.stringify({
-    passed: !failure, checks, model: realTeacher ? teacherModel : 'local deterministic stub; not a model-quality evaluation',
+    passed: !failure, checks, model: realTeacher || realFlow ? teacherModel : 'local deterministic stub; not a model-quality evaluation',
     teacherModelMode:options['teacher-model'],realTeacherCalls,requiresTeacherAnswerReview:realTeacher,
+    flowEvaluationMode:options['flow-evaluation'],realFlowCalls,requiresFlowAnswerReview:realFlow,
+    flowSuiteVersion:flowSuite?.version,flowCaseCount:flowCaseResults.length,
     temporaryDatabase: schema, cleanup: databaseCreated ? (databaseRemoved ? 'removed' : 'failed') : 'not needed',
     error: failure?.message, time: new Date().toISOString(),
   }, null, 2));

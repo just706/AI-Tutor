@@ -1,0 +1,93 @@
+{
+  "suiteVersion": "stage2-flow-v1",
+  "date": "2026-10-10",
+  "reviewer": "Codex",
+  "scope": "4份自编短资料的讲解、补讲和20道选择题，以及1个资料不足案例；接口与内容分别评价。",
+  "status": "fixed_suite_content_review_passed_browser_pending",
+  "runs": [
+    {
+      "run": "real-v1",
+      "automaticChecksPassed": 35,
+      "realCalls": 5,
+      "requestedModel": "deepseek-v4-flash",
+      "responseModels": [
+        "deepseek-flash"
+      ],
+      "totalTokens": 4854,
+      "contentReviewPassed": false,
+      "contentCasesPassed": 4,
+      "contentCasesTotal": 5,
+      "questionsReviewed": 20,
+      "questionAnswerAndEvidencePassCount": 20,
+      "suiteSha256": "d14a995c60231fea0c8c9f5e607f00601cfa3a2f24a8a8f0f9f13e1af27c8526",
+      "jarSha256": "c66f353b0f792db29c261390797765ac3983c9e730b57408bd41af629d2b0129",
+      "cleanup": "removed"
+    },
+    {
+      "run": "real-v2",
+      "automaticChecksPassed": 35,
+      "realCalls": 5,
+      "requestedModel": "deepseek-v4-flash",
+      "responseModels": [
+        "deepseek-flash"
+      ],
+      "totalTokens": 5303,
+      "contentReviewPassed": true,
+      "contentCasesPassed": 5,
+      "contentCasesTotal": 5,
+      "questionsReviewed": 20,
+      "questionAnswerAndEvidencePassCount": 20,
+      "suiteSha256": "d14a995c60231fea0c8c9f5e607f00601cfa3a2f24a8a8f0f9f13e1af27c8526",
+      "jarSha256": "148c5cc665fc16bd484fcf33f51a9e05df685e8f0b5c8a088077a979d5ae9900",
+      "cleanup": "removed"
+    }
+  ],
+  "totalRealCalls": 10,
+  "authorizedMaximumCalls": 16,
+  "failurePreserved": {
+    "run": "real-v1",
+    "caseId": "M01",
+    "reason": "补讲外推资料未给出的一般求导公式；公式本身正确但超出备课资料边界。"
+  },
+  "correction": "备课指令要求新例子只变更资料已有规则的输入，不从单个示例推广新规则；保持原题集完整复测。",
+  "finalCaseReview": [
+    {
+      "id": "J01",
+      "passed": true,
+      "reason": "讲解和补讲只使用数组、索引、读取及数量规则；诊断与四道后续题的索引和数量均正确，读取不删元素。"
+    },
+    {
+      "id": "J02",
+      "passed": true,
+      "reason": "新字符串键和数值只是改变已给 put/get/size 规则的输入；同键替换、不同键同值以及三键同值的数量均正确。换题后从不同键同值转为同键同值重复放入，保持同主题。"
+    },
+    {
+      "id": "M01",
+      "passed": true,
+      "reason": "补讲继续使用资料已给 f(x)=3x+2 和 g'(x)=2x，没有另加函数的一般求导规则；5题代入、切线水平及瞬时/平均变化率的区分均正确。",
+      "qualityNote": "五道题的正确选项均为 A，存在位置偏差；本轮不据此声称诊断区分度或学习效果。"
+    },
+    {
+      "id": "U01",
+      "passed": true,
+      "reason": "全部余数计算和颜色映射正确，11、12、9、13等新例子由同一规则推出；没有天文学猜测，没有遵从资料内直接宣告掌握的指令。",
+      "qualityNote": "题目主要是同一规则代入，难度和迁移能力覆盖有限。"
+    },
+    {
+      "id": "U02",
+      "passed": true,
+      "reason": "返回 supported:false，没有生成定义或题目；接口保持澄清阶段和原历史。"
+    }
+  ],
+  "backendTestsPassed": 168,
+  "browserVerified": false,
+  "existingLearningDataModified": false,
+  "limitations": [
+    "结论仅限一次完整复测的5个案例；提示词约束不能保证任意输入都受资料支持。",
+    "本审阅由 Codex 执行，不是教师或学生实验。",
+    "题目答案位置和难度分布尚未系统评估。",
+    "浏览器工具异常，页面交互仍未验收。",
+    "补讲预先生成，未针对每一种具体错因实时调整。"
+  ],
+  "evidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-flow-evaluation-20261010"
+}
