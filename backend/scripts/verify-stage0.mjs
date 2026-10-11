@@ -761,6 +761,111 @@ try {
   assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_record WHERE user_id=(SELECT user_id FROM conversation WHERE id=${pending.conversationId});`)),0);
   pass('结束会话后旧请求不能重新开启流程；循序学习不写入掌握度或学习记录分数');
 
+  // 教材循序学习复用真实检索、数据库和鉴权；备课仍由本地替身生成，不新增真实模型发送。
+  const lessonDocument=await upload(mathTextbook,'guided-math.txt',token);
+  await waitForExtraction(lessonDocument.personalGraphExtractionId,token);
+  const makeTextbookFlow=async (ids=[lessonDocument.documentId]) => {
+    const created=await api('/conversations',{token,body:{title:'依据教材学习',mode:'rag',documentIds:ids}});
+    return {conversationId:created.conversationId};
+  };
+  const startTextbookFlow=async (turn,topic='导数的用途',code=200) => api('/tutor-agent/chat',{
+    token,code,body:{conversationId:turn.conversationId,message:topic,flowAction:'start'}});
+  const textbookTurn=await makeTextbookFlow();
+  let lessonCalls=modelRequests.length;
+  textbookTurn.result=await startTextbookFlow(textbookTurn);
+  const lessonSources=textbookTurn.result.sources;
+  assert.equal(modelRequests.length,lessonCalls+1);
+  assert.equal(textbookTurn.result.learningSession.flow.stage,'DIAGNOSING');
+  assert.equal(textbookTurn.result.learningSession.flow.topic,'导数的用途','不能将带属性的主题截成图谱概念名');
+  assert.equal(textbookTurn.result.learningSession.flow.textbookBased,true);
+  assert.equal(lessonSources.length,1);
+  assert.equal(lessonSources[0].documentId,lessonDocument.documentId);
+  assert.equal(lessonSources[0].snippet,mathTextbook);
+  const lessonPrompt=modelRequests.at(-1);
+  assert(lessonPrompt.includes(mathTextbook)); assert(!lessonPrompt.includes(textbook));
+  const lessonSnapshot=readSavedFlow(textbookTurn.result.learningSession.id);
+  assert.deepEqual(lessonSnapshot.materials.documentIds,[lessonDocument.documentId]);
+  assert.deepEqual(lessonSnapshot.materials.sources,lessonSources);
+  const publicState=await api('/learning-sessions/active?conversationId='+textbookTurn.conversationId,{token});
+  assert.deepEqual(publicState.flow,textbookTurn.result.learningSession.flow);
+  assert(!JSON.stringify(publicState).includes('correctOption'));
+  assert(!JSON.stringify(publicState).includes('materials'));
+  assert(!JSON.stringify(publicState).includes(mathTextbook));
+  await flowStep(textbookTurn,'answer','A','TEACHING');
+  await flowStep(textbookTurn,'continue','开始理解检查','CHECKING');
+  await flowStep(textbookTurn,'answer','A','RETEACHING');
+  await flowStep(textbookTurn,'continue','再次检查','CHECKING');
+  await flowStep(textbookTurn,'answer','A','PRACTICE');
+  await flowStep(textbookTurn,'answer','A','FEEDBACK');
+  const textbookHistory=await api('/conversations/'+textbookTurn.conversationId+'/messages',{token});
+  assert.equal(textbookHistory.length,14);
+  assert(textbookHistory.filter(m=>m.role==='assistant').every(m=>JSON.stringify(m.sources)===JSON.stringify(lessonSources)));
+  assert.equal(modelRequests.length,lessonCalls+1,'只有备课调用模型，作答推进不再调用');
+  pass('教材主题按所选片段备课；诊断、补讲、检查、练习和刷新始终保留同一引用；不暴露答案键');
+
+  await api('/conversations/'+textbookTurn.conversationId+'/documents',{token,method:'PUT',body:{documentIds:[]},code:409});
+  await api('/ai/rag/chat',{token,body:{conversationId:textbookTurn.conversationId,question:'什么是导数？',documentIds:[]},code:409});
+  await api('/tutor-agent/chat',{token:otherToken,body:{conversationId:textbookTurn.conversationId,message:'导数',flowAction:'start'},code:404});
+  await api('/conversations/'+textbookTurn.conversationId+'/messages',{token:otherToken,code:404});
+  assert.equal(modelRequests.length,lessonCalls+1);
+  await api('/learning-sessions/'+textbookTurn.result.learningSession.id+'/close',{token,body:{}});
+  await api('/conversations/'+textbookTurn.conversationId+'/documents',{token,method:'PUT',body:{documentIds:[]}});
+  pass('活动学习固定教材，选择接口与教材问答入口均无法绕过；他人无法读取或推进，结束后可更换');
+
+  const emptyTurn=await makeTextbookFlow([]);
+  lessonCalls=modelRequests.length;
+  await startTextbookFlow(emptyTurn,'导数',400);
+  const failedTextbookTurn=await makeTextbookFlow();
+  await startTextbookFlow(failedTextbookTurn,'光合作用',400);
+  assert.equal(modelRequests.length,lessonCalls,'无选择或未检索到依据时不能调用模型');
+  for (const mode of ['outage','malformed','unsupported']) {
+    if(mode==='outage') failNextRag=true;
+    if(mode==='malformed') malformedLessonNext=true;
+    if(mode==='unsupported') unsupportedLessonNext=true;
+    await startTextbookFlow(failedTextbookTurn,'导数',mode==='unsupported'?400:600);
+    assert.equal(await api('/learning-sessions/active?conversationId='+failedTextbookTurn.conversationId,{token}),null);
+    assert.deepEqual(await api('/conversations/'+failedTextbookTurn.conversationId+'/messages',{token}),[]);
+    assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_session_step WHERE conversation_id=${failedTextbookTurn.conversationId};`)),0);
+  }
+  pass('空教材、无关主题、资料不足和备课失败均回滚，不生成空学习进度，不回退到普通聊天');
+
+  const invalidatedTurn=await makeTextbookFlow();
+  invalidatedTurn.result=await startTextbookFlow(invalidatedTurn,'导数');
+  const invalidatedVersion=invalidatedTurn.result.learningSession.flow.version;
+  const beforeInvalidated=modelRequests.length;
+  // 仅在临时库模拟处理中的资料；不修改真实教材或生产状态。
+  sql(`UPDATE document SET process_status='pending' WHERE id=${lessonDocument.documentId};`);
+  await flowSend(invalidatedTurn,'answer','A',409);
+  let invalidHistory=await api('/conversations/'+invalidatedTurn.conversationId+'/messages',{token});
+  assert.equal(invalidHistory.length,2);
+  assert.equal(invalidHistory[1].sources[0].available,false);
+  assert.equal(invalidHistory[1].sources[0].snippet,null);
+  sql(`UPDATE document SET process_status='completed' WHERE id=${lessonDocument.documentId};`);
+  sql(`UPDATE conversation SET document_ids='[]' WHERE id=${invalidatedTurn.conversationId};`);
+  await flowSend(invalidatedTurn,'answer','A',409);
+  sql(`UPDATE conversation SET document_ids='[${lessonDocument.documentId}]' WHERE id=${invalidatedTurn.conversationId};`);
+  await api(`/documents/${lessonDocument.documentId}`,{token,method:'DELETE'});
+  await flowSend(invalidatedTurn,'answer','A',404);
+  assert.equal((await api('/learning-sessions/active?conversationId='+invalidatedTurn.conversationId,{token})).flow.version,invalidatedVersion);
+  invalidHistory=await api('/conversations/'+invalidatedTurn.conversationId+'/messages',{token});
+  assert.equal(invalidHistory[1].sources[0].available,false);
+  assert.equal(invalidHistory[1].sources[0].fileName,null);
+  assert.equal(invalidHistory[1].sources[0].snippet,null);
+  assert.equal(modelRequests.length,beforeInvalidated);
+  await api('/learning-sessions/'+invalidatedTurn.result.learningSession.id+'/close',{token,body:{}});
+  pass('教材处理中、绑定被改或教材删除均停止推进；失效引用隐藏原文，原版本保留且仍可结束学习');
+
+  for(const [topic,source] of [['ArrayList',textbook],['星云投影','星云投影是把编号映射为颜色的自定义规则。偶数编号对应蓝色，奇数编号对应红色。']]) {
+    const doc=await upload(source,'guided-domain.txt',token); await waitForExtraction(doc.personalGraphExtractionId,token);
+    const turn=await makeTextbookFlow([doc.documentId]);
+    turn.result=await startTextbookFlow(turn,topic);
+    assert.equal(turn.result.learningSession.flow.topic,topic);
+    assert.equal(turn.result.sources[0].snippet,source);
+    assert.equal(turn.result.sources[0].documentId,doc.documentId);
+    await flowStep(turn,'answer','A','TEACHING');
+  }
+  pass('同一教材学习入口支持 Java 与自定义规则，不依赖某个学科的硬编码');
+
   // 这些路径只验证 Java 按参考选项推进；事实正确性另按固定 rubric 审阅原始备课。
   if (flowSuite) {
     writeFileSync(path.join(outputDir,'flow-cases.json'), JSON.stringify(flowSuite,null,2));

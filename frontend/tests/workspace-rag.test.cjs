@@ -40,6 +40,72 @@ function workspace() {
   return { store: context.exports.useWorkspaceStore(), api, calls, conversations }
 }
 
+test('textbook guided start uses the tutor endpoint and retains lesson citations', async () => {
+  const {store, api, calls}=workspace()
+  await store.loadConversations(1)
+  const sources=[{documentId:21,fileName:'数学.txt',chunkIndex:0,snippet:'导数定义'}]
+  let sent
+  api.sendTutorAgentChat=async(...args)=>{sent=args;return {answer:'诊断题',sources,learningSession:{id:9,flow:{version:1,stage:'DIAGNOSING',textbookBased:true}}}}
+  await store.sendMessage('导数','start')
+  assert.deepEqual(sent,[1,'导数',undefined,'start',undefined])
+  assert.equal(calls.length,0)
+  assert.equal(store.messages.at(-1).sources[0].snippet,'导数定义')
+  assert.equal(store.activeLearningSession.flow.stage,'DIAGNOSING')
+})
+
+test('textbook guided progress restores and sends answers with its version', async () => {
+  const {store,api}=workspace()
+  api.getActiveLearningSession=async()=>({id:9,flow:{version:4,stage:'CHECKING',textbookBased:true}})
+  await store.loadConversations(1)
+  assert.equal(store.activeLearningSession.flow.version,4)
+  let sent
+  api.sendTutorAgentChat=async(...args)=>{sent=args;return {answer:'练习',learningSession:{id:9,flow:{version:5,stage:'PRACTICE',textbookBased:true}}}}
+  await store.sendMessage('B')
+  assert.deepEqual(sent,[1,'B',9,undefined,4])
+  assert.equal(store.activeLearningSession.flow.stage,'PRACTICE')
+})
+
+test('active textbook learning prevents changing materials or retrying unrelated RAG questions', async () => {
+  const {store,api}=workspace()
+  await store.loadConversations(1)
+  store.activeLearningSession={id:9,flow:{version:1,stage:'DIAGNOSING',textbookBased:true}}
+  let changed=false
+  api.updateConversationDocuments=async()=>{changed=true;throw new Error('unexpected update')}
+  await assert.rejects(store.setConversationDocuments([22]),/结束.*循序学习/)
+  assert.equal(changed,false)
+  await assert.rejects(store.retryRagMessage({role:'user',ragRequestId:'old'}),/结束.*循序学习/)
+})
+
+test('a lost textbook start response reloads the saved lesson and its citations without retrying', async () => {
+  const {store,api}=workspace()
+  await store.loadConversations(1)
+  let requests=0
+  api.sendTutorAgentChat=async()=>{
+    requests++
+    api.getActiveLearningSession=async()=>({id:9,flow:{version:1,stage:'DIAGNOSING',textbookBased:true}})
+    api.listMessages=async()=>[{role:'user',messageContent:'导数'},{role:'assistant',messageContent:'诊断题',sources:[{documentId:21,snippet:'原备课资料'}]}]
+    throw new Error('response lost')
+  }
+  await assert.rejects(store.sendMessage('导数','start'),/response lost/)
+  assert.equal(requests,1)
+  assert.equal(store.activeLearningSession.flow.version,1)
+  assert.equal(store.messages.length,2)
+  assert.equal(store.messages.at(-1).sources[0].snippet,'原备课资料')
+})
+
+test('closing a lesson cannot clear a different conversation opened while the request is pending', async () => {
+  const {store,api}=workspace()
+  api.getActiveLearningSession=async id=>({id:id+8,flow:{version:1,stage:'DIAGNOSING'}})
+  await store.loadConversations(1)
+  let finish
+  api.closeLearningSession=()=>new Promise(resolve=>{finish=resolve})
+  const closing=store.completeActiveLearningSession()
+  await store.selectConversation(2)
+  finish()
+  await closing
+  assert.equal(store.activeLearningSession.id,10)
+})
+
 test('guided answers use restored server version and save the returned step', async () => {
   const {store,api}=workspace()
   api.getActiveLearningSession=async()=>({id:8,flow:{version:4,stage:'CHECKING'}})

@@ -41,15 +41,26 @@ public class ConversationDocumentBinding {
     }
 
     public List<LearningDocument> validateDocuments(Long userId, List<Long> documentIds) {
+        return validateDocuments(userId, documentIds, false);
+    }
+
+    /** 在调用方事务内锁定教材，避免备课或推进过程中被删除、重新处理。 */
+    public List<LearningDocument> validateForLesson(Long userId, List<Long> documentIds) {
+        return validateDocuments(userId, documentIds, true);
+    }
+
+    private List<LearningDocument> validateDocuments(Long userId, List<Long> documentIds, boolean lock) {
         if (documentIds == null || documentIds.size() > 20
                 || documentIds.stream().anyMatch(id -> id == null || id <= 0)) {
             throw new BusinessException(400, "请选择最多 20 份有效教材");
         }
         List<Long> ids = List.copyOf(new LinkedHashSet<>(documentIds));
         if (ids.isEmpty()) return List.of();
-        Map<Long, LearningDocument> documents = documentMapper.selectList(new LambdaQueryWrapper<LearningDocument>()
+        var query = new LambdaQueryWrapper<LearningDocument>()
                         .eq(LearningDocument::getUserId, userId)
-                        .in(LearningDocument::getId, ids))
+                        .in(LearningDocument::getId, ids);
+        if (lock) query.orderByAsc(LearningDocument::getId).last("FOR SHARE");
+        Map<Long, LearningDocument> documents = documentMapper.selectList(query)
                 .stream().collect(Collectors.toMap(LearningDocument::getId, Function.identity()));
         // 整个选择必须有效，不能因部分教材删除或越权而悄悄扩大、缩小检索范围。
         if (ids.stream().anyMatch(id -> !documents.containsKey(id))) {

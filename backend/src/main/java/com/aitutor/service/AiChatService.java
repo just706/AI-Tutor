@@ -13,4 +13,5 @@ public interface AiChatService {
     com.aitutor.ai.TutorLearningFlow.Lesson generateLesson(String topic, String source);
 
     void recordExchange(Long conversationId, String message, String answer);
+    void recordExchange(Long conversationId, String message, String answer, String sources);
 }

@@ -9,6 +9,27 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TutorLearningFlowTest {
+    @Test void textbookEvidenceSurvivesStepsAndReloadButIsNotExposedInPublicState() throws Exception {
+        var sources=List.of(new com.aitutor.vo.RagSourceVO(21L,"数学.txt",3,"私有备课片段"));
+        var s=TutorLearningFlow.begin("导数","私有备课资料",lesson(),new TutorLearningFlow.Materials(List.of(21L,22L),sources));
+        s=TutorLearningFlow.read(TutorLearningFlow.write(next(s,"answer","A")));
+        assertEquals(List.of(21L,22L),s.materials().documentIds());
+        assertEquals("私有备课片段",s.materials().sources().get(0).getSnippet());
+        assertEquals(3,s.materials().sources().get(0).getChunkIndex());
+        assertTrue(TutorLearningFlow.view(s).textbookBased());
+        String visible=new ObjectMapper().writeValueAsString(TutorLearningFlow.view(s));
+        assertFalse(visible.contains("correctOption"));
+        assertFalse(visible.contains("私有备课"));
+        assertFalse(visible.contains("documentIds"));
+    }
+
+    @Test void oldManualProgressWithoutMaterialsStillLoadsAndAdvances() throws Exception {
+        var json=new ObjectMapper().readTree(TutorLearningFlow.write(TutorLearningFlow.begin("导数","资料",lesson())));
+        ((com.fasterxml.jackson.databind.node.ObjectNode)json).remove("materials");
+        var old=TutorLearningFlow.read(json.toString());
+        assertNull(old.materials());
+        assertFalse(TutorLearningFlow.view(next(old,"answer","A")).textbookBased());
+    }
     static TutorLearningFlow.Question q(String prompt, String answer) {
         return new TutorLearningFlow.Question(prompt, List.of("第一种解释", "第二种解释"), answer, "依据资料比较两种解释。");
     }

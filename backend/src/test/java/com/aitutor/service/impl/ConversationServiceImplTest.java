@@ -31,13 +31,14 @@ class ConversationServiceImplTest {
     @Mock ConversationMapper conversationMapper;
     @Mock ChatHistoryMapper historyMapper;
     @Mock LearningDocumentMapper documentMapper;
+    @Mock com.aitutor.service.LearningFlowGuard flowGuard;
     private ConversationServiceImpl service;
 
     @BeforeEach void setUp() {
         UserContext.set(new CurrentUser(7L, "reader", "student"));
         service = new ConversationServiceImpl(conversationMapper, historyMapper,
                 new ConversationDocumentBinding(documentMapper, new ObjectMapper()),
-                new RagCitationService(documentMapper, new ObjectMapper()));
+                new RagCitationService(documentMapper, new ObjectMapper()), flowGuard);
     }
     @AfterEach void tearDown() { UserContext.clear(); }
 

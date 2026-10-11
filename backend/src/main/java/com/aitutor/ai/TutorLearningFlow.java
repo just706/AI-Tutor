@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import com.aitutor.exception.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aitutor.vo.RagSourceVO;
 
 /** 循序学习的状态与题目；正确答案只保存在服务端。 */
 public final class TutorLearningFlow {
@@ -13,20 +14,24 @@ public final class TutorLearningFlow {
     public record Lesson(String explanation, String remedialExplanation, Question diagnosis,
                          List<Question> checks, List<Question> practices) {}
     public record Evidence(String stage, String question, String selectedOption, boolean correct) {}
+    public record Materials(List<Long> documentIds, List<RagSourceVO> sources) {}
     public record State(int version, String stage, String topic, String source, Lesson lesson,
-                        int checkIndex, int practiceIndex, List<Evidence> evidence, String feedback) {}
+                        int checkIndex, int practiceIndex, List<Evidence> evidence, String feedback, Materials materials) {}
     public record View(int version, String stage, String topic, String prompt, List<String> options,
-                       boolean canContinue, boolean passed, String feedback) {}
+                       boolean canContinue, boolean passed, String feedback, boolean textbookBased) {}
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
     public static State clarify(String topic) {
         requireText(topic, 200);
-        return new State(1, "CLARIFYING", topic, "", null, 0, 0, List.of(), "");
+        return new State(1, "CLARIFYING", topic, "", null, 0, 0, List.of(), "", null);
     }
     public static State begin(String topic, String source, Lesson lesson) {
+        return begin(topic, source, lesson, null);
+    }
+    public static State begin(String topic, String source, Lesson lesson, Materials materials) {
         requireText(topic, 200); requireText(source, 4000); validate(lesson);
-        return new State(1, "DIAGNOSING", topic, source, lesson, 0, 0, List.of(), "");
+        return new State(1, "DIAGNOSING", topic, source, lesson, 0, 0, List.of(), "", materials);
     }
     public static State advance(State state, int version, String action, String answer) {
         if (state.version() != version) throw new BusinessException(409, "学习进度已更新，请刷新后继续。");
@@ -55,7 +60,7 @@ public final class TutorLearningFlow {
         return copy(state, stage, check, practice, List.copyOf(evidence), feedback);
     }
     private static State copy(State s, String stage, int check, int practice, List<Evidence> evidence, String feedback) {
-        return new State(s.version() + 1, stage, s.topic(), s.source(), s.lesson(), check, practice, evidence, feedback);
+        return new State(s.version() + 1, stage, s.topic(), s.source(), s.lesson(), check, practice, evidence, feedback, s.materials());
     }
     public static void validate(Lesson lesson) {
         if (lesson == null) throw new BusinessException(600, "教学内容不完整，请重试。");
@@ -99,7 +104,7 @@ public final class TutorLearningFlow {
             default -> throw new BusinessException(500, "学习进度无法识别，请重新打开会话。");
         } : q.prompt();
         return new View(s.version(), s.stage(), s.topic(), prompt, q == null ? List.of() : q.options(),
-                List.of("TEACHING", "RETEACHING").contains(s.stage()), "FEEDBACK".equals(s.stage()), s.feedback());
+                List.of("TEACHING", "RETEACHING").contains(s.stage()), "FEEDBACK".equals(s.stage()), s.feedback(), s.materials() != null);
     }
     public static String render(State state) {
         View v = view(state);

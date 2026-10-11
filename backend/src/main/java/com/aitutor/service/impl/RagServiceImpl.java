@@ -23,10 +23,13 @@ import com.aitutor.security.UserContext;
 import com.aitutor.service.RagService;
 import com.aitutor.service.ConversationDocumentBinding;
 import com.aitutor.service.RagCitationService;
+import com.aitutor.service.LearningFlowGuard;
 import com.aitutor.vo.RagChatVO;
 import com.aitutor.vo.RagSourceVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.aitutor.ai.DeepSeekProperties;
@@ -64,6 +67,7 @@ public class RagServiceImpl implements RagService {
     private final AiPromptBuilder aiPromptBuilder;
     private final RagProperties ragProperties;
     private final RagCitationService citationService;
+    private final LearningFlowGuard flowGuard;
 
     private final TransactionTemplate transactions;
     private final ObjectMapper objectMapper;
@@ -78,7 +82,8 @@ public class RagServiceImpl implements RagService {
                           AiPromptBuilder aiPromptBuilder,
                           RagProperties ragProperties,
                           RagCitationService citationService, PlatformTransactionManager transactionManager,
-                          ObjectMapper objectMapper, DeepSeekProperties modelProperties) {
+                          ObjectMapper objectMapper, DeepSeekProperties modelProperties, LearningFlowGuard flowGuard) {
+        this.flowGuard = flowGuard;
         this.transactions = new TransactionTemplate(transactionManager);
         this.objectMapper = objectMapper;
         this.modelProperties = modelProperties;
@@ -91,6 +96,31 @@ public class RagServiceImpl implements RagService {
         this.aiPromptBuilder = aiPromptBuilder;
         this.ragProperties = ragProperties;
         this.citationService = citationService;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public LessonContext retrieveForLesson(Long conversationId, String topic) {
+        Long userId = UserContext.getRequired().getId();
+        Conversation conversation = requireOwnedRagConversation(userId, conversationId);
+        List<Long> ids = documentBinding.documentIds(conversation);
+        if (ids.isEmpty()) throw new BusinessException(400, "请先为当前会话选择教材。");
+        var documents = documentBinding.validateForLesson(userId, ids);
+        var chunks = retrieveChunks(topic, documents);
+        if (chunks.isEmpty()) throw new BusinessException(400, "所选教材中没有找到相关资料，请补充教材或换个更具体的主题。");
+        String context = buildSourceContext(chunks);
+        if (context.length() > 4000) throw new BusinessException(400, "相关资料篇幅过长，请缩小学习主题或减少所选教材。");
+        return new LessonContext(context, List.copyOf(ids), toSources(chunks));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void validateLessonDocuments(Long conversationId, List<Long> expectedIds) {
+        Long userId = UserContext.getRequired().getId();
+        var conversation = requireOwnedRagConversation(userId, conversationId);
+        if (expectedIds == null || expectedIds.isEmpty() || !expectedIds.equals(documentBinding.documentIds(conversation)))
+            throw new BusinessException(409, "本轮学习的教材选择已变化，请结束本轮循序学习后重新开始。");
+        documentBinding.validateForLesson(userId, expectedIds);
     }
 
     @Override
@@ -137,6 +167,7 @@ public class RagServiceImpl implements RagService {
     // 会话行锁仅用于短事务；问题和状态先落库，再在事务外调用模型。
     private Start claim(Long userId, String key, RagChatRequest request) {
         Conversation conversation = requireOwnedRagConversation(userId, request.getConversationId());
+        flowGuard.requireNoActiveFlow(userId, conversation.getId());
         String question = request.getQuestion().trim();
         int attempt = request.getAttempt() == null ? 1 : request.getAttempt();
         ChatHistory current = requestMessage(userId, conversation.getId(), key, ROLE_USER);

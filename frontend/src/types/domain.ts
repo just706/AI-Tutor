@@ -103,6 +103,7 @@ export interface LearningSession {
 
 export type LearningFlowAction = 'start' | 'clarify' | 'answer' | 'continue'
 export interface LearningFlow {
+  textbookBased: boolean
   version: number
   stage: 'CLARIFYING' | 'DIAGNOSING' | 'TEACHING' | 'CHECKING' | 'RETEACHING' | 'PRACTICE' | 'FEEDBACK' | 'REVIEW'
   topic: string

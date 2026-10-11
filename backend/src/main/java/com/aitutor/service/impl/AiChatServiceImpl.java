@@ -133,10 +133,15 @@ public class AiChatServiceImpl implements AiChatService {
 
     @Override
     public void recordExchange(Long conversationId, String message, String answer) {
+        recordExchange(conversationId, message, answer, null);
+    }
+
+    @Override
+    public void recordExchange(Long conversationId, String message, String answer, String sources) {
         Long userId = UserContext.getRequired().getId();
         requireOwnedConversation(userId, conversationId);
         saveMessage(userId, conversationId, ROLE_USER, message);
-        saveMessage(userId, conversationId, ROLE_ASSISTANT, answer);
+        saveMessage(userId, conversationId, ROLE_ASSISTANT, answer, sources);
         touchConversation(conversationId);
     }
 
@@ -183,7 +188,12 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     private void saveMessage(Long userId, Long conversationId, String role, String content) {
+        saveMessage(userId, conversationId, role, content, null);
+    }
+
+    private void saveMessage(Long userId, Long conversationId, String role, String content, String sources) {
         ChatHistory chatHistory = new ChatHistory();
+        chatHistory.setRagSources(sources);
         chatHistory.setUserId(userId);
         chatHistory.setConversationId(conversationId);
         chatHistory.setRole(role);

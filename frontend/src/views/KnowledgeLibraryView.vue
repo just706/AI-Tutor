@@ -17,6 +17,8 @@
       </div>
       <el-alert v-if="unavailableDocumentIds.length" type="warning" :closable="false"
         title="部分已选教材不可用，请取消选择或等待资料处理完成。" />
+      <el-alert v-if="textbookLearning" type="info" :closable="false"
+        title="本轮正在依据教材学习。请点击‘在主聊天继续’完成当前步骤；结束本轮后可更换教材或继续资料问答。" />
 
       <div class="rag-composer">
         <el-input
@@ -27,7 +29,7 @@
           placeholder="输入教材中的概念名称和问题，例如：某概念有什么用途？"
         />
         <el-button type="primary" :icon="Promotion" :loading="ragSending"
-          :disabled="loadingDocuments || !selectedDocumentIds.length || unavailableDocumentIds.length > 0 || workspaceStore.savingDocuments || workspaceStore.loadingMessages" @click="sendRagQuestion">
+          :disabled="textbookLearning || loadingDocuments || !selectedDocumentIds.length || unavailableDocumentIds.length > 0 || workspaceStore.savingDocuments || workspaceStore.loadingMessages" @click="sendRagQuestion">
           基于资料回答
         </el-button>
       </div>
@@ -64,7 +66,7 @@
         </el-upload>
       </div>
 
-      <el-checkbox-group v-model="selectedDocumentIds" class="source-list" :disabled="loadingDocuments || ragSending || workspaceStore.savingDocuments || workspaceStore.loadingMessages" @change="saveDocumentSelection">
+      <el-checkbox-group v-model="selectedDocumentIds" class="source-list" :disabled="textbookLearning || loadingDocuments || ragSending || workspaceStore.savingDocuments || workspaceStore.loadingMessages" @change="saveDocumentSelection">
         <el-checkbox v-for="id in missingDocumentIds" :key="`missing-${id}`" :value="id">资料 #{{ id }}（已删除或不可用，请取消选择）</el-checkbox>
         <article
           v-for="document in documents"
@@ -234,6 +236,7 @@ import RagSources from '../components/RagSources.vue'
 import RagRetry from '../components/RagRetry.vue'
 
 const workspaceStore = useWorkspaceStore()
+const textbookLearning = computed(() => workspaceStore.currentConversation?.mode === 'rag' && !!workspaceStore.activeLearningSession?.flow)
 const router = useRouter()
 const documents = ref<LearningDocument[]>([])
 const loadingDocuments = ref(true)
@@ -503,6 +506,10 @@ async function createRagConversation() {
 }
 
 async function sendRagQuestion() {
+  if (textbookLearning.value) {
+    ElMessage.info('请在主聊天继续本轮循序学习')
+    return
+  }
   const question = ragQuestion.value.trim()
   if (!question) {
     ElMessage.warning('请输入问题')

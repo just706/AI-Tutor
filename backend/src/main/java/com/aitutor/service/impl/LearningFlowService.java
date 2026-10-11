@@ -3,11 +3,14 @@ package com.aitutor.service.impl;
 import com.aitutor.ai.TutorLearningFlow;
 import com.aitutor.dto.TutorAgentChatRequest;
 import com.aitutor.entity.LearningSession;
+import com.aitutor.entity.Conversation;
 import com.aitutor.entity.LearningSessionStep;
 import com.aitutor.exception.BusinessException;
 import com.aitutor.mapper.LearningSessionMapper;
 import com.aitutor.mapper.LearningSessionStepMapper;
 import com.aitutor.service.AiChatService;
+import com.aitutor.service.RagService;
+import com.aitutor.service.RagCitationService;
 import com.aitutor.vo.LearningSessionVO;
 import com.aitutor.vo.TutorAgentChatVO;
 import java.time.LocalDateTime;
@@ -20,28 +23,39 @@ public class LearningFlowService {
     private final AiChatService chat;
     private final LearningSessionMapper sessions;
     private final LearningSessionStepMapper steps;
-    public LearningFlowService(AiChatService chat, LearningSessionMapper sessions, LearningSessionStepMapper steps) {
+    private final RagService rag;
+    private final RagCitationService citations;
+    public LearningFlowService(AiChatService chat, LearningSessionMapper sessions, LearningSessionStepMapper steps,
+                               RagService rag, RagCitationService citations) {
         this.chat=chat; this.sessions=sessions; this.steps=steps;
+        this.rag=rag; this.citations=citations;
     }
 
-    public TutorAgentChatVO advance(LearningSession session, TutorAgentChatRequest request, String detectedTopic) {
+    public TutorAgentChatVO advance(Conversation conversation, LearningSession session, TutorAgentChatRequest request, String detectedTopic) {
         var state=TutorLearningFlow.read(session.getFlowState());
         String action=request.getFlowAction();
         if (state == null) {
             if (!"start".equals(action)) throw new BusinessException(400, "请先开始循序学习。");
-            String topic=detectedTopic == null || detectedTopic.isBlank() ? request.getMessage().trim() : detectedTopic;
+            boolean textbook="rag".equals(conversation.getMode());
+            String topic=textbook || detectedTopic == null || detectedTopic.isBlank() ? request.getMessage().trim() : detectedTopic;
             if (topic.length() > 200) throw new BusinessException(400, "请先填写一个简短的学习主题，再补充资料。");
-            state=TutorLearningFlow.clarify(topic);
+            if (textbook) {
+                var context=rag.retrieveForLesson(conversation.getId(),topic);
+                var lesson=chat.generateLesson(topic,context.text());
+                state=TutorLearningFlow.begin(topic,context.text(),lesson,
+                        new TutorLearningFlow.Materials(context.documentIds(),context.sources()));
+            } else state=TutorLearningFlow.clarify(topic);
         } else {
             if (request.getFlowVersion() == null || request.getFlowVersion() != state.version())
                 throw new BusinessException(409, "学习进度已更新，请刷新后继续。");
+            if (state.materials() != null) rag.validateLessonDocuments(conversation.getId(),state.materials().documentIds());
             if (action == null) action="CLARIFYING".equals(state.stage()) ? "clarify" : "answer";
             if ("clarify".equals(action) && "CLARIFYING".equals(state.stage())) {
                 String source=request.getMessage().trim();
                 if (source.length() < 15) throw new BusinessException(400, "请补充所属领域与具体定义或资料片段，仅确认名称不足以备课。");
                 var lesson=chat.generateLesson(state.topic(),source);
                 var begun=TutorLearningFlow.begin(state.topic(),source,lesson);
-                state=new TutorLearningFlow.State(state.version()+1,begun.stage(),begun.topic(),source,lesson,0,0,List.of(),"");
+                state=new TutorLearningFlow.State(state.version()+1,begun.stage(),begun.topic(),source,lesson,0,0,List.of(),"",null);
             } else state=TutorLearningFlow.advance(state,state.version(),action,request.getMessage());
         }
         String previous=session.getStatus();
@@ -65,7 +79,8 @@ public class LearningFlowService {
         session.setFlowState(TutorLearningFlow.write(state)); session.setUpdateTime(LocalDateTime.now());
         sessions.updateById(session);
         String answer=TutorLearningFlow.render(state);
-        chat.recordExchange(session.getConversationId(),request.getMessage(),answer);
+        var sources=state.materials() == null ? List.<com.aitutor.vo.RagSourceVO>of() : state.materials().sources();
+        chat.recordExchange(session.getConversationId(),request.getMessage(),answer,citations.serialize(sources));
         LearningSessionStep step=new LearningSessionStep();
         step.setSessionId(session.getId()); step.setUserId(session.getUserId()); step.setConversationId(session.getConversationId());
         step.setStatusFrom(previous); step.setStatusTo(session.getStatus()); step.setStepType(session.getCurrentStepType());
@@ -74,6 +89,7 @@ public class LearningFlowService {
         step.setStrategySource("[\"循序学习：按当前步骤和选择题作答推进，不据此更新掌握度\"]"); step.setActionsSnapshot("[]");
         steps.insert(step);
         var result=new TutorAgentChatVO(); result.setAnswer(answer); result.setIntent("learn");
+        result.setSources(sources);
         var vo=LearningSessionVO.from(session);
         var reasons=List.of("循序学习：按当前步骤和选择题作答推进，不据此更新掌握度");
         vo.setStrategySource(reasons); result.setLearningSession(vo); result.setStrategySource(reasons);

@@ -93,7 +93,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       const conversation = await getConversation(conversationId)
       const [messageResult, sessionResult] = await Promise.all([
         listMessages(conversationId),
-        conversation.mode === 'rag' ? Promise.resolve(null) : getActiveLearningSession(conversationId)
+        getActiveLearningSession(conversationId)
       ])
       if (version !== selectionVersion) return
       replaceConversation(conversation)
@@ -117,7 +117,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       if (!conversationId || lifecycle !== lifecycleVersion) return
       const isRag = currentConversation.value?.mode === 'rag'
       if (isRag && !currentConversation.value?.documentIds?.length) throw new Error('请先为当前会话选择教材')
-      if (isRag) {
+      if (isRag && !flowAction && !activeLearningSession.value?.flow) {
         const message: ChatMessage = { role: 'user', messageContent: content, createTime: new Date().toISOString(),
           ragRequestId: crypto.randomUUID(), ragStatus: 'processing', ragAttempt: 1,
           ragDocumentIds: [...(currentConversation.value?.documentIds || [])] }
@@ -142,7 +142,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         if (currentConversationId.value === conversationId && lifecycle === lifecycleVersion) {
           appendMessage('user', content)
           activeLearningSession.value = result.learningSession || null
-          appendMessage('assistant', result.answer, result.actions, result.intent, result.memoryUpdates)
+          appendMessage('assistant', result.answer, result.actions, result.intent, result.memoryUpdates, result.sources)
         }
       }
       if (lifecycle !== lifecycleVersion) return
@@ -190,6 +190,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function retryRagMessage(message: ChatMessage) {
+    if (activeLearningSession.value?.flow) throw new Error('请先结束本轮循序学习，再重试教材问答')
     if (sending.value || loadingMessages.value || savingDocuments.value) throw new Error('请等待当前操作完成')
     const conversationId = currentConversationId.value
     if (!conversationId || currentConversation.value?.mode !== 'rag' || message.role !== 'user'
@@ -221,6 +222,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function setConversationDocuments(documentIds: number[]) {
+    if (activeLearningSession.value?.flow) throw new Error('请先结束本轮循序学习，再更换教材')
     const conversationId = currentConversationId.value
     if (!conversationId || currentConversation.value?.mode !== 'rag') throw new Error('请先创建教材会话')
     if (sending.value || savingDocuments.value || loadingMessages.value) throw new Error('请等待当前操作完成')
@@ -235,11 +237,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function completeActiveLearningSession() {
-    if (!activeLearningSession.value) {
-      return
+    const session = activeLearningSession.value
+    const conversationId = currentConversationId.value
+    const lifecycle = lifecycleVersion
+    if (!session || !conversationId) return
+    await closeLearningSession(session.id)
+    if (isCurrent(conversationId, lifecycle) && activeLearningSession.value?.id === session.id) {
+      activeLearningSession.value = null
     }
-    await closeLearningSession(activeLearningSession.value.id)
-    activeLearningSession.value = null
   }
 
   function appendMessage(
@@ -247,7 +252,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     messageContent: string,
     actions: TutorAction[] = [],
     intent?: string,
-    memoryUpdates: string[] = []
+    memoryUpdates: string[] = [],
+    sources: ChatMessage['sources'] = []
   ) {
     messages.value.push({
       role,
@@ -255,7 +261,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       createTime: new Date().toISOString(),
       actions,
       intent,
-      memoryUpdates
+      memoryUpdates,
+      sources
     })
   }
 

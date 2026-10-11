@@ -96,7 +96,6 @@ public class TutorAgentServiceImpl implements TutorAgentService {
     public TutorAgentChatVO chat(TutorAgentChatRequest request) {
         Long userId = UserContext.getRequired().getId();
         Conversation conversation = requireOwnedConversation(userId, request.getConversationId());
-        if ("rag".equals(conversation.getMode())) throw new BusinessException(400, "教材会话请使用教材问答入口。");
 
         AiChatRequest chatRequest = new AiChatRequest();
         chatRequest.setConversationId(conversation.getId());
@@ -109,8 +108,9 @@ public class TutorAgentServiceImpl implements TutorAgentService {
         LearningSession session = findOrCreateSession(userId, conversation.getId(), request.getLearningSessionId(), intent, detectedTopic);
         if (STATUS_COMPLETED.equals(session.getStatus())) throw new BusinessException(409, "本次学习已结束，请重新打开会话后开始新的学习。");
         if (request.getFlowAction() != null || session.getFlowState() != null) {
-            return learningFlowService.advance(session, request, detectedTopic);
+            return learningFlowService.advance(conversation, session, request, detectedTopic);
         }
+        if ("rag".equals(conversation.getMode())) throw new BusinessException(400, "教材会话请使用教材问答入口，或开始依据教材学习。");
         String topic = resolveEffectiveTopic(session, intent, detectedTopic);
         previousStatus = session.getStatus();
 

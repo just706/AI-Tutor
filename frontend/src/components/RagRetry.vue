@@ -2,7 +2,7 @@
   <div v-if="message.role === 'user' && message.ragRequestId && message.ragStatus && message.ragStatus !== 'completed'"
     class="rag-retry" role="status">
     <span>{{ statusText }}</span>
-    <el-button size="small" :disabled="workspace.sending || workspace.loadingMessages || workspace.savingDocuments" @click="retry">
+    <el-button size="small" :disabled="!!workspace.activeLearningSession?.flow || workspace.sending || workspace.loadingMessages || workspace.savingDocuments" @click="retry">
       {{ message.ragStatus === 'processing' || message.ragStatus === 'uncertain' ? '检查回答' : '重试回答' }}
     </el-button>
   </div>

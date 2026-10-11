@@ -32,10 +32,10 @@
 
       <div v-if="isRagConversation" class="source-summary">
         <span>当前教材：{{ sourcesLoading ? '正在加载…' : selectedTextbookNames || '尚未选择' }}</span>
-        <el-button text type="primary" @click="openTextbooks">选择教材</el-button>
+        <el-button text type="primary" :disabled="!!learningFlow || workspaceStore.sending" @click="openTextbooks">选择教材</el-button>
       </div>
       <el-alert v-if="isRagConversation && unavailableTextbooks" type="warning" :closable="false"
-        title="部分教材已删除或尚未处理完成，请重新选择教材后提问。" />
+        :title="learningFlow ? '部分教材已删除或尚未处理完成。请等待处理完成，或结束本轮学习后重新选择教材。' : '部分教材已删除或尚未处理完成，请重新选择教材后提问。'" />
 
       <section v-if="historySearchOpen" class="chat-history-search">
         <div class="history-search-row">
@@ -70,7 +70,7 @@
       <div ref="messageScroller" v-loading="workspaceStore.loadingMessages" class="message-list wide">
         <div v-if="workspaceStore.messages.length === 0" class="empty-chat">
           <h3>把问题交给 AI Tutor</h3>
-          <p v-if="isRagConversation">先选择教材，再围绕其中的概念提问。讨论过明确概念后，可以继续问“它有什么用途？”。</p>
+          <p v-if="isRagConversation">先选择教材，再围绕其中的概念提问；也可以输入一个具体主题，点击“依据教材学习”完成诊断、讲解和练习。</p>
           <p v-else>可以直接输入“我想学习 HashMap”，学习会话、图谱、练习和进度会在右侧自动承接。</p>
         </div>
 
@@ -131,14 +131,17 @@
 
       <section v-if="learningFlow" class="learning-flow" aria-label="循序学习进度">
         <strong>循序学习 · {{ flowStageLabel }}</strong>
+        <p v-if="learningFlow.textbookBased">本轮教材已固定。回答下方的引用是本轮备课资料；更换教材请先结束本轮学习。</p>
         <p v-if="learningFlow.stage === 'CLARIFYING'">请在下方补充所属领域、定义或一小段参考资料，再发送。</p>
         <p v-else-if="learningFlow.options.length">根据上方题目选择一个答案；不确定时可以回顾资料。</p>
         <div class="flow-actions">
           <el-button v-for="(option, index) in learningFlow.options" :key="index"
-            :disabled="workspaceStore.sending || workspaceStore.loadingMessages"
+            :disabled="flowBusy"
             @click="sendFlow(String.fromCharCode(65 + index), 'answer')">{{ String.fromCharCode(65 + index) }}. {{ option }}</el-button>
-          <el-button v-if="learningFlow.canContinue" type="primary" :disabled="workspaceStore.sending || workspaceStore.loadingMessages"
+          <el-button v-if="learningFlow.canContinue" type="primary" :disabled="flowBusy"
             @click="sendFlow('开始理解检查', 'continue')">开始理解检查</el-button>
+          <el-button text :disabled="workspaceStore.sending || workspaceStore.loadingMessages"
+            @click="completeLearningSession">结束本轮学习</el-button>
         </div>
         <small>仅记录本轮作答；题目和参考答案由模型依据所提供资料生成，不等同于掌握度评定。</small>
       </section>
@@ -156,8 +159,8 @@
             :disabled="workspaceStore.loadingMessages || workspaceStore.savingDocuments || (isRagConversation && (sourcesLoading || !workspaceStore.currentConversation?.documentIds.length || unavailableTextbooks))" @click="send">
             发送
           </el-button>
-          <el-button v-if="!isRagConversation && !learningFlow" :disabled="!draft.trim() || workspaceStore.sending || workspaceStore.loadingMessages"
-            @click="sendFlow(draft, 'start')">循序学习</el-button>
+          <el-button v-if="!learningFlow" :disabled="!draft.trim() || flowBusy"
+            @click="sendFlow(draft, 'start')">{{ isRagConversation ? '依据教材学习' : '循序学习' }}</el-button>
         </div>
       </footer>
     </section>
@@ -209,8 +212,8 @@
               <span>Next Up</span>
               <strong>{{ workspaceStore.activeLearningSession.nextAction || '继续围绕当前目标学习' }}</strong>
             </div>
-            <el-button type="primary" plain :icon="CircleCheck" @click="completeLearningSession">
-              完成本次会话
+            <el-button type="primary" plain :icon="CircleCheck" :disabled="workspaceStore.sending || workspaceStore.loadingMessages" @click="completeLearningSession">
+              {{ learningFlow ? '结束本轮学习' : '完成本次会话' }}
             </el-button>
           </template>
           <el-empty v-else :description="isRagConversation ? '当前为教材问答，可在回答下方查看引用依据' : '开始聊天后会自动创建学习会话'" :image-size="92" />
@@ -413,6 +416,8 @@ const selectedTextbookNames = computed(() => (workspaceStore.currentConversation
   .map(id => documents.value.find(document => document.id === id)?.fileName || `资料 #${id}（不可用）`).join('、'))
 const unavailableTextbooks = computed(() => !sourcesLoading.value && (workspaceStore.currentConversation?.documentIds || [])
   .some(id => !documents.value.some(document => document.id === id && document.processStatus === 'completed')))
+const flowBusy = computed(() => workspaceStore.sending || workspaceStore.loadingMessages || workspaceStore.savingDocuments
+  || (isRagConversation.value && (sourcesLoading.value || unavailableTextbooks.value || !workspaceStore.currentConversation?.documentIds.length)))
 const currentChatTitle = computed(() => {
   if (workspaceStore.currentConversation?.title) {
     return workspaceStore.currentConversation.title
@@ -751,7 +756,7 @@ async function sendPrompt(content: string) {
 }
 
 async function sendFlow(content: string, action: import('../types/domain').LearningFlowAction) {
-  if (!content.trim()) return
+  if (!content.trim() || flowBusy.value) return
   try {
     await workspaceStore.sendMessage(content.trim(), action)
     if (content === draft.value) draft.value = ''

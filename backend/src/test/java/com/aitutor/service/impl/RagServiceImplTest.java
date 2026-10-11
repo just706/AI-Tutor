@@ -61,6 +61,7 @@ class RagServiceImplTest {
     @Mock private ChatHistoryMapper historyMapper;
     @Mock private AiCallLogMapper logMapper;
     @Mock private DeepSeekClient client;
+    @Mock private com.aitutor.service.LearningFlowGuard flowGuard;
     @Captor private ArgumentCaptor<List<AiMessage>> sentMessages;
 
     private final java.util.Map<String, ChatHistory> stored = new java.util.HashMap<>();
@@ -97,7 +98,7 @@ class RagServiceImplTest {
         });
         service = new RagServiceImpl(new ConversationDocumentBinding(documentMapper, new ObjectMapper()), chunkMapper, conversationMapper,
                 historyMapper, logMapper, client, new AiPromptBuilder(), properties,
-                new RagCitationService(documentMapper, new ObjectMapper()), tx, new ObjectMapper(), new com.aitutor.ai.DeepSeekProperties());
+                new RagCitationService(documentMapper, new ObjectMapper()), tx, new ObjectMapper(), new com.aitutor.ai.DeepSeekProperties(), flowGuard);
     }
 
     @AfterEach
@@ -585,6 +586,55 @@ class RagServiceImplTest {
     private void stubModel() {
         lenient().when(client.chat(any())).thenReturn(new AiChatResult("根据片段给出回答。", 10, 5));
         lenient().when(client.getModelName()).thenReturn("test-model");
+    }
+
+    @Test void lessonRetrievalUsesSelectedChunksAndReturnsExactCitationsWithoutCallingModel() {
+        prepareLessonDocuments();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(2,INDEX_ACCESS),chunk(3,"完全不相关的历史资料")));
+        var context=service.retrieveForLesson(11L,"ArrayList");
+        assertEquals(List.of(21L),context.documentIds());
+        assertEquals(1,context.sources().size());
+        assertEquals(INDEX_ACCESS,context.sources().get(0).getSnippet());
+        assertEquals(2,context.sources().get(0).getChunkIndex());
+        assertTrue(context.text().contains("片段1"));
+        assertTrue(context.text().contains(INDEX_ACCESS));
+        assertFalse(context.text().contains("完全不相关"));
+        verifyNoInteractions(client,historyMapper,logMapper);
+    }
+
+    @Test void lessonRetrievalRefusesMissingEvidenceAndOversizeContext() {
+        prepareLessonDocuments();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(0,"历史教材讲述秦朝。")));
+        assertEquals(400,assertThrows(BusinessException.class,()->service.retrieveForLesson(11L,"ArrayList")).getCode());
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(0,"ArrayList 随机访问速度快。".repeat(400))));
+        assertEquals(400,assertThrows(BusinessException.class,()->service.retrieveForLesson(11L,"ArrayList")).getCode());
+        verifyNoInteractions(client,historyMapper,logMapper);
+    }
+
+    @Test void lessonRetrievalRefusesEmptyAndInaccessibleSelections() {
+        prepareLessonDocuments();
+        var conversation=conversationMapper.selectOne(null);
+        conversation.setDocumentIds("[]");
+        assertEquals(400,assertThrows(BusinessException.class,()->service.retrieveForLesson(11L,"ArrayList")).getCode());
+        conversation.setDocumentIds("[21,99]");
+        assertEquals(404,assertThrows(BusinessException.class,()->service.retrieveForLesson(11L,"ArrayList")).getCode());
+        verifyNoInteractions(chunkMapper,client);
+    }
+
+    @Test void advancingALessonRefusesChangedDeletedOrProcessingMaterials() {
+        prepareLessonDocuments();
+        assertEquals(409,assertThrows(BusinessException.class,()->service.validateLessonDocuments(11L,List.of(22L))).getCode());
+        var document=documentMapper.selectList(null).get(0);
+        document.setProcessStatus("processing");
+        assertEquals(409,assertThrows(BusinessException.class,()->service.validateLessonDocuments(11L,List.of(21L))).getCode());
+        when(documentMapper.selectList(any())).thenReturn(List.of());
+        assertEquals(404,assertThrows(BusinessException.class,()->service.validateLessonDocuments(11L,List.of(21L))).getCode());
+        verifyNoInteractions(chunkMapper,client);
+    }
+
+    private void prepareLessonDocuments() {
+        prepareDocuments();
+        conversationMapper.selectOne(null).setDocumentIds("[21]");
     }
 
     private RagChatRequest request(String question) {

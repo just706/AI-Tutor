@@ -10,6 +10,7 @@ import com.aitutor.security.UserContext;
 import com.aitutor.service.ConversationService;
 import com.aitutor.service.ConversationDocumentBinding;
 import com.aitutor.service.RagCitationService;
+import com.aitutor.service.LearningFlowGuard;
 import com.aitutor.vo.ChatMessageVO;
 import com.aitutor.vo.ConversationCreateVO;
 import com.aitutor.vo.ConversationVO;
@@ -29,15 +30,17 @@ public class ConversationServiceImpl implements ConversationService {
     private final ChatHistoryMapper chatHistoryMapper;
     private final ConversationDocumentBinding documentBinding;
     private final RagCitationService citationService;
+    private final LearningFlowGuard flowGuard;
 
     public ConversationServiceImpl(ConversationMapper conversationMapper,
                                    ChatHistoryMapper chatHistoryMapper,
                                    ConversationDocumentBinding documentBinding,
-                                   RagCitationService citationService) {
+                                   RagCitationService citationService, LearningFlowGuard flowGuard) {
         this.conversationMapper = conversationMapper;
         this.chatHistoryMapper = chatHistoryMapper;
         this.documentBinding = documentBinding;
         this.citationService = citationService;
+        this.flowGuard = flowGuard;
     }
 
     @Override
@@ -95,8 +98,9 @@ public class ConversationServiceImpl implements ConversationService {
     @Transactional
     public ConversationVO updateDocuments(Long conversationId, List<Long> documentIds) {
         Long userId = UserContext.getRequired().getId();
-        Conversation conversation = requireOwnedConversation(userId, conversationId);
+        Conversation conversation = requireOwnedConversation(userId, conversationId, true);
         if (!"rag".equals(conversation.getMode())) throw new BusinessException(400, "只有教材会话可以选择教材");
+        flowGuard.requireNoActiveFlow(userId, conversationId);
         String stored = documentBinding.serialize(documentBinding.validateDocuments(userId, documentIds));
         Conversation update = new Conversation();
         update.setId(conversationId);
@@ -113,9 +117,15 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     private Conversation requireOwnedConversation(Long userId, Long conversationId) {
-        Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
+        return requireOwnedConversation(userId, conversationId, false);
+    }
+
+    private Conversation requireOwnedConversation(Long userId, Long conversationId, boolean lock) {
+        var query = new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, conversationId)
-                .eq(Conversation::getUserId, userId));
+                .eq(Conversation::getUserId, userId);
+        if (lock) query.last("FOR UPDATE");
+        Conversation conversation = conversationMapper.selectOne(query);
         if (conversation == null) {
             throw new BusinessException(404, "Conversation not found");
         }
