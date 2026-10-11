@@ -1,9 +1,10 @@
 {
   "suiteVersion": "stage2-flow-v1",
   "date": "2026-10-10",
+  "updatedDate": "2026-10-11",
   "reviewer": "Codex",
   "scope": "4份自编短资料的讲解、补讲和20道选择题，以及1个资料不足案例；接口与内容分别评价。",
-  "status": "fixed_suite_content_review_passed_browser_pending",
+  "status": "fixed_suite_content_review_passed_partial_user_ui_reported",
   "runs": [
     {
       "run": "real-v1",
@@ -81,12 +82,20 @@
   ],
   "backendTestsPassed": 168,
   "browserVerified": false,
+  "userPageFeedback": {
+    "date": "2026-10-11",
+    "source": "user_report_in_chat",
+    "replies": ["确认出现", "是，阶段和题目都保留"],
+    "confirmedBehaviors": ["答错后出现补讲", "补讲后出现新题", "刷新后学习阶段与当前题目保留"],
+    "fullBrowserMatrixVerified": false,
+    "scopeNote": "仅记录用户明确反馈；未提供具体知识点，不替代跨知识点、多会话、重新登录或关闭重开的页面验收。browserVerified 仍表示 Codex 浏览器验收状态。"
+  },
   "existingLearningDataModified": false,
   "limitations": [
     "结论仅限一次完整复测的5个案例；提示词约束不能保证任意输入都受资料支持。",
     "本审阅由 Codex 执行，不是教师或学生实验。",
     "题目答案位置和难度分布尚未系统评估。",
-    "浏览器工具异常，页面交互仍未验收。",
+    "Codex 浏览器工具仍异常；用户确认的三个页面行为见 userPageFeedback，完整页面矩阵尚未验收。",
     "补讲预先生成，未针对每一种具体错因实时调整。"
   ],
   "evidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-flow-evaluation-20261010"
