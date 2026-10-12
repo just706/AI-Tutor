@@ -162,10 +162,11 @@ const modelServer = createServer(async (request, response) => {
       const sourceText=lessonSourceText(data.source);
       lessonInputs.push(data);
       const evidenceIds=data.source.slice(0,2).map(unit=>unit.id);
+      const optionTexts=['与所给定义一致','与所给定义不一致','忽略定义中的条件'];
       const question = (label, correctOption) => ({prompt:`${data.topic}：${label}`,
-        options:['与所给定义一致','与所给定义不一致','忽略定义中的条件'],correctOption,explanation:'请对照定义核对当前判断。',
+        options:optionTexts,correctOption,explanation:'请对照定义核对当前判断。',
         wrongOptionFeedback:['A','B','C'].filter(option=>option!==correctOption).map(option=>({option,
-          explanation:`仅针对${label}的${option}选项补充说明，请依据下面原文重新判断。`,evidenceIds}))});
+          explanation:`仅针对${label}中“${optionTexts[option.charCodeAt(0)-65]}”的说法补充说明，请依据下面原文重新判断。`,evidenceIds}))});
       content = JSON.stringify({schemaVersion:2,supported:true,explanation:`先理解本次资料：${sourceText}`,
         remedialExplanation:`先回顾定义，再比较容易混淆的含义：${sourceText}`,
         questions:[question('诊断题','A'),question('检查题一','B'),question('检查题二','A'),
@@ -767,13 +768,22 @@ try {
     assert.deepEqual(active.flow,turn.result.learningSession.flow);
     assert(!JSON.stringify(active).includes('correctOption')); assert(!JSON.stringify(active).includes('"lesson"'));
   };
+  const flowAnswer = async (turn,correct,stage) => {
+    // 通过服务端保存的参考答案驱动状态；选项语义和补讲映射在下方独立比较原始备课。
+    const lesson=readSavedFlow(turn.result.learningSession.id).lesson;
+    const current=[lesson.diagnosis,...lesson.checks,...lesson.practices]
+      .find(q=>q.prompt===turn.result.learningSession.flow.prompt);
+    assert(current,'当前页面题目必须对应已保存的题目');
+    assert.deepEqual(turn.result.learningSession.flow.options,current.options);
+    await flowStep(turn,'answer',correct?current.correctOption:current.wrongOptionFeedback[0].option,stage);
+  };
   for(const [topic,source] of [['ArrayList','Java：ArrayList 使用动态数组，按下标访问通常较快。'],
     ['HashMap','Java：HashMap 保存键值对，相同键再次放入会替换原值。'],['导数','数学：导数表示函数在某点的瞬时变化率，可用切线斜率理解。']]) {
     const turn=await flowStart(topic); const before=modelRequests.length;
     await flowStep(turn,'clarify',source,'DIAGNOSING'); assert.equal(modelRequests.length,before+1);
     await flowSend(turn,'answer','懂了',400); await flowSend(turn,'continue','跳过诊断',400);
-    await flowStep(turn,'answer','A','TEACHING'); await flowStep(turn,'continue','开始理解检查','CHECKING');
-    await flowStep(turn,'answer','B','PRACTICE'); await flowStep(turn,'answer','A','FEEDBACK');
+    await flowAnswer(turn,true,'TEACHING'); await flowStep(turn,'continue','开始理解检查','CHECKING');
+    await flowAnswer(turn,true,'PRACTICE'); await flowAnswer(turn,true,'FEEDBACK');
     assert(turn.result.learningSession.flow.passed); assert.equal(modelRequests.length,before+1);
     assert.equal((await api('/conversations/'+turn.conversationId+'/messages',{token})).length,12);
     flowConversations[topic]=turn.conversationId;
@@ -782,11 +792,11 @@ try {
 
   const remediation=await flowStart('导数');
   await flowStep(remediation,'clarify','数学：导数表示瞬时变化率，需要先区分平均变化率。','DIAGNOSING');
-  await flowStep(remediation,'answer','B','TEACHING'); await flowStep(remediation,'continue','开始理解检查','CHECKING');
+  await flowAnswer(remediation,false,'TEACHING'); await flowStep(remediation,'continue','开始理解检查','CHECKING');
   const firstCheck=remediation.result.learningSession.flow.prompt;
-  await flowStep(remediation,'answer','A','RETEACHING'); await flowStep(remediation,'continue','再次检查','CHECKING');
+  await flowAnswer(remediation,false,'RETEACHING'); await flowStep(remediation,'continue','再次检查','CHECKING');
   assert.notEqual(remediation.result.learningSession.flow.prompt,firstCheck);
-  await flowStep(remediation,'answer','B','REVIEW'); assert(!remediation.result.learningSession.flow.passed);
+  await flowAnswer(remediation,false,'REVIEW'); assert(!remediation.result.learningSession.flow.passed);
   await flowSend(remediation,'continue','直接通过',400);
   const savedFlow=readSavedFlow(remediation.result.learningSession.id);
   assert.equal(savedFlow.evidence.length,3); assert.equal(savedFlow.evidence[2].correct,false);
@@ -853,12 +863,12 @@ try {
   assert(!JSON.stringify(publicState).includes('correctOption'));
   assert(!JSON.stringify(publicState).includes('materials'));
   assert(!JSON.stringify(publicState).includes(mathTextbook));
-  await flowStep(textbookTurn,'answer','A','TEACHING');
+  await flowAnswer(textbookTurn,true,'TEACHING');
   await flowStep(textbookTurn,'continue','开始理解检查','CHECKING');
-  await flowStep(textbookTurn,'answer','A','RETEACHING');
+  await flowAnswer(textbookTurn,false,'RETEACHING');
   await flowStep(textbookTurn,'continue','再次检查','CHECKING');
-  await flowStep(textbookTurn,'answer','A','PRACTICE');
-  await flowStep(textbookTurn,'answer','A','FEEDBACK');
+  await flowAnswer(textbookTurn,true,'PRACTICE');
+  await flowAnswer(textbookTurn,true,'FEEDBACK');
   const textbookHistory=await api('/conversations/'+textbookTurn.conversationId+'/messages',{token});
   assert.equal(textbookHistory.length,14);
   assert(textbookHistory.filter(m=>m.role==='assistant').every(m=>JSON.stringify(m.sources)===JSON.stringify(lessonSources)));
@@ -924,20 +934,21 @@ try {
     assert.equal(turn.result.learningSession.flow.topic,topic);
     assert.equal(turn.result.sources[0].snippet,source);
     assert.equal(turn.result.sources[0].documentId,doc.documentId);
-    await flowStep(turn,'answer','A','TEACHING');
+    await flowAnswer(turn,true,'TEACHING');
   }
   pass('同一教材学习入口支持 Java 与自定义规则，不依赖某个学科的硬编码');
 
   // 两个不同错误选项必须映射到各自的补讲；比较当前响应、持久化历史及重新读取的公开阶段。
-  for(const selected of ['A','C']) {
+  for(const wrongIndex of [0,1]) {
     const turn=await flowStart('导数'); const calls=modelRequests.length;
     await flowStep(turn,'clarify',mathTextbook,'DIAGNOSING');
     const prepared=readSavedFlow(turn.result.learningSession.id).lesson;
     const current=prepared.checks[0];
-    const support=current.wrongOptionFeedback.find(item=>item.option===selected);
+    const support=current.wrongOptionFeedback[wrongIndex];
+    const selected=support.option;
     const other=current.wrongOptionFeedback.find(item=>item.option!==selected);
     assert(!JSON.stringify(turn.result).includes(support.explanation));
-    await flowStep(turn,'answer','A','TEACHING');
+    await flowAnswer(turn,true,'TEACHING');
     await flowStep(turn,'continue','开始检查','CHECKING');
     await flowStep(turn,'answer',selected,'RETEACHING');
     assert.equal(turn.result.teachingStrategy,'debug_misconception');
@@ -968,8 +979,8 @@ try {
     assert.equal((await api('/learning-sessions/active?conversationId='+feedbackFailure.conversationId,{token})).flow.version,1);
   }
   await flowStep(feedbackFailure,'clarify',mathTextbook,'DIAGNOSING');
-  await flowStep(feedbackFailure,'answer','C','TEACHING');
-  const diagnosisFeedback=readSavedFlow(feedbackFailure.result.learningSession.id).lesson.diagnosis.wrongOptionFeedback.find(item=>item.option==='C');
+  const diagnosisFeedback=readSavedFlow(feedbackFailure.result.learningSession.id).lesson.diagnosis.wrongOptionFeedback[0];
+  await flowStep(feedbackFailure,'answer',diagnosisFeedback.option,'TEACHING');
   assert(feedbackFailure.result.answer.includes(diagnosisFeedback.explanation));
   pass('反馈缺失、模型附加引文、证据编号无效、反馈对应正确选项、结构或语法错误时整轮回滚；修复后可重试');
 
@@ -1007,6 +1018,26 @@ try {
           record.states.push(active.flow);
         } else {
           const lesson = readSavedFlow(turn.result.learningSession.id).lesson;
+          record.preparedLesson=lesson;
+          const savedQuestions=[lesson.diagnosis,...lesson.checks,...lesson.practices];
+          assert.equal(prepared.questions.length,savedQuestions.length);
+          for(let i=0;i<savedQuestions.length;i++) {
+            const raw=prepared.questions[i],saved=savedQuestions[i];
+            assert.equal(saved.prompt,raw.prompt); assert.equal(saved.explanation,raw.explanation);
+            assert.deepEqual([...saved.options].sort(),[...raw.options].sort());
+            assert.equal(saved.options[saved.correctOption.charCodeAt(0)-65],raw.options[raw.correctOption.charCodeAt(0)-65]);
+            assert.equal(saved.wrongOptionFeedback.length,raw.wrongOptionFeedback.length);
+            for(const feedback of saved.wrongOptionFeedback) {
+              const text=saved.options[feedback.option.charCodeAt(0)-65];
+              const original=raw.wrongOptionFeedback.find(f=>raw.options[f.option.charCodeAt(0)-65]===text);
+              assert(original,'重排不得丢失选项对应的补讲');
+              assert.equal(feedback.explanation,original.explanation);
+              assert.deepEqual(feedback.evidence.map(e=>e.id),original.evidenceIds);
+              assert(feedback.evidence.every(e=>lessonInputs.at(-1).source.some(unit=>unit.id===e.id && unit.text===e.text)));
+            }
+          }
+          record.optionOrder={original:prepared.questions.map(q=>q.correctOption),saved:savedQuestions.map(q=>q.correctOption),
+            contentAndFeedbackPreserved:true};
           const step = async (action, message, stage) => {
             await flowStep(turn,action,message,stage); record.states.push(turn.result.learningSession.flow);
           };
@@ -1029,6 +1060,7 @@ try {
           assert.equal(modelRequests.length,before+1, '判分和推进不得再次调用模型');
           record.history = await api('/conversations/'+turn.conversationId+'/messages',{token});
           const saved = readSavedFlow(turn.result.learningSession.id);
+          assert.deepEqual(saved.lesson,lesson,'学习推进和重新读取不能再次改变选项顺序');
           record.evidence = saved.evidence;
         }
         record.passed = true;

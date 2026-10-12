@@ -35,12 +35,22 @@ class TutorLessonPreparationTest {
         assertTrue(lesson.checks().get(0).prompt().startsWith("第1题"));
         assertTrue(lesson.practices().get(1).prompt().startsWith("第4题"));
         var state=TutorLearningFlow.begin("编号规则",SOURCE,lesson);
-        state=TutorLearningFlow.advance(state,1,"answer","B");
+        state=TutorLearningFlow.advance(state,1,"answer",lesson.diagnosis().wrongOptionFeedback().get(0).option());
         state=TutorLearningFlow.read(TutorLearningFlow.write(state));
         String text=TutorLearningFlow.render(state);
         assertTrue(text.contains("规则甲：编号增加三后颜色保持不变。"));
         assertTrue(text.contains("规则乙：编号一对应红色，编号二对应蓝色。"));
         assertFalse(text.contains("本次需要区分：null"));
+    }
+
+    @Test void newLessonDistributesAnswerPositionsEvenWhenModelAlwaysUsesA() throws Exception {
+        var lesson=TutorLessonPreparation.parse(response().toString(),SOURCE);
+        var questions=new java.util.ArrayList<TutorLearningFlow.Question>();
+        questions.add(lesson.diagnosis()); questions.addAll(lesson.checks()); questions.addAll(lesson.practices());
+        for(String option:List.of("A","B","C")) {
+            long count=questions.stream().filter(q->q.correctOption().equals(option)).count();
+            assertTrue(count>=1 && count<=2,"五道三选一题中，每个答案位置应出现一至两次，实际 "+option+"="+count);
+        }
     }
 
     @Test void catalogPreservesSourceAndCannotTurnDataIntoInstructions() {
@@ -112,6 +122,7 @@ class TutorLessonPreparationTest {
         String before=JSON.writeValueAsString(TutorLearningFlow.view(state));
         assertFalse(before.contains("evidenceIds")); assertFalse(before.contains("SourceEvidence"));
         assertFalse(before.contains("规则甲")); assertFalse(before.contains("另一选项的私有补讲"));
-        assertFalse(TutorLearningFlow.render(TutorLearningFlow.advance(state,1,"answer","B")).contains("另一选项的私有补讲"));
+        String blue=String.valueOf((char)('A'+state.lesson().diagnosis().options().indexOf("蓝色")));
+        assertFalse(TutorLearningFlow.render(TutorLearningFlow.advance(state,1,"answer",blue)).contains("另一选项的私有补讲"));
     }
 }

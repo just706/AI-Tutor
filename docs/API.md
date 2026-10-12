@@ -62,6 +62,8 @@
 
 普通会话开始只保存澄清步骤，不调用模型。补充资料后调用一次 JSON 备课，包含一题诊断、两题检查和两题练习；格式、答案键或重复题干非法时拒绝整份内容，保留原进度。资料不足也不跳步。后续选择题按服务端答案核对，不调用模型；题目与答案的事实正确性仍依赖备课质量。
 
+新备课的选项顺序由服务端校验后一次性安排，参考答案和错误反馈同步映射并保存。客户端必须按当前 `flow.options` 的顺序显示 A、B、C、D，并提交对应字母，不能依赖模型最初的答案位置；刷新或重新读取同一题时顺序不变。旧进度不重排，公开字段、动作和版本冲突规则保持不变。存在可识别位置引用的题目保留原序，分组均衡规则和边界见 [AI-Design](AI-Design.md)。
+
 教材会话的 `start` 使用当前保存的 `documentIds` 和完整短主题检索，复用 RAG 的范围、排序及片段选择；一次备课成功后直接进入 DIAGNOSING（版本 1），无需手动粘贴资料。无教材、无合格片段、上下文超过 4000 字符或模型认为资料不足时返回 400；文档无权访问返回 404，尚未处理完成返回 409，模型故障或非法内容返回 600。失败时不创建学习进度或历史，不回退到普通生成。
 
 `learningSession.flow` 及当前学习会话读取接口返回 `version,stage,topic,prompt,options,canContinue,passed,feedback,textbookBased`。`textbookBased` 表示本轮从教材备课。阶段为 `CLARIFYING/DIAGNOSING/TEACHING/CHECKING/RETEACHING/PRACTICE/FEEDBACK/REVIEW`。答错先补讲再换检查题；备用题用完停在 REVIEW；检查及应用题均通过才进入 FEEDBACK。`passed` 只表示本轮题目通过，不更新掌握度。不返回备课答案键、后续题库和内部证据快照。

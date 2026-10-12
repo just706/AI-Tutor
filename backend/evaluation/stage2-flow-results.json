@@ -3,8 +3,8 @@
   "date": "2026-10-10",
   "updatedDate": "2026-10-12",
   "reviewer": "Codex",
-  "scope": "备课契约 v2：4份自编短资料及1个资料不足案例；独立审阅20道题与40条错误选项反馈。",
-  "status": "evidence_contract_v2_fixed_suite_passed_with_limitations",
+  "scope": "备课契约 v2：4份自编短资料及1个资料不足案例；独立审阅20道题与40条错误选项反馈。 新增服务端选项重排使用同一原始响应本地回放，未新增真实模型调用。",
+  "status": "evidence_contract_v2_content_reviewed_option_order_replayed",
   "runs": [
     {
       "run": "real-v1",
@@ -192,7 +192,7 @@
       "reason": "返回supported:false，无定义或题目捏造；保持澄清阶段和原历史。"
     }
   ],
-  "backendTestsPassed": 190,
+  "backendTestsPassed": 195,
   "browserVerified": false,
   "userPageFeedback": {
     "date": "2026-10-11",
@@ -213,11 +213,12 @@
   "limitations": [
     "固定4份短资料和1个不足案例的单轮结果，不保证任意输入正确。",
     "由Codex审阅，未经教师复核或学生效果实验。",
-    "20题中15题正确选项为A；题目独立性、难度与迁移覆盖仍待改进。",
+    "历史原始20题有15题答案为A；本次回放重排为A6/B8/C6，各五题单元各位置出现1–2次。题目独立性、难度与迁移覆盖仍待改进。",
     "页面验收和真实教材检索备课质量不包含在本轮中。",
     "编号及结构校验不能自动证明证据支持解释；仍需真实内容核验。",
     "错误反馈提前随备课生成，不推断学生真实心理错因；备用题固定顺序，无自由文本诊断或按错因选题。",
-    "本轮累计25次授权已用完，不自动追加真实调用。"
+    "本轮累计25次授权已用完，不自动追加真实调用。",
+    "选项位置依赖检测仅覆盖常见字母与相对位置表达，可能保守跳过变量名，不能替代语义审阅；均衡只适用于同选项数且可重排的题组。"
   ],
   "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011",
   "authorizationUpdatedDate": "2026-10-12",
@@ -268,51 +269,135 @@
     "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/replay-revised"
   },
   "historicalEvidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-flow-evaluation-20261010",
-  "finalCaseReviewAppliesTo": "当前备课契约 v2 的这一次固定题集响应；不代表任意教材或教育效果。",
+  "finalCaseReviewAppliesTo": "备课契约 v2 real-v5 的固定资料与原始响应；本次仅验证选项重排不改变内容和映射，无新增真实模型或页面验收，不代表任意教材或教育效果。",
   "currentImplementation": {
     "preparationSchemaVersion": 2,
     "date": "2026-10-12",
-    "realEvaluated": true,
-    "newExternalCalls": 5,
-    "backendTestsPassed": 190,
+    "realEvaluated": false,
+    "realContentBaseline": "real-v5-evidence-contract-v2",
+    "newExternalCalls": 0,
+    "backendTestsPassed": 195,
     "localApiChecksPassed": 42,
-    "source": "server-numbered exact source units",
-    "feedback": "model explanation plus 1–4 evidence IDs; quote text restored by Java",
+    "optionOrder": "server-balanced randomized positions, remapped answer and feedback; persisted once",
     "persistedLegacyFlowsCompatible": true,
     "oldModelFormatAccepted": false,
     "invalidResponseRepair": false,
-    "jarSha256": "2fd40f2038b7229524588bb6c82028cd7959e191cfda583f4151855026103002",
-    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-real-v5",
-    "localV2Replay": {
-      "passed": true,
-      "checks": 42,
-      "realCalls": 0,
-      "rawResponsesUnmodified": true,
-      "inputCatalogUnchanged": true,
-      "cleanup": "removed",
-      "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-v2-replay"
-    },
-    "windowsLineBreakRegressionPassed": true,
-    "realRun": "real-v5-evidence-contract-v2",
-    "realCallsThisRevision": 5,
-    "realApiChecksPassed": 42,
-    "contentCasesPassed": 5
+    "jarSha256": "a99f98e5ca93b844b6b3fb5bee245c22ca69f387798b5c6c42b79bcd75ad4697",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-order-20261012/final-replay"
   },
   "currentImplementationReplay": {
     "originalResponsesUnmodified": true,
+    "systemPromptUnchanged": true,
+    "topicAndSourceCatalogUnchanged": true,
+    "inputSerializationChanged": true,
+    "inputSerializationNote": "Java Map 字段输出次序变化；解析后的 topic 和有序 source 数组及原文逐字一致。",
     "realCalls": 0,
-    "checksPassed": 38,
+    "checksPassed": 42,
     "checksTotal": 42,
-    "expectedLegacyContractRejections": [
-      "J01",
-      "J02",
-      "M01",
-      "U01"
+    "casesPassed": 5,
+    "questions": 20,
+    "wrongOptionFeedbacks": 40,
+    "contentAndFeedbackPreserved": true,
+    "persistedOrderStable": true,
+    "answerPositions": {
+      "A": 6,
+      "B": 8,
+      "C": 6
+    },
+    "perLessonDistributions": [
+      {
+        "caseId": "J01",
+        "original": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ],
+        "saved": [
+          "A",
+          "C",
+          "C",
+          "B",
+          "B"
+        ],
+        "counts": {
+          "A": 1,
+          "B": 2,
+          "C": 2
+        }
+      },
+      {
+        "caseId": "J02",
+        "original": [
+          "A",
+          "B",
+          "B",
+          "A",
+          "A"
+        ],
+        "saved": [
+          "B",
+          "A",
+          "B",
+          "C",
+          "A"
+        ],
+        "counts": {
+          "A": 2,
+          "B": 2,
+          "C": 1
+        }
+      },
+      {
+        "caseId": "M01",
+        "original": [
+          "B",
+          "B",
+          "A",
+          "B",
+          "A"
+        ],
+        "saved": [
+          "B",
+          "B",
+          "A",
+          "C",
+          "C"
+        ],
+        "counts": {
+          "A": 1,
+          "B": 2,
+          "C": 2
+        }
+      },
+      {
+        "caseId": "U01",
+        "original": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ],
+        "saved": [
+          "B",
+          "C",
+          "A",
+          "A",
+          "B"
+        ],
+        "counts": {
+          "A": 2,
+          "B": 2,
+          "C": 1
+        }
+      }
     ],
-    "rollbackVerified": true,
     "insufficientCasePreserved": true,
-    "featureQualityProven": false,
-    "cleanup": "removed"
+    "newModelQualityEvaluation": false,
+    "cleanup": "removed",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-order-20261012/final-replay"
   },
   "supersededOptionFeedbackReview": {
     "run": "real-v4-option-feedback",
@@ -395,5 +480,50 @@
         "feedbackIssues": []
       }
     ]
+  },
+  "historicalImplementationBeforeOptionOrder": {
+    "preparationSchemaVersion": 2,
+    "date": "2026-10-12",
+    "realEvaluated": true,
+    "newExternalCalls": 5,
+    "backendTestsPassed": 190,
+    "localApiChecksPassed": 42,
+    "source": "server-numbered exact source units",
+    "feedback": "model explanation plus 1–4 evidence IDs; quote text restored by Java",
+    "persistedLegacyFlowsCompatible": true,
+    "oldModelFormatAccepted": false,
+    "invalidResponseRepair": false,
+    "jarSha256": "2fd40f2038b7229524588bb6c82028cd7959e191cfda583f4151855026103002",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-real-v5",
+    "localV2Replay": {
+      "passed": true,
+      "checks": 42,
+      "realCalls": 0,
+      "rawResponsesUnmodified": true,
+      "inputCatalogUnchanged": true,
+      "cleanup": "removed",
+      "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-v2-replay"
+    },
+    "windowsLineBreakRegressionPassed": true,
+    "realRun": "real-v5-evidence-contract-v2",
+    "realCallsThisRevision": 5,
+    "realApiChecksPassed": 42,
+    "contentCasesPassed": 5
+  },
+  "historicalLegacyContractReplay": {
+    "originalResponsesUnmodified": true,
+    "realCalls": 0,
+    "checksPassed": 38,
+    "checksTotal": 42,
+    "expectedLegacyContractRejections": [
+      "J01",
+      "J02",
+      "M01",
+      "U01"
+    ],
+    "rollbackVerified": true,
+    "insufficientCasePreserved": true,
+    "featureQualityProven": false,
+    "cleanup": "removed"
   }
 }
