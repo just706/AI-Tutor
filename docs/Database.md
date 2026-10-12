@@ -104,6 +104,8 @@ SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage21-tutor-flow.sql;
 
 教材循序学习沿用 `flow_state`，增加可空 `materials` 对象，保存整轮所选 `documentIds` 与有序 `sources`（文档 ID、文件名、片段索引、原文）；`source` 保存实际备课上下文。旧手动流程缺少该对象时按原流程读取。每条对应助手消息复用 `chat_history.rag_sources` 保存同一引用；公开学习会话仅增加 `textbookBased`，引用从回答或历史读取并再次校验教材权限。无需新建表或新增迁移。首次备课及后续推进在已有教师事务内对选中教材加共享行锁，避免处理或删除与本次保存交错；会话教材更新也使用会话行锁，并拒绝活动循序学习期间的修改。
 
+选项补讲也保存在同一 JSON 中：每个 `lesson` 题目可带 `wrongOptionFeedback` 数组。新反馈保存 `option,explanation,evidence`，其中 `evidence` 是服务端还原的 `{id,text}` 列表；原 `focus,sourceQuote` 字段保留为可空以兼容旧快照。新模型响应为统一五题列表，转换后的持久化结构仍是 `diagnosis/checks/practices`。历史题库缺少反馈时按旧通用补讲继续；已有单引文时按旧字段显示，不回填、不重新调用模型。渲染时使用已保存题干和最近作答恢复对应反馈；无需修改表结构，已执行 stage21 的库直接兼容。
+
 ## 表清单
 
 | 表 | 用途 | 所有权/关键约束 |

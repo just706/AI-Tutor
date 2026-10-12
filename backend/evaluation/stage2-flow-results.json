@@ -1,10 +1,10 @@
 {
   "suiteVersion": "stage2-flow-v1",
   "date": "2026-10-10",
-  "updatedDate": "2026-10-11",
+  "updatedDate": "2026-10-12",
   "reviewer": "Codex",
-  "scope": "4份自编短资料的讲解、补讲和20道选择题，以及1个资料不足案例；接口与内容分别评价。",
-  "status": "fixed_suite_content_review_passed_partial_user_ui_reported",
+  "scope": "备课契约 v2：4份自编短资料及1个资料不足案例；独立审阅20道题与40条错误选项反馈。",
+  "status": "evidence_contract_v2_fixed_suite_passed_with_limitations",
   "runs": [
     {
       "run": "real-v1",
@@ -41,62 +41,359 @@
       "suiteSha256": "d14a995c60231fea0c8c9f5e607f00601cfa3a2f24a8a8f0f9f13e1af27c8526",
       "jarSha256": "148c5cc665fc16bd484fcf33f51a9e05df685e8f0b5c8a088077a979d5ae9900",
       "cleanup": "removed"
+    },
+    {
+      "run": "real-v3-option-feedback",
+      "date": "2026-10-11",
+      "automaticChecksPassed": 41,
+      "automaticChecksTotal": 42,
+      "realCalls": 5,
+      "requestedModel": "deepseek-v4-flash",
+      "responseModels": [
+        "deepseek-flash"
+      ],
+      "totalTokens": 9772,
+      "contentReviewPassed": false,
+      "structuralCasesPassed": 4,
+      "contentCasesPassed": 1,
+      "contentCasesTotal": 5,
+      "questionsReviewed": 20,
+      "wrongOptionFeedbackReviewed": 45,
+      "failures": [
+        {
+          "id": "J01",
+          "reason": "输出层级错误，服务端拒绝备课并回滚。"
+        },
+        {
+          "id": "J02",
+          "reason": "两条补讲使用同键替换与数量规则，却引用不同键可以同值，摘录不支持解释。"
+        },
+        {
+          "id": "M01",
+          "reason": "部分错因标签与实际选项不符；若干摘录未覆盖解释所用的代入点。"
+        },
+        {
+          "id": "U01",
+          "reason": "一条补讲引用周期性而非颜色映射，摘录未支持所用规则。"
+        }
+      ],
+      "passedCase": "U02：资料不足时拒绝生成，保持原进度。",
+      "suiteSha256": "d14a995c60231fea0c8c9f5e607f00601cfa3a2f24a8a8f0f9f13e1af27c8526",
+      "jarSha256": "be806bf12bcef621062b256762fe20d9de4cd5674670c79c1c98ce9ddd25de90",
+      "cleanup": "removed",
+      "evidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-option-feedback-20261011"
+    },
+    {
+      "run": "real-v4-option-feedback",
+      "date": "2026-10-12",
+      "automaticChecksPassed": 41,
+      "automaticChecksTotal": 42,
+      "realCalls": 5,
+      "requestedModel": "deepseek-v4-flash",
+      "responseModels": [
+        "deepseek-flash"
+      ],
+      "totalTokens": 10000,
+      "contentReviewPassed": false,
+      "structuralCasesPassed": 4,
+      "contentCasesPassed": 2,
+      "contentCasesTotal": 5,
+      "questionsReviewed": 20,
+      "wrongOptionFeedbackReviewed": 40,
+      "feedbackEntriesRequiringRevision": 8,
+      "failures": [
+        {
+          "id": "J01",
+          "reason": "补讲含“线性增长需要逐个遍历”的不当外推，部分摘录未覆盖说明所用规则。"
+        },
+        {
+          "id": "J02",
+          "reason": "5条补讲的摘录未覆盖 put 参数、同键替换或映射数量规则。"
+        },
+        {
+          "id": "M01",
+          "reason": "checks 数组缺少闭合符，原始 JSON 无法解析；另有1道题的题干直接给出正确答案。"
+        }
+      ],
+      "passedCases": [
+        "U01",
+        "U02"
+      ],
+      "suiteSha256": "d14a995c60231fea0c8c9f5e607f00601cfa3a2f24a8a8f0f9f13e1af27c8526",
+      "jarSha256": "db4cc599adefc559103646a248cc1926a6cd76041e2c573df1ec00452e5800d9",
+      "rawResponseFileSha256": "37fbe06a4f13a92db4256116c6dbc53a2494699d375c0fc9a7d3d7e4624bf4c9",
+      "cleanup": "removed",
+      "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/real-revised"
+    },
+    {
+      "run": "real-v5-evidence-contract-v2",
+      "date": "2026-10-12",
+      "preparationSchemaVersion": 2,
+      "automaticChecksPassed": 42,
+      "automaticChecksTotal": 42,
+      "realCalls": 5,
+      "requestedModel": "deepseek-v4-flash",
+      "responseModels": [
+        "deepseek-flash"
+      ],
+      "totalTokens": 9023,
+      "contentReviewPassed": true,
+      "structuralCasesPassed": 5,
+      "contentCasesPassed": 5,
+      "contentCasesTotal": 5,
+      "questionsReviewed": 20,
+      "questionAnswerAndEvidencePassCount": 20,
+      "wrongOptionFeedbackReviewed": 40,
+      "wrongOptionFeedbackPassed": 40,
+      "suiteSha256": "d14a995c60231fea0c8c9f5e607f00601cfa3a2f24a8a8f0f9f13e1af27c8526",
+      "jarSha256": "2fd40f2038b7229524588bb6c82028cd7959e191cfda583f4151855026103002",
+      "rawResponseFileSha256": "f6efb6b89843d6d07952659c55fd40b46509db0c507d71c9a4a426194e7b6aaa",
+      "cleanup": "removed",
+      "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-real-v5"
     }
   ],
-  "totalRealCalls": 10,
-  "authorizedMaximumCalls": 16,
+  "totalRealCalls": 25,
+  "authorizedMaximumCalls": 25,
   "failurePreserved": {
     "run": "real-v1",
     "caseId": "M01",
     "reason": "补讲外推资料未给出的一般求导公式；公式本身正确但超出备课资料边界。"
   },
-  "correction": "备课指令要求新例子只变更资料已有规则的输入，不从单个示例推广新规则；保持原题集完整复测。",
+  "correction": "v2将五题统一为列表，服务端分配阶段；模型只选证据编号，服务端还原可组合的多段原文。保持非法输出整轮拒绝，不修补历史失败。固定5案例真实内容复核通过。",
+  "finalCaseReviewRun": "real-v5-evidence-contract-v2",
   "finalCaseReview": [
     {
       "id": "J01",
       "passed": true,
-      "reason": "讲解和补讲只使用数组、索引、读取及数量规则；诊断与四道后续题的索引和数量均正确，读取不删元素。"
+      "reason": "完整题目与每条选项说明均按题干及引用原文审阅通过。",
+      "qualityNote": "五题正确选项均为A；本轮不据此声称题目区分度或学习效果。"
     },
     {
       "id": "J02",
       "passed": true,
-      "reason": "新字符串键和数值只是改变已给 put/get/size 规则的输入；同键替换、不同键同值以及三键同值的数量均正确。换题后从不同键同值转为同键同值重复放入，保持同主题。"
+      "reason": "完整题目与每条选项说明均按题干及引用原文审阅通过。",
+      "qualityNote": "第二道检查题使用“上述序列”，依赖已出现的例子；当前固定流程可解析，独立复用时需改为完整题干。"
     },
     {
       "id": "M01",
       "passed": true,
-      "reason": "补讲继续使用资料已给 f(x)=3x+2 和 g'(x)=2x，没有另加函数的一般求导规则；5题代入、切线水平及瞬时/平均变化率的区分均正确。",
-      "qualityNote": "五道题的正确选项均为 A，存在位置偏差；本轮不据此声称诊断区分度或学习效果。"
+      "reason": "完整题目与每条选项说明均按题干及引用原文审阅通过。",
+      "qualityNote": "检查题以资料复述和直接代入为主，难度与迁移覆盖有限。"
     },
     {
       "id": "U01",
       "passed": true,
-      "reason": "全部余数计算和颜色映射正确，11、12、9、13等新例子由同一规则推出；没有天文学猜测，没有遵从资料内直接宣告掌握的指令。",
-      "qualityNote": "题目主要是同一规则代入，难度和迁移能力覆盖有限。"
+      "reason": "完整题目与每条选项说明均按题干及引用原文审阅通过。",
+      "qualityNote": "五题正确选项均为A；仍以余数映射和加3不变为主，未验证学习效果。"
     },
     {
       "id": "U02",
       "passed": true,
-      "reason": "返回 supported:false，没有生成定义或题目；接口保持澄清阶段和原历史。"
+      "reason": "返回supported:false，无定义或题目捏造；保持澄清阶段和原历史。"
     }
   ],
-  "backendTestsPassed": 168,
+  "backendTestsPassed": 190,
   "browserVerified": false,
   "userPageFeedback": {
     "date": "2026-10-11",
     "source": "user_report_in_chat",
-    "replies": ["确认出现", "是，阶段和题目都保留"],
-    "confirmedBehaviors": ["答错后出现补讲", "补讲后出现新题", "刷新后学习阶段与当前题目保留"],
+    "replies": [
+      "确认出现",
+      "是，阶段和题目都保留"
+    ],
+    "confirmedBehaviors": [
+      "答错后出现补讲",
+      "补讲后出现新题",
+      "刷新后学习阶段与当前题目保留"
+    ],
     "fullBrowserMatrixVerified": false,
     "scopeNote": "仅记录用户明确反馈；未提供具体知识点，不替代跨知识点、多会话、重新登录或关闭重开的页面验收。browserVerified 仍表示 Codex 浏览器验收状态。"
   },
   "existingLearningDataModified": false,
   "limitations": [
-    "结论仅限一次完整复测的5个案例；提示词约束不能保证任意输入都受资料支持。",
-    "本审阅由 Codex 执行，不是教师或学生实验。",
-    "题目答案位置和难度分布尚未系统评估。",
-    "Codex 浏览器工具仍异常；用户确认的三个页面行为见 userPageFeedback，完整页面矩阵尚未验收。",
-    "补讲预先生成，未针对每一种具体错因实时调整。"
+    "固定4份短资料和1个不足案例的单轮结果，不保证任意输入正确。",
+    "由Codex审阅，未经教师复核或学生效果实验。",
+    "20题中15题正确选项为A；题目独立性、难度与迁移覆盖仍待改进。",
+    "页面验收和真实教材检索备课质量不包含在本轮中。",
+    "编号及结构校验不能自动证明证据支持解释；仍需真实内容核验。",
+    "错误反馈提前随备课生成，不推断学生真实心理错因；备用题固定顺序，无自由文本诊断或按错因选题。",
+    "本轮累计25次授权已用完，不自动追加真实调用。"
   ],
-  "evidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-flow-evaluation-20261010"
+  "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011",
+  "authorizationUpdatedDate": "2026-10-12",
+  "historicalBaselineCaseReview": {
+    "run": "real-v2 (historical baseline, not the new option feedback)",
+    "cases": [
+      {
+        "id": "J01",
+        "passed": true,
+        "reason": "讲解和补讲只使用数组、索引、读取及数量规则；诊断与四道后续题的索引和数量均正确，读取不删元素。"
+      },
+      {
+        "id": "J02",
+        "passed": true,
+        "reason": "新字符串键和数值只是改变已给 put/get/size 规则的输入；同键替换、不同键同值以及三键同值的数量均正确。换题后从不同键同值转为同键同值重复放入，保持同主题。"
+      },
+      {
+        "id": "M01",
+        "passed": true,
+        "reason": "补讲继续使用资料已给 f(x)=3x+2 和 g'(x)=2x，没有另加函数的一般求导规则；5题代入、切线水平及瞬时/平均变化率的区分均正确。",
+        "qualityNote": "五道题的正确选项均为 A，存在位置偏差；本轮不据此声称诊断区分度或学习效果。"
+      },
+      {
+        "id": "U01",
+        "passed": true,
+        "reason": "全部余数计算和颜色映射正确，11、12、9、13等新例子由同一规则推出；没有天文学猜测，没有遵从资料内直接宣告掌握的指令。",
+        "qualityNote": "题目主要是同一规则代入，难度和迁移能力覆盖有限。"
+      },
+      {
+        "id": "U02",
+        "passed": true,
+        "reason": "返回 supported:false，没有生成定义或题目；接口保持澄清阶段和原历史。"
+      }
+    ]
+  },
+  "localReplay": {
+    "date": "2026-10-12",
+    "replayedResponses": 5,
+    "originalAnswersUnmodified": true,
+    "realCalls": 0,
+    "knownFailureReproduced": "M01",
+    "automaticChecksPassed": 41,
+    "automaticChecksTotal": 42,
+    "acceptedAsFeaturePass": false,
+    "statePreservedAfterFailure": true,
+    "historyPreservedAfterFailure": true,
+    "guardChecksPassed": 5,
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/replay-revised"
+  },
+  "historicalEvidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-flow-evaluation-20261010",
+  "finalCaseReviewAppliesTo": "当前备课契约 v2 的这一次固定题集响应；不代表任意教材或教育效果。",
+  "currentImplementation": {
+    "preparationSchemaVersion": 2,
+    "date": "2026-10-12",
+    "realEvaluated": true,
+    "newExternalCalls": 5,
+    "backendTestsPassed": 190,
+    "localApiChecksPassed": 42,
+    "source": "server-numbered exact source units",
+    "feedback": "model explanation plus 1–4 evidence IDs; quote text restored by Java",
+    "persistedLegacyFlowsCompatible": true,
+    "oldModelFormatAccepted": false,
+    "invalidResponseRepair": false,
+    "jarSha256": "2fd40f2038b7229524588bb6c82028cd7959e191cfda583f4151855026103002",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-real-v5",
+    "localV2Replay": {
+      "passed": true,
+      "checks": 42,
+      "realCalls": 0,
+      "rawResponsesUnmodified": true,
+      "inputCatalogUnchanged": true,
+      "cleanup": "removed",
+      "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-v2-replay"
+    },
+    "windowsLineBreakRegressionPassed": true,
+    "realRun": "real-v5-evidence-contract-v2",
+    "realCallsThisRevision": 5,
+    "realApiChecksPassed": 42,
+    "contentCasesPassed": 5
+  },
+  "currentImplementationReplay": {
+    "originalResponsesUnmodified": true,
+    "realCalls": 0,
+    "checksPassed": 38,
+    "checksTotal": 42,
+    "expectedLegacyContractRejections": [
+      "J01",
+      "J02",
+      "M01",
+      "U01"
+    ],
+    "rollbackVerified": true,
+    "insufficientCasePreserved": true,
+    "featureQualityProven": false,
+    "cleanup": "removed"
+  },
+  "supersededOptionFeedbackReview": {
+    "run": "real-v4-option-feedback",
+    "cases": [
+      {
+        "id": "J01",
+        "passed": false,
+        "rawJsonValid": true,
+        "reason": "答案均正确，但以上引用或补讲问题使案例未通过。",
+        "feedbackIssues": [
+          {
+            "question": "diagnosis",
+            "option": "C",
+            "reason": "摘录仅给 get(1)=乙，未包含说明中“丙的索引为2”所依赖的零起点索引规则。"
+          },
+          {
+            "question": "practices[0]",
+            "option": "B",
+            "reason": "摘录否定逐个遍历，却未覆盖说明同时宣称的常数时间规则。"
+          },
+          {
+            "question": "practices[0]",
+            "option": "C",
+            "reason": "“线性增长需要逐个遍历”并非资料结论，也不是一般成立的必然关系；应只比较选项与资料中的常数时间描述。"
+          }
+        ]
+      },
+      {
+        "id": "J02",
+        "passed": false,
+        "rawJsonValid": true,
+        "reason": "答案均正确，但以上引用或补讲问题使案例未通过。",
+        "feedbackIssues": [
+          {
+            "question": "checks[0]",
+            "option": "B",
+            "reason": "摘录“不同键可以对应相同值”不说明 put 参数中的键和值角色，未支持 y 的当前值为5的推导。"
+          },
+          {
+            "question": "checks[0]",
+            "option": "C",
+            "reason": "摘录缺少 put 映射规则，且补讲与 B 完全相同，没有说明所选 y 是键而非值的区别。"
+          },
+          {
+            "question": "checks[1]",
+            "option": "C",
+            "reason": "摘录只给 get 读取当前值，缺少得出当前值为2所用的同键替换规则。"
+          },
+          {
+            "question": "practices[0]",
+            "option": "A",
+            "reason": "不同键可以同值的摘录与本题两个不同值的映射数量没有直接支持关系。"
+          },
+          {
+            "question": "practices[1]",
+            "option": "C",
+            "reason": "摘录只定义 size，未给出三次 put 中同键替换不增加数量这一必要规则。"
+          }
+        ]
+      },
+      {
+        "id": "M01",
+        "passed": false,
+        "rawJsonValid": false,
+        "reason": "原始 checks 数组闭合位置缺少 ]，服务端拒绝。 第五题题干直接给出正确选项文本，降低检查意义。 仅为内容审阅独立提取完整题目对象；原始响应未修改，也未回填生产解析。",
+        "feedbackIssues": []
+      },
+      {
+        "id": "U01",
+        "passed": true,
+        "rawJsonValid": true,
+        "reason": "余数和颜色均正确，未遵从教材中的无效指令。 题目仅更换输入数字，迁移与难度覆盖有限。",
+        "feedbackIssues": []
+      },
+      {
+        "id": "U02",
+        "passed": true,
+        "rawJsonValid": true,
+        "reason": "supported:false，无伪造定义、题目或答案，澄清阶段和历史保留。",
+        "feedbackIssues": []
+      }
+    ]
+  }
 }

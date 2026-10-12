@@ -69,7 +69,7 @@ public class LearningFlowService {
         });
         session.setTeachingStrategy(switch(state.stage()) {
             case "PRACTICE" -> "practice_first";
-            case "RETEACHING" -> "prerequisite_first";
+            case "RETEACHING" -> "debug_misconception";
             case "FEEDBACK", "REVIEW" -> "summary_review";
             default -> "concept_first";
         });

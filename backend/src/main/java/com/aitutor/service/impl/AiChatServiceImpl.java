@@ -115,13 +115,11 @@ public class AiChatServiceImpl implements AiChatService {
         long started = System.nanoTime();
         try {
             var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            String data = mapper.writeValueAsString(java.util.Map.of("topic", topic, "source", source));
+            String data = mapper.writeValueAsString(java.util.Map.of("topic", topic,
+                    "source", com.aitutor.ai.TutorLessonPreparation.evidence(source)));
             AiChatResult result = deepSeekClient.chatJson(List.of(new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildLessonPrompt()),
                     new AiMessage(ROLE_USER, data)));
-            var json = mapper.readTree(result.getContent());
-            if (!json.path("supported").asBoolean(false)) throw new BusinessException(400, "资料不足，请补充该主题的定义、例子或教材片段。");
-            var lesson = mapper.treeToValue(json.path("lesson"), com.aitutor.ai.TutorLearningFlow.Lesson.class);
-            com.aitutor.ai.TutorLearningFlow.validate(lesson);
+            var lesson = com.aitutor.ai.TutorLessonPreparation.parse(result.getContent(), source);
             saveAiCallLog(userId, result.getPromptTokens(), result.getCompletionTokens(), "success", null,
                     elapsedMilliseconds(started), "tutor_lesson");
             return lesson;

@@ -10,7 +10,19 @@ import com.aitutor.vo.RagSourceVO;
 
 /** 循序学习的状态与题目；正确答案只保存在服务端。 */
 public final class TutorLearningFlow {
-    public record Question(String prompt, List<String> options, String correctOption, String explanation) {}
+    public record SourceEvidence(String id, String text) {}
+    public record OptionFeedback(String option, String focus, String explanation, String sourceQuote,
+                                 List<SourceEvidence> evidence) {
+        public OptionFeedback(String option, String focus, String explanation, String sourceQuote) {
+            this(option,focus,explanation,sourceQuote,null);
+        }
+    }
+    public record Question(String prompt, List<String> options, String correctOption, String explanation,
+                           List<OptionFeedback> wrongOptionFeedback) {
+        public Question(String prompt, List<String> options, String correctOption, String explanation) {
+            this(prompt, options, correctOption, explanation, null);
+        }
+    }
     public record Lesson(String explanation, String remedialExplanation, Question diagnosis,
                          List<Question> checks, List<Question> practices) {}
     public record Evidence(String stage, String question, String selectedOption, boolean correct) {}
@@ -48,6 +60,14 @@ public final class TutorLearningFlow {
         var evidence = new ArrayList<>(state.evidence());
         evidence.add(new Evidence(state.stage(), q.prompt(), choice, correct));
         String feedback = (correct ? "本题与参考答案一致。" : "本题与参考答案不一致。") + q.explanation();
+        if (!correct) {
+            feedback = "你选择了 " + choice + ". " + q.options().get(choice.charAt(0) - 'A')
+                    + "\n\n本题参考选项：" + q.correctOption() + ". " + q.options().get(q.correctOption().charAt(0) - 'A')
+                    + "\n\n" + feedback;
+            OptionFeedback selected = optionFeedback(q, choice);
+            if (selected != null && selected.focus() != null && !selected.focus().isBlank())
+                feedback += "\n\n本次需要区分：" + selected.focus();
+        }
         String stage; int check = state.checkIndex(), practice = state.practiceIndex();
         if ("DIAGNOSING".equals(state.stage())) stage = "TEACHING";
         else if (correct) stage = "CHECKING".equals(state.stage()) ? "PRACTICE" : "FEEDBACK";
@@ -84,6 +104,61 @@ public final class TutorLearningFlow {
     private static void requireText(String text, int max) {
         if (text == null || text.isBlank() || text.length() > max) throw new BusinessException(600, "教学内容为空或过长，请检查资料后重试。");
     }
+    public static void validatePrepared(Lesson lesson, String source) {
+        validate(lesson);
+        requireText(source, 4000);
+        for (Question q : allQuestions(lesson)) {
+            if (q.wrongOptionFeedback() == null || q.wrongOptionFeedback().size() != q.options().size() - 1)
+                throw new BusinessException(600, "题目缺少针对错误选项的补充说明，请重试。");
+            var options = new HashSet<String>();
+            for (OptionFeedback feedback : q.wrongOptionFeedback()) {
+                if (feedback == null || feedback.option() == null || feedback.option().length() != 1
+                        || feedback.option().charAt(0) < 'A' || feedback.option().charAt(0) >= 'A' + q.options().size()
+                        || feedback.option().equals(q.correctOption()) || !options.add(feedback.option()))
+                    throw new BusinessException(600, "补充说明与题目选项不匹配，请重试。");
+                requireText(feedback.explanation(), 1000);
+                if (feedback.evidence() != null) {
+                    if (feedback.evidence().isEmpty() || feedback.evidence().size()>4
+                            || feedback.sourceQuote()!=null || feedback.focus()!=null
+                            || new HashSet<>(feedback.evidence()).size()!=feedback.evidence().size()
+                            || !TutorLessonPreparation.evidence(source).containsAll(feedback.evidence()))
+                        throw new BusinessException(600,"补讲中的证据与本轮资料不匹配，请重试。");
+                } else {
+                    requireText(feedback.focus(), 200);
+                    requireText(feedback.sourceQuote(), 300);
+                    String quote = feedback.sourceQuote().trim();
+                    if (quote.length() < 8 || !source.contains(quote))
+                        throw new BusinessException(600, "补讲中的引用无法在本轮资料中找到，请重试。");
+                }
+            }
+        }
+    }
+    private static List<Question> allQuestions(Lesson lesson) {
+        var questions = new ArrayList<Question>();
+        questions.add(lesson.diagnosis()); questions.addAll(lesson.checks()); questions.addAll(lesson.practices());
+        return questions;
+    }
+    private static OptionFeedback optionFeedback(Question question, String option) {
+        if (question.wrongOptionFeedback() == null) return null;
+        return question.wrongOptionFeedback().stream().filter(item -> option.equals(item.option())).findFirst().orElse(null);
+    }
+    private static String selectedSupport(State state) {
+        if (state.lesson() == null || state.evidence().isEmpty()) return "";
+        Evidence last = state.evidence().get(state.evidence().size() - 1);
+        if (last.correct()) return "";
+        for (Question question : allQuestions(state.lesson())) {
+            if (!question.prompt().equals(last.question())) continue;
+            OptionFeedback selected = optionFeedback(question, last.selectedOption());
+            if (selected != null) {
+                List<String> quotes = selected.evidence() == null ? List.of(selected.sourceQuote())
+                        : selected.evidence().stream().map(SourceEvidence::text).toList();
+                return "针对这个选项：\n\n" + selected.explanation() + "\n\n资料原文：\n\n"
+                        + quotes.stream().map(text -> "> " + text.trim().replace("\n", "\n> "))
+                        .collect(java.util.stream.Collectors.joining("\n\n"));
+            }
+        }
+        return "";
+    }
     private static Question question(State s) {
         if (s.lesson() == null) return null;
         return switch (s.stage()) {
@@ -95,12 +170,14 @@ public final class TutorLearningFlow {
     }
     public static View view(State s) {
         Question q = question(s);
+        String support = selectedSupport(s);
         String prompt = q == null ? switch (s.stage()) {
             case "CLARIFYING" -> "请说明“" + s.topic() + "”所属领域，并补充一段定义或参考资料。确认含义后再开始诊断。";
-            case "TEACHING" -> s.lesson().explanation();
-            case "RETEACHING" -> s.lesson().remedialExplanation();
+            case "TEACHING" -> (support.isEmpty() ? "" : support + "\n\n") + s.lesson().explanation();
+            case "RETEACHING" -> support.isEmpty() ? s.lesson().remedialExplanation() : support;
             case "FEEDBACK" -> "本轮检查和练习已通过。这只是本次作答记录，不代表已经完全掌握。";
-            case "REVIEW" -> "本轮不同检查题已用完，尚未通过。请回顾资料，结束后可重新开始；不会标记已掌握。";
+            case "REVIEW" -> (support.isEmpty() ? "" : support + "\n\n")
+                    + "本轮不同检查题已用完，尚未通过。请回顾资料，结束后可重新开始；不会标记已掌握。";
             default -> throw new BusinessException(500, "学习进度无法识别，请重新打开会话。");
         } : q.prompt();
         return new View(s.version(), s.stage(), s.topic(), prompt, q == null ? List.of() : q.options(),
