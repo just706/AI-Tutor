@@ -131,6 +131,7 @@
 
       <section v-if="learningFlow" class="learning-flow" aria-label="循序学习进度">
         <strong>循序学习 · {{ flowStageLabel }}</strong>
+        <p v-if="learningFlow.selectionReason">{{ learningFlow.selectionReason }}</p>
         <p v-if="learningFlow.textbookBased">本轮教材已固定。回答下方的引用是本轮备课资料；更换教材请先结束本轮学习。</p>
         <p v-if="learningFlow.stage === 'CLARIFYING'">请在下方补充所属领域、定义或一小段参考资料，再发送。</p>
         <p v-else-if="learningFlow.options.length">根据上方题目选择一个答案；不确定时可以回顾资料。</p>

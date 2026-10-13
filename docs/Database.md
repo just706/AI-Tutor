@@ -106,6 +106,8 @@ SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage21-tutor-flow.sql;
 
 选项补讲也保存在同一 JSON 中：每个 `lesson` 题目可带 `wrongOptionFeedback` 数组。新反馈保存 `option,explanation,evidence`，其中 `evidence` 是服务端还原的 `{id,text}` 列表；原 `focus,sourceQuote` 字段保留为可空以兼容旧快照。新模型响应为统一五题列表，转换后的持久化结构仍是 `diagnosis/checks/practices`。历史题库缺少反馈时按旧通用补讲继续；已有单引文时按旧字段显示，不回填、不重新调用模型。渲染时使用已保存题干和最近作答恢复对应反馈；无需修改表结构，已执行 stage21 的库直接兼容。
 
+新学习另在同一 JSON 中保存可空 `selection`：`policy` 为 `evidence_overlap_v1`，`history` 的每项包含 `stage,question,reason,basedOnQuestion,selectedOption,sharedEvidenceIds`。原因取 `ORIGINAL_ORDER/SHARED_EVIDENCE/NO_SHARED_EVIDENCE`；无历史错误时依据问题和选项为空。它是服务端私有记录，公开接口只返回当前题的可空选题说明。`checkIndex/practiceIndex` 在新策略下是已选题的位置，不再保证递增，已作答题依据 `evidence` 排除。旧 JSON 缺少或为空时继续原固定顺序，不回填、不重新备课；无需迁移。旧二进制不识别新增字段，回退应用时须先做快照兼容处理，不能直接用旧版读取新策略进度。
+
 ## 表清单
 
 | 表 | 用途 | 所有权/关键约束 |

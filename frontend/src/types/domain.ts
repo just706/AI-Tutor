@@ -112,6 +112,7 @@ export interface LearningFlow {
   canContinue: boolean
   passed: boolean
   feedback: string
+  selectionReason?: string | null
 }
 
 export interface TutorAgentChatResult extends AiChatResult {

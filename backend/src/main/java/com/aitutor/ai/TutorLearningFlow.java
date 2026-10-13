@@ -27,10 +27,19 @@ public final class TutorLearningFlow {
                          List<Question> checks, List<Question> practices) {}
     public record Evidence(String stage, String question, String selectedOption, boolean correct) {}
     public record Materials(List<Long> documentIds, List<RagSourceVO> sources) {}
+    public record QuestionSelection(String stage, String question, String reason, String basedOnQuestion,
+                                    String selectedOption, List<String> sharedEvidenceIds) {}
+    public record SelectionState(String policy, List<QuestionSelection> history) {}
     public record State(int version, String stage, String topic, String source, Lesson lesson,
-                        int checkIndex, int practiceIndex, List<Evidence> evidence, String feedback, Materials materials) {}
+                        int checkIndex, int practiceIndex, List<Evidence> evidence, String feedback, Materials materials,
+                        SelectionState selection) {
+        public State(int version, String stage, String topic, String source, Lesson lesson,
+                     int checkIndex, int practiceIndex, List<Evidence> evidence, String feedback, Materials materials) {
+            this(version, stage, topic, source, lesson, checkIndex, practiceIndex, evidence, feedback, materials, null);
+        }
+    }
     public record View(int version, String stage, String topic, String prompt, List<String> options,
-                       boolean canContinue, boolean passed, String feedback, boolean textbookBased) {}
+                       boolean canContinue, boolean passed, String feedback, boolean textbookBased, String selectionReason) {}
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -43,11 +52,15 @@ public final class TutorLearningFlow {
     }
     public static State begin(String topic, String source, Lesson lesson, Materials materials) {
         requireText(topic, 200); requireText(source, 4000); validate(lesson);
-        return new State(1, "DIAGNOSING", topic, source, lesson, 0, 0, List.of(), "", materials);
+        return new State(1, "DIAGNOSING", topic, source, lesson, 0, 0, List.of(), "", materials,
+                new SelectionState(TutorQuestionSelector.POLICY, List.of()));
     }
     public static State advance(State state, int version, String action, String answer) {
         if (state.version() != version) throw new BusinessException(409, "学习进度已更新，请刷新后继续。");
+        if (state.selection() != null && !TutorQuestionSelector.POLICY.equals(state.selection().policy()))
+            throw new BusinessException(500, "保存的选题规则无法识别，请重新打开会话。");
         if ("continue".equals(action) && List.of("TEACHING", "RETEACHING").contains(state.stage())) {
+            if (state.selection() != null) return select(state, "CHECKING", state.evidence(), "");
             return copy(state, "CHECKING", state.checkIndex(), state.practiceIndex(), state.evidence(), "");
         }
         Question q = question(state);
@@ -70,6 +83,12 @@ public final class TutorLearningFlow {
         }
         String stage; int check = state.checkIndex(), practice = state.practiceIndex();
         if ("DIAGNOSING".equals(state.stage())) stage = "TEACHING";
+        else if (state.selection() != null) {
+            if (correct && "CHECKING".equals(state.stage())) return select(state, "PRACTICE", List.copyOf(evidence), feedback);
+            if (correct) stage = "FEEDBACK";
+            else stage = TutorQuestionSelector.choose(state.lesson(), evidence, "CHECKING") != null
+                    && TutorQuestionSelector.choose(state.lesson(), evidence, "PRACTICE") != null ? "RETEACHING" : "REVIEW";
+        }
         else if (correct) stage = "CHECKING".equals(state.stage()) ? "PRACTICE" : "FEEDBACK";
         else {
             check++;
@@ -80,7 +99,17 @@ public final class TutorLearningFlow {
         return copy(state, stage, check, practice, List.copyOf(evidence), feedback);
     }
     private static State copy(State s, String stage, int check, int practice, List<Evidence> evidence, String feedback) {
-        return new State(s.version() + 1, stage, s.topic(), s.source(), s.lesson(), check, practice, evidence, feedback, s.materials());
+        return new State(s.version() + 1, stage, s.topic(), s.source(), s.lesson(), check, practice, evidence, feedback, s.materials(), s.selection());
+    }
+    private static State select(State s, String stage, List<Evidence> evidence, String feedback) {
+        var choice = TutorQuestionSelector.choose(s.lesson(), evidence, stage);
+        if (choice == null) return copy(s, "REVIEW", s.checkIndex(), s.practiceIndex(), evidence, feedback);
+        var history = new ArrayList<>(s.selection().history());
+        history.add(choice.selection());
+        return new State(s.version() + 1, stage, s.topic(), s.source(), s.lesson(),
+                "CHECKING".equals(stage) ? choice.index() : s.checkIndex(),
+                "PRACTICE".equals(stage) ? choice.index() : s.practiceIndex(), evidence, feedback, s.materials(),
+                new SelectionState(s.selection().policy(), List.copyOf(history)));
     }
     public static void validate(Lesson lesson) {
         if (lesson == null) throw new BusinessException(600, "教学内容不完整，请重试。");
@@ -181,11 +210,18 @@ public final class TutorLearningFlow {
             default -> throw new BusinessException(500, "学习进度无法识别，请重新打开会话。");
         } : q.prompt();
         return new View(s.version(), s.stage(), s.topic(), prompt, q == null ? List.of() : q.options(),
-                List.of("TEACHING", "RETEACHING").contains(s.stage()), "FEEDBACK".equals(s.stage()), s.feedback(), s.materials() != null);
+                List.of("TEACHING", "RETEACHING").contains(s.stage()), "FEEDBACK".equals(s.stage()), s.feedback(), s.materials() != null,
+                selectionReason(s, q));
+    }
+    private static String selectionReason(State s, Question q) {
+        if (q == null || s.selection() == null || s.selection().history().isEmpty()) return null;
+        var last = s.selection().history().get(s.selection().history().size() - 1);
+        return s.stage().equals(last.stage()) && q.prompt().equals(last.question()) ? TutorQuestionSelector.reason(last) : null;
     }
     public static String render(State state) {
         View v = view(state);
         StringBuilder text = new StringBuilder(v.feedback().isBlank() ? "" : v.feedback() + "\n\n");
+        if (v.selectionReason() != null) text.append(v.selectionReason()).append("\n\n");
         text.append(v.prompt());
         for (int i=0;i<v.options().size();i++) text.append("\n\n").append((char)('A'+i)).append(". ").append(v.options().get(i));
         if (!v.options().isEmpty()) text.append("\n\n请选择一个选项（只填写字母），不确定可以先回顾资料。");

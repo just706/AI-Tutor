@@ -68,7 +68,9 @@
 
 教材会话的 `start` 使用当前保存的 `documentIds` 和完整短主题检索，复用 RAG 的范围、排序及片段选择；一次备课成功后直接进入 DIAGNOSING（版本 1），无需手动粘贴资料。无教材、无合格片段、上下文超过 4000 字符或模型认为资料不足时返回 400；文档无权访问返回 404，尚未处理完成返回 409，模型故障或非法内容返回 600。失败时不创建学习进度或历史，不回退到普通生成。
 
-`learningSession.flow` 及当前学习会话读取接口返回 `version,stage,topic,prompt,options,canContinue,passed,feedback,textbookBased`。`textbookBased` 表示本轮从教材备课。阶段为 `CLARIFYING/DIAGNOSING/TEACHING/CHECKING/RETEACHING/PRACTICE/FEEDBACK/REVIEW`。答错先补讲再换检查题；备用题用完停在 REVIEW；检查及应用题均通过才进入 FEEDBACK。`passed` 只表示本轮题目通过，不更新掌握度。不返回备课答案键、后续题库和内部证据快照。
+`learningSession.flow` 及当前学习会话读取接口返回 `version,stage,topic,prompt,options,canContinue,passed,feedback,textbookBased,selectionReason`。`textbookBased` 表示本轮从教材备课。`selectionReason` 是可空的当前选题说明；题干 `prompt` 保持原文。新学习优先从未作答题中选择与最近错误选项补讲引用重合最多的题，同分或无匹配按原序；无历史错误时按原序。页面与历史显示同一说明，不返回内部选题记录或证据编号。旧进度没有选题策略时保持固定顺序，读取不会重选。
+
+阶段为 `CLARIFYING/DIAGNOSING/TEACHING/CHECKING/RETEACHING/PRACTICE/FEEDBACK/REVIEW`。答错先补讲再换检查题；备用题用完停在 REVIEW；检查及应用题均通过才进入 FEEDBACK。`passed` 只表示本轮题目通过，不更新掌握度。不返回备课答案键、后续题库和内部证据快照。引用重合仅是选题线索，不代表系统已经确定学生错因。
 
 教材流程每步响应的 `sources` 及助手历史消息均返回本轮保存的有序备课引用，结构及失效隐藏规则与教材问答一致。它们表示整轮备课上下文，尚未逐题、逐句标注或独立核验。每次推进重新检查全部所选教材的归属、处理状态和绑定一致性；失效时保持原版本与历史，用户仍能结束会话。活动流程期间修改教材的接口及普通 RAG 请求（包括重试）返回 409，须先结束本轮学习。重新处理完成的文档仍可使用原备课快照；不会将新片段替换进本轮题目。
 

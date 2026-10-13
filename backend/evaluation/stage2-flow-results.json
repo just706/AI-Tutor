@@ -3,8 +3,8 @@
   "date": "2026-10-10",
   "updatedDate": "2026-10-13",
   "reviewer": "Codex",
-  "scope": "备课契约v2的历史真实内容基线，及新上下文校验的本地替身与原始响应回放；新提示未进行真实生成验收。",
-  "status": "question_context_guard_locally_verified_real_generation_pending",
+  "scope": "备课契约v2的历史真实内容基线，及按补讲引用选题、上下文校验的本地替身与原始响应回放；新提示和选题教学质量未进行真实验收。",
+  "status": "evidence_question_selection_locally_verified_quality_and_browser_pending",
   "runs": [
     {
       "run": "real-v1",
@@ -192,7 +192,7 @@
       "reason": "返回supported:false，无定义或题目捏造；保持澄清阶段和原历史。"
     }
   ],
-  "backendTestsPassed": 201,
+  "backendTestsPassed": 212,
   "browserVerified": false,
   "userPageFeedback": {
     "date": "2026-10-11",
@@ -216,11 +216,12 @@
     "历史原始20题有15题答案为A；本次回放重排为A6/B8/C6，各五题单元各位置出现1–2次。题目独立性、难度与迁移覆盖仍待改进。",
     "页面验收和真实教材检索备课质量不包含在本轮中。",
     "编号及结构校验不能自动证明证据支持解释；仍需真实内容核验。",
-    "错误反馈提前随备课生成，不推断学生真实心理错因；备用题固定顺序，无自由文本诊断或按错因选题。",
+    "错误反馈提前随备课生成；新学习按最近错误选项的补讲原文重合选题，旧进度保持固定顺序。引用重合和候选反馈并集不证明知识点或真实错因吻合，无自由文本诊断。",
     "本轮累计25次授权已用完，不自动追加真实调用。",
     "选项位置依赖检测仅覆盖常见字母与相对位置表达，可能保守跳过变量名，不能替代语义审阅；均衡只适用于同选项数且可重排的题组。",
     "上下文校验只识别常见引用词及题干开头的无前提回指，可能误拦或漏检；不证明所有题干语义独立。",
-    "当前提示新增每题完整条件要求，尚无对应真实模型生成验收；旧J02响应回放被拒绝，保留42/43原始结果。"
+    "当前提示新增每题完整条件要求，尚无对应真实模型生成验收；旧J02响应回放被拒绝，当前保留45/46原始结果，此前42/43记录单独保留。",
+    "选题仅在两道检查、两道练习中进行，题池可能没有合适备用题；本地合成分支通过不证明对真实学习有效。"
   ],
   "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011",
   "authorizationUpdatedDate": "2026-10-12",
@@ -278,15 +279,28 @@
     "realEvaluated": false,
     "realContentBaseline": "real-v5-evidence-contract-v2",
     "newExternalCalls": 0,
-    "backendTestsPassed": 201,
-    "localApiChecksPassed": 43,
+    "backendTestsPassed": 212,
+    "frontendTestsPassed": 27,
+    "frontendBuildPassed": true,
+    "localApiChecksPassed": 46,
     "optionOrder": "server-balanced randomized positions, remapped answer and feedback; persisted once",
     "persistedLegacyFlowsCompatible": true,
     "oldModelFormatAccepted": false,
     "invalidResponseRepair": false,
-    "jarSha256": "bedfc3c616089efdb433fcea80de9e3b3f172b260e38ace218c3b11e21733828",
-    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-question-context-20261013/local-api",
-    "questionContext": "reject common cross-question references and leading anaphora without local conditions; new preparations only"
+    "jarSha256": "a32133b724f0ce7ea32c6d0da5073d14dbcf9b8039d97a89e14ab8b1ea1fbd91",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-question-routing-20261013/local-api-v2",
+    "questionContext": "reject common cross-question references and leading anaphora without local conditions; new preparations only",
+    "questionSelection": {
+      "policy": "evidence_overlap_v1",
+      "scope": "unanswered checks or practices, selected separately",
+      "basis": "most recent incorrect option feedback; greatest distinct exact id-and-text overlap with candidate feedback union",
+      "fallback": "original order for ties, no matches or no previous errors",
+      "persistedTrace": true,
+      "publicField": "selectionReason (nullable)",
+      "legacySnapshots": "missing or null selection keeps original sequential behavior",
+      "newModelCalls": 0,
+      "semanticMisconceptionMatchingVerified": false
+    }
   },
   "currentImplementationReplay": {
     "originalResponsesUnmodified": true,
@@ -294,8 +308,8 @@
     "topicAndSourceCatalogUnchanged": true,
     "newModelQualityEvaluation": false,
     "realCalls": 0,
-    "checksPassed": 42,
-    "checksTotal": 43,
+    "checksPassed": 45,
+    "checksTotal": 46,
     "acceptedCases": 4,
     "totalCases": 5,
     "expectedRejections": [
@@ -310,6 +324,17 @@
     "acceptedWrongOptionFeedbacks": 30,
     "insufficientCasePreserved": true,
     "cleanup": "removed",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-question-routing-20261013/legacy-replay"
+  },
+  "previousQuestionContextReplay": {
+    "date": "2026-10-13",
+    "checksPassed": 42,
+    "checksTotal": 43,
+    "acceptedCases": 4,
+    "expectedRejection": "J02: missing local operation sequence",
+    "originalResponsesUnmodified": true,
+    "stateAndHistoryPreserved": true,
+    "realCalls": 0,
     "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-question-context-20261013/legacy-replay"
   },
   "supersededOptionFeedbackReview": {

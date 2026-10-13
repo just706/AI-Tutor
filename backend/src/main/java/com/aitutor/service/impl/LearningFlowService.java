@@ -55,7 +55,7 @@ public class LearningFlowService {
                 if (source.length() < 15) throw new BusinessException(400, "请补充所属领域与具体定义或资料片段，仅确认名称不足以备课。");
                 var lesson=chat.generateLesson(state.topic(),source);
                 var begun=TutorLearningFlow.begin(state.topic(),source,lesson);
-                state=new TutorLearningFlow.State(state.version()+1,begun.stage(),begun.topic(),source,lesson,0,0,List.of(),"",null);
+                state=new TutorLearningFlow.State(state.version()+1,begun.stage(),begun.topic(),source,lesson,0,0,List.of(),"",null,begun.selection());
             } else state=TutorLearningFlow.advance(state,state.version(),action,request.getMessage());
         }
         String previous=session.getStatus();

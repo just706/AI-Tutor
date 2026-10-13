@@ -129,12 +129,14 @@ let malformedLessonNext = false;
 let unsupportedLessonNext = false;
 let invalidOptionFeedbackNext;
 let invalidQuestionContextNext;
+let routingLessonNext = false;
 let failNextRag = false;
 let modelGate;
 const browserFailureControl = path.join(outputDir, 'fail-next-rag');
 const textbook = 'ArrayList 基于动态数组，实现 List 接口，随机访问速度快，适合经常通过索引访问元素。LinkedList 基于双向链表，也实现 List 接口。ArrayList 和 LinkedList 都是 List 的常见实现类。';
 const mathTextbook = '导数表示函数的局部变化率。导数的用途是研究函数的变化趋势。积分表示累积量。积分的用途是计算曲线下方的面积。';
 const physicsTextbook = '牛顿第二定律描述力和加速度的关系。牛顿第二定律的适用条件包括惯性参考系。平均速度表示总位移与总时间的比值。瞬时速度描述某一时刻的运动状态。';
+const routingTextbook = '亮纹代表红色。暗纹代表蓝色。无纹代表绿色。';
 const modelServer = createServer(async (request, response) => {
   try {
     // TCP 分段可能切开中文 UTF-8 字符，先合并字节再解码，避免固定资料被替换字符破坏。
@@ -172,6 +174,23 @@ const modelServer = createServer(async (request, response) => {
         remedialExplanation:`先回顾定义，再比较容易混淆的含义：${sourceText}`,
         questions:[question('诊断题','A'),question('检查题一','B'),question('检查题二','A'),
         question('应用题一','A'),question('应用题二','B')]});
+      if (routingLessonNext) {
+        routingLessonNext=false;
+        const ref=text=>{
+          // 教材首段含文件名和片段标记；模拟模型仅选择包含该句的已有编号。
+          const units=data.source.filter(unit=>unit.text.includes(text));
+          assert.equal(units.length,1,'选题测试资料必须有唯一对应原文'); return units[0].id;
+        };
+        const red=ref('亮纹代表红色。'),blue=ref('暗纹代表蓝色。'),green=ref('无纹代表绿色。');
+        const feedback=(option,evidenceIds)=>({option,explanation:'请对照原文中的纹路与颜色对应关系。',evidenceIds});
+        const q=(prompt,color,id)=>({prompt,options:[color,'无法确定'],correctOption:'A',
+          explanation:`根据给定规则，答案是${color}。`,wrongOptionFeedback:[feedback('B',[id])]});
+        content=JSON.stringify({schemaVersion:2,supported:true,explanation:routingTextbook,remedialExplanation:routingTextbook,
+          questions:[{prompt:'亮纹代表什么颜色？',options:['红色','蓝色','绿色'],correctOption:'A',explanation:'亮纹代表红色。',
+            wrongOptionFeedback:[feedback('B',[red,blue]),feedback('C',[red,green])]},
+          q('暗纹代表什么颜色？','蓝色',blue),q('无纹代表什么颜色？','绿色',green),
+          q('暗纹卡片应涂什么颜色？','蓝色',blue),q('无纹卡片应涂什么颜色？','绿色',green)]});
+      }
       if (invalidOptionFeedbackNext) {
         const prepared=JSON.parse(content);
         const diagnosis=prepared.questions[0];
@@ -1004,6 +1023,74 @@ try {
   }
   pass('不同错误选项展示各自补讲与原文；未作答时隐藏反馈，刷新与历史一致，不增加模型调用');
 
+  const selectByText=async (turn,text,stage)=>{
+    const index=turn.result.learningSession.flow.options.indexOf(text);
+    assert(index>=0,'选项重排后仍应保留原语义');
+    await flowStep(turn,'answer',String.fromCharCode(65+index),stage);
+  };
+  const assertSelection=async (turn,prompt,reason)=>{
+    const flow=turn.result.learningSession.flow;
+    assert.equal(flow.prompt,prompt);
+    const saved=readSavedFlow(turn.result.learningSession.id),trace=saved.selection.history.at(-1);
+    assert.equal(saved.selection.policy,'evidence_overlap_v1');
+    assert.equal(trace.question,prompt); assert.equal(trace.reason,reason);
+    const lastWrong=saved.evidence.findLast(answer=>!answer.correct);
+    assert.equal(trace.basedOnQuestion,lastWrong.question); assert.equal(trace.selectedOption,lastWrong.selectedOption);
+    assert.equal(trace.sharedEvidenceIds.length>0,reason==='SHARED_EVIDENCE');
+    assert(flow.selectionReason && turn.result.answer.includes(flow.selectionReason));
+    const history=await api('/conversations/'+turn.conversationId+'/messages',{token});
+    assert.equal(history.at(-1).messageContent,turn.result.answer);
+    for(const hidden of ['sharedEvidenceIds','basedOnQuestion','wrongOptionFeedback','evidence_overlap_v1'])
+      assert(!JSON.stringify(turn.result).includes(hidden));
+    const active=await api('/learning-sessions/active?conversationId='+turn.conversationId,{token});
+    assert.deepEqual(active.flow,flow);
+    assert.deepEqual(readSavedFlow(turn.result.learningSession.id),saved,'重新读取不改变选题记录');
+  };
+  for(const [wrongColor,pattern] of [['蓝色','暗纹'],['绿色','无纹']]) {
+    const turn=await flowStart('纹路颜色'),calls=modelRequests.length;
+    routingLessonNext=true; await flowStep(turn,'clarify',routingTextbook,'DIAGNOSING');
+    await selectByText(turn,wrongColor,'TEACHING'); await flowStep(turn,'continue','检查理解','CHECKING');
+    await assertSelection(turn,`${pattern}代表什么颜色？`,'SHARED_EVIDENCE');
+    await flowAnswer(turn,true,'PRACTICE');
+    await assertSelection(turn,`${pattern}卡片应涂什么颜色？`,'SHARED_EVIDENCE');
+    if(pattern==='无纹') {
+      await flowAnswer(turn,false,'RETEACHING'); await flowStep(turn,'continue','继续检查','CHECKING');
+      await assertSelection(turn,'暗纹代表什么颜色？','NO_SHARED_EVIDENCE');
+      await flowAnswer(turn,true,'PRACTICE');
+      await assertSelection(turn,'暗纹卡片应涂什么颜色？','NO_SHARED_EVIDENCE');
+    }
+    await flowAnswer(turn,true,'FEEDBACK');
+    const saved=readSavedFlow(turn.result.learningSession.id);
+    assert.equal(new Set(saved.evidence.map(answer=>answer.question)).size,saved.evidence.length);
+    assert.equal(modelRequests.length,calls+1,'选题只读取已保存资料，不增加模型调用');
+  }
+  pass('不同错误选项按补讲原文选择检查题和练习；换序后不重复、无匹配时回退，选题理由与历史和刷新一致');
+
+  const routingDocument=await upload(routingTextbook,'guided-routing.txt',token);
+  await waitForExtraction(routingDocument.personalGraphExtractionId,token);
+  const routingTurn=await makeTextbookFlow([routingDocument.documentId]),routingCalls=modelRequests.length;
+  routingLessonNext=true; routingTurn.result=await startTextbookFlow(routingTurn,'无纹');
+  await selectByText(routingTurn,'绿色','TEACHING'); await flowStep(routingTurn,'continue','检查理解','CHECKING');
+  await assertSelection(routingTurn,'无纹代表什么颜色？','SHARED_EVIDENCE');
+  assert(routingTurn.result.learningSession.flow.textbookBased);
+  assert.equal(routingTurn.result.sources[0].documentId,routingDocument.documentId);
+  await flowAnswer(routingTurn,true,'PRACTICE');
+  await assertSelection(routingTurn,'无纹卡片应涂什么颜色？','SHARED_EVIDENCE');
+  await flowAnswer(routingTurn,true,'FEEDBACK'); assert.equal(modelRequests.length,routingCalls+1);
+  pass('教材入口使用相同选题规则并保留教材引用，备课后不追加模型调用');
+
+  const legacyTurn=await flowStart('旧版纹路颜色');
+  routingLessonNext=true; await flowStep(legacyTurn,'clarify',routingTextbook,'DIAGNOSING');
+  // 仅在临时库还原没有选题策略字段的旧版快照。
+  sql(`UPDATE learning_session SET flow_state=JSON_REMOVE(flow_state,'$.selection') WHERE id=${legacyTurn.result.learningSession.id};`);
+  await selectByText(legacyTurn,'绿色','TEACHING'); await flowStep(legacyTurn,'continue','检查理解','CHECKING');
+  assert.equal(legacyTurn.result.learningSession.flow.prompt,'暗纹代表什么颜色？');
+  assert.equal(legacyTurn.result.learningSession.flow.selectionReason,null);
+  await flowAnswer(legacyTurn,false,'RETEACHING'); await flowStep(legacyTurn,'continue','再次检查','CHECKING');
+  assert.equal(legacyTurn.result.learningSession.flow.prompt,'无纹代表什么颜色？');
+  assert.equal(readSavedFlow(legacyTurn.result.learningSession.id).selection,null);
+  pass('旧版保存进度继续使用原题目顺序，不在升级或刷新时重新选题');
+
   const feedbackFailure=await flowStart('导数');
   const feedbackHistory=await api('/conversations/'+feedbackFailure.conversationId+'/messages',{token});
   for(const mode of ['missing','quote','correct','misnested','unknown-evidence','duplicate-evidence','empty-evidence','syntax','trailing']) {
@@ -1080,22 +1167,25 @@ try {
           const chooseWrong = key => key === 'A' ? 'B' : 'A';
           await step('answer',item.path === 'remediate' ? chooseWrong(lesson.diagnosis.correctOption) : lesson.diagnosis.correctOption,'TEACHING');
           await step('continue','开始理解检查','CHECKING');
-          let checkIndex = 0;
+          const answerCurrent = async (correct,stage) => {
+            await flowAnswer(turn,correct,stage); record.states.push(turn.result.learningSession.flow);
+          };
           if (item.path === 'remediate') {
             const firstPrompt = turn.result.learningSession.flow.prompt;
-            await step('answer',chooseWrong(lesson.checks[0].correctOption),'RETEACHING');
+            await answerCurrent(false,'RETEACHING');
             await step('continue','再次检查','CHECKING');
             assert.notEqual(turn.result.learningSession.flow.prompt,firstPrompt);
-            checkIndex = 1;
           }
-          await step('answer',lesson.checks[checkIndex].correctOption,'PRACTICE');
-          await step('answer',lesson.practices[0].correctOption,'FEEDBACK');
+          await answerCurrent(true,'PRACTICE');
+          await answerCurrent(true,'FEEDBACK');
           assert(turn.result.learningSession.flow.passed);
           assert.equal(modelRequests.length,before+1, '判分和推进不得再次调用模型');
           record.history = await api('/conversations/'+turn.conversationId+'/messages',{token});
           const saved = readSavedFlow(turn.result.learningSession.id);
           assert.deepEqual(saved.lesson,lesson,'学习推进和重新读取不能再次改变选项顺序');
           record.evidence = saved.evidence;
+          record.selection = saved.selection;
+          assert.equal(new Set(saved.evidence.map(answer=>answer.question)).size,saved.evidence.length);
         }
         record.passed = true;
         pass('固定备课案例 '+item.id+'：'+item.topic+'，接口与进度验证通过，内容仍须独立审阅');
