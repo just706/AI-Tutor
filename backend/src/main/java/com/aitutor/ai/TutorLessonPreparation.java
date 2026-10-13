@@ -83,6 +83,7 @@ public final class TutorLessonPreparation {
             var lesson=new TutorLearningFlow.Lesson(prepared.explanation(),prepared.remedialExplanation(),questions.get(0),
                     List.copyOf(questions.subList(1,3)),List.copyOf(questions.subList(3,5)));
             TutorLearningFlow.validatePrepared(lesson,source);
+            questions.forEach(TutorQuestionContext::validate);
             return TutorOptionOrder.arrange(lesson,java.util.concurrent.ThreadLocalRandom.current());
         } catch (BusinessException ex) { throw ex; }
         catch (Exception ex) { throw invalid(); }

@@ -128,6 +128,7 @@ let activeFlowCase;
 let malformedLessonNext = false;
 let unsupportedLessonNext = false;
 let invalidOptionFeedbackNext;
+let invalidQuestionContextNext;
 let failNextRag = false;
 let modelGate;
 const browserFailureControl = path.join(outputDir, 'fail-next-rag');
@@ -189,6 +190,14 @@ const modelServer = createServer(async (request, response) => {
         invalidOptionFeedbackNext=undefined;
       }
       if (malformedLessonNext) { malformedLessonNext=false; content='{"supported":true,"lesson":{}}'; }
+      if (invalidQuestionContextNext) {
+        const prepared=JSON.parse(content),q=prepared.questions[2];
+        if(invalidQuestionContextNext==='prompt') q.prompt='上述序列执行后，结果是什么？';
+        if(invalidQuestionContextNext==='option') q.options[1]='与上一题答案相同';
+        if(invalidQuestionContextNext==='explanation') q.explanation='条件见第1题，沿用该题结论。';
+        if(invalidQuestionContextNext==='feedback') q.wrongOptionFeedback[0].explanation='Use the previous question to understand this option.';
+        content=JSON.stringify(prepared); invalidQuestionContextNext=undefined;
+      }
       if (unsupportedLessonNext) { unsupportedLessonNext=false; content='{"supported":false}'; }
       if (activeFlowCase) {
         assert.equal(sourceText, activeFlowCase.source, '只允许发送固定题集内的自编资料');
@@ -217,6 +226,8 @@ const modelServer = createServer(async (request, response) => {
             assert.equal(lessonSourceText(savedData.source),sourceText,'回放资料必须一致');
             if(Array.isArray(savedData.source)) assert.deepEqual(savedData,data,'新格式回放还须保持证据编号一致');
             record.replayInputContractChanged=!Array.isArray(savedData.source);
+            record.replaySystemPromptChanged=JSON.stringify(saved.messages.filter(m=>m.role==='system'))
+              !==JSON.stringify(payload.messages.filter(m=>m.role==='system'));
             // 原样回放，包括不合法的 JSON；不修补模型响应，不产生外部调用。
             content = saved.answer;
             record.replaySha256 = replaySha256;
@@ -900,6 +911,29 @@ try {
     assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_session_step WHERE conversation_id=${failedTextbookTurn.conversationId};`)),0);
   }
   pass('空教材、无关主题、资料不足和备课失败均回滚，不生成空学习进度，不回退到普通聊天');
+
+  const dependentTurn=await flowStart('导数');
+  const dependentHistory=await api('/conversations/'+dependentTurn.conversationId+'/messages',{token});
+  const dependentState=await api('/learning-sessions/active?conversationId='+dependentTurn.conversationId,{token});
+  for(const mode of ['prompt','option','explanation','feedback']) {
+    let calls=modelRequests.length;
+    invalidQuestionContextNext=mode;
+    await flowSend(dependentTurn,'clarify',mathTextbook,600);
+    assert.equal(modelRequests.length,calls+1,'上下文校验失败不得自动追加模型请求');
+    assert.deepEqual(await api('/conversations/'+dependentTurn.conversationId+'/messages',{token}),dependentHistory);
+    assert.deepEqual(await api('/learning-sessions/active?conversationId='+dependentTurn.conversationId,{token}),dependentState);
+    calls=modelRequests.length;
+    invalidQuestionContextNext=mode;
+    await startTextbookFlow(failedTextbookTurn,'导数',600);
+    assert.equal(modelRequests.length,calls+1);
+    assert.equal(await api('/learning-sessions/active?conversationId='+failedTextbookTurn.conversationId,{token}),null);
+    assert.deepEqual(await api('/conversations/'+failedTextbookTurn.conversationId+'/messages',{token}),[]);
+    assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_session_step WHERE conversation_id=${failedTextbookTurn.conversationId};`)),0);
+  }
+  await flowStep(dependentTurn,'clarify',mathTextbook,'DIAGNOSING');
+  failedTextbookTurn.result=await startTextbookFlow(failedTextbookTurn,'导数');
+  assert.equal(failedTextbookTurn.result.learningSession.flow.stage,'DIAGNOSING');
+  pass('题干、选项、解析或补讲依赖前题时两种入口均回滚，不追加模型调用；改为完整条件后可重试');
 
   const invalidatedTurn=await makeTextbookFlow();
   invalidatedTurn.result=await startTextbookFlow(invalidatedTurn,'导数');

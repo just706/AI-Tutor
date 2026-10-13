@@ -1,10 +1,10 @@
 {
   "suiteVersion": "stage2-flow-v1",
   "date": "2026-10-10",
-  "updatedDate": "2026-10-12",
+  "updatedDate": "2026-10-13",
   "reviewer": "Codex",
-  "scope": "备课契约 v2：4份自编短资料及1个资料不足案例；独立审阅20道题与40条错误选项反馈。 新增服务端选项重排使用同一原始响应本地回放，未新增真实模型调用。",
-  "status": "evidence_contract_v2_content_reviewed_option_order_replayed",
+  "scope": "备课契约v2的历史真实内容基线，及新上下文校验的本地替身与原始响应回放；新提示未进行真实生成验收。",
+  "status": "question_context_guard_locally_verified_real_generation_pending",
   "runs": [
     {
       "run": "real-v1",
@@ -192,7 +192,7 @@
       "reason": "返回supported:false，无定义或题目捏造；保持澄清阶段和原历史。"
     }
   ],
-  "backendTestsPassed": 195,
+  "backendTestsPassed": 201,
   "browserVerified": false,
   "userPageFeedback": {
     "date": "2026-10-11",
@@ -218,7 +218,9 @@
     "编号及结构校验不能自动证明证据支持解释；仍需真实内容核验。",
     "错误反馈提前随备课生成，不推断学生真实心理错因；备用题固定顺序，无自由文本诊断或按错因选题。",
     "本轮累计25次授权已用完，不自动追加真实调用。",
-    "选项位置依赖检测仅覆盖常见字母与相对位置表达，可能保守跳过变量名，不能替代语义审阅；均衡只适用于同选项数且可重排的题组。"
+    "选项位置依赖检测仅覆盖常见字母与相对位置表达，可能保守跳过变量名，不能替代语义审阅；均衡只适用于同选项数且可重排的题组。",
+    "上下文校验只识别常见引用词及题干开头的无前提回指，可能误拦或漏检；不证明所有题干语义独立。",
+    "当前提示新增每题完整条件要求，尚无对应真实模型生成验收；旧J02响应回放被拒绝，保留42/43原始结果。"
   ],
   "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011",
   "authorizationUpdatedDate": "2026-10-12",
@@ -269,135 +271,46 @@
     "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/replay-revised"
   },
   "historicalEvidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-flow-evaluation-20261010",
-  "finalCaseReviewAppliesTo": "备课契约 v2 real-v5 的固定资料与原始响应；本次仅验证选项重排不改变内容和映射，无新增真实模型或页面验收，不代表任意教材或教育效果。",
+  "finalCaseReviewAppliesTo": "仅real-v5原始提示和固定响应的历史内容审阅；新增上下文要求会拒绝J02，当前提示尚无新真实生成质量结论。",
   "currentImplementation": {
     "preparationSchemaVersion": 2,
-    "date": "2026-10-12",
+    "date": "2026-10-13",
     "realEvaluated": false,
     "realContentBaseline": "real-v5-evidence-contract-v2",
     "newExternalCalls": 0,
-    "backendTestsPassed": 195,
-    "localApiChecksPassed": 42,
+    "backendTestsPassed": 201,
+    "localApiChecksPassed": 43,
     "optionOrder": "server-balanced randomized positions, remapped answer and feedback; persisted once",
     "persistedLegacyFlowsCompatible": true,
     "oldModelFormatAccepted": false,
     "invalidResponseRepair": false,
-    "jarSha256": "a99f98e5ca93b844b6b3fb5bee245c22ca69f387798b5c6c42b79bcd75ad4697",
-    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-order-20261012/final-replay"
+    "jarSha256": "bedfc3c616089efdb433fcea80de9e3b3f172b260e38ace218c3b11e21733828",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-question-context-20261013/local-api",
+    "questionContext": "reject common cross-question references and leading anaphora without local conditions; new preparations only"
   },
   "currentImplementationReplay": {
     "originalResponsesUnmodified": true,
-    "systemPromptUnchanged": true,
+    "systemPromptUnchanged": false,
     "topicAndSourceCatalogUnchanged": true,
-    "inputSerializationChanged": true,
-    "inputSerializationNote": "Java Map 字段输出次序变化；解析后的 topic 和有序 source 数组及原文逐字一致。",
+    "newModelQualityEvaluation": false,
     "realCalls": 0,
     "checksPassed": 42,
-    "checksTotal": 42,
-    "casesPassed": 5,
-    "questions": 20,
-    "wrongOptionFeedbacks": 40,
-    "contentAndFeedbackPreserved": true,
-    "persistedOrderStable": true,
-    "answerPositions": {
-      "A": 6,
-      "B": 8,
-      "C": 6
-    },
-    "perLessonDistributions": [
-      {
-        "caseId": "J01",
-        "original": [
-          "A",
-          "A",
-          "A",
-          "A",
-          "A"
-        ],
-        "saved": [
-          "A",
-          "C",
-          "C",
-          "B",
-          "B"
-        ],
-        "counts": {
-          "A": 1,
-          "B": 2,
-          "C": 2
-        }
-      },
+    "checksTotal": 43,
+    "acceptedCases": 4,
+    "totalCases": 5,
+    "expectedRejections": [
       {
         "caseId": "J02",
-        "original": [
-          "A",
-          "B",
-          "B",
-          "A",
-          "A"
-        ],
-        "saved": [
-          "B",
-          "A",
-          "B",
-          "C",
-          "A"
-        ],
-        "counts": {
-          "A": 2,
-          "B": 2,
-          "C": 1
-        }
-      },
-      {
-        "caseId": "M01",
-        "original": [
-          "B",
-          "B",
-          "A",
-          "B",
-          "A"
-        ],
-        "saved": [
-          "B",
-          "B",
-          "A",
-          "C",
-          "C"
-        ],
-        "counts": {
-          "A": 1,
-          "B": 2,
-          "C": 2
-        }
-      },
-      {
-        "caseId": "U01",
-        "original": [
-          "A",
-          "A",
-          "A",
-          "A",
-          "A"
-        ],
-        "saved": [
-          "B",
-          "C",
-          "A",
-          "A",
-          "B"
-        ],
-        "counts": {
-          "A": 2,
-          "B": 2,
-          "C": 1
-        }
+        "reason": "第二道检查题使用上述序列，但只在上一题给出操作序列。",
+        "historyPreserved": true,
+        "statePreserved": true
       }
     ],
+    "acceptedQuestions": 15,
+    "acceptedWrongOptionFeedbacks": 30,
     "insufficientCasePreserved": true,
-    "newModelQualityEvaluation": false,
     "cleanup": "removed",
-    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-order-20261012/final-replay"
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-question-context-20261013/legacy-replay"
   },
   "supersededOptionFeedbackReview": {
     "run": "real-v4-option-feedback",
@@ -525,5 +438,119 @@
     "insufficientCasePreserved": true,
     "featureQualityProven": false,
     "cleanup": "removed"
+  },
+  "previousOptionOrderReplay": {
+    "originalResponsesUnmodified": true,
+    "systemPromptUnchanged": true,
+    "topicAndSourceCatalogUnchanged": true,
+    "inputSerializationChanged": true,
+    "inputSerializationNote": "Java Map 字段输出次序变化；解析后的 topic 和有序 source 数组及原文逐字一致。",
+    "realCalls": 0,
+    "checksPassed": 42,
+    "checksTotal": 42,
+    "casesPassed": 5,
+    "questions": 20,
+    "wrongOptionFeedbacks": 40,
+    "contentAndFeedbackPreserved": true,
+    "persistedOrderStable": true,
+    "answerPositions": {
+      "A": 6,
+      "B": 8,
+      "C": 6
+    },
+    "perLessonDistributions": [
+      {
+        "caseId": "J01",
+        "original": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ],
+        "saved": [
+          "A",
+          "C",
+          "C",
+          "B",
+          "B"
+        ],
+        "counts": {
+          "A": 1,
+          "B": 2,
+          "C": 2
+        }
+      },
+      {
+        "caseId": "J02",
+        "original": [
+          "A",
+          "B",
+          "B",
+          "A",
+          "A"
+        ],
+        "saved": [
+          "B",
+          "A",
+          "B",
+          "C",
+          "A"
+        ],
+        "counts": {
+          "A": 2,
+          "B": 2,
+          "C": 1
+        }
+      },
+      {
+        "caseId": "M01",
+        "original": [
+          "B",
+          "B",
+          "A",
+          "B",
+          "A"
+        ],
+        "saved": [
+          "B",
+          "B",
+          "A",
+          "C",
+          "C"
+        ],
+        "counts": {
+          "A": 1,
+          "B": 2,
+          "C": 2
+        }
+      },
+      {
+        "caseId": "U01",
+        "original": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ],
+        "saved": [
+          "B",
+          "C",
+          "A",
+          "A",
+          "B"
+        ],
+        "counts": {
+          "A": 2,
+          "B": 2,
+          "C": 1
+        }
+      }
+    ],
+    "insufficientCasePreserved": true,
+    "newModelQualityEvaluation": false,
+    "cleanup": "removed",
+    "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-order-20261012/final-replay"
   }
 }
