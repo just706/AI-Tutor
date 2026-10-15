@@ -409,7 +409,9 @@ try {
   const [token, otherToken] = tokens;
   const conversation = await api('/conversations', { token, body: { title: '集合框架验收', mode: 'rag' } });
   assert(conversation.conversationId);
-  const publicGraph = await api('/knowledge-map/graph', { token });
+  await api('/knowledge-map/graph', { token, code: 400 });
+  await api('/knowledge-map/graph?subject=%20%20', { token, code: 400 });
+  const publicGraph = await api('/knowledge-map/graph?subject=Java', { token });
   assert(publicGraph.nodes.length > 0);
   pass('双用户注册登录、创建教材会话、公共图谱');
 
@@ -705,6 +707,21 @@ try {
   // 合成数学知识点只存在于本次临时库，用于验证策略不依赖 Java 名单。
   sql("INSERT INTO knowledge_point(subject,name,sort_order) VALUES ('数学','函数',1),('数学','导数',2);");
   sql("INSERT INTO knowledge_map_dependency(prerequisite_point_id,dependent_point_id,relation_reason) SELECT a.id,b.id,'先理解函数再研究变化率' FROM knowledge_point a JOIN knowledge_point b ON b.subject=a.subject WHERE a.subject='数学' AND a.name='函数' AND b.name='导数';");
+  const mathTree = await api('/knowledge-points/tree?subject=' + encodeURIComponent('数学'), { token });
+  assert.equal(mathTree.length, 2);
+  assert(mathTree.every(point => point.subject === '数学'));
+  const allSubjects = await api('/knowledge-points/tree', { token });
+  assert(allSubjects.some(point => point.subject === 'Java'));
+  assert(allSubjects.some(point => point.subject === '数学'));
+  const mathGraph = await api('/knowledge-map/graph?subject=' + encodeURIComponent('数学'), { token });
+  assert.equal(mathGraph.subject, '数学');
+  assert.deepEqual(mathGraph.nodes.map(point => point.id).sort(), mathTree.map(point => point.id).sort());
+  assert.equal(mathGraph.edges.length, 1);
+  const unknownGraph = await api('/knowledge-map/graph?subject=' + encodeURIComponent('天文学'), { token });
+  assert.equal(unknownGraph.subject, '天文学');
+  assert.equal(unknownGraph.nodes.length, 0);
+  assert.equal((await api('/knowledge-points/tree?subject=' + encodeURIComponent('天文学'), { token })).length, 0);
+  pass('学科目录、数学图谱及空学科校验；未知学科不回退 Java');
   const strategyCases = [
     ['解释导数的含义','concept_first','learn','核心概念'],
     ['举个例子解释导数','example_first','learn','例子'],

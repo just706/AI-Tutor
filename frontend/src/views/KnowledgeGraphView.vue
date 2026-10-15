@@ -7,7 +7,7 @@
         <p>{{ graphMode === 'master' ? '查看公共知识点之间的前置依赖关系。' : '查看已确认发布的资料知识点与来源证据。' }}</p>
       </div>
       <div class="knowledge-graph-controls">
-        <el-radio-group v-model="graphMode" @change="loadGraphFlow">
+        <el-radio-group v-model="graphMode" @change="applyGraphFilter">
           <el-radio-button value="master">Master</el-radio-button>
           <el-radio-button value="personal">Personal</el-radio-button>
         </el-radio-group>
@@ -16,8 +16,8 @@
           <el-radio-button value="3d">3D</el-radio-button>
         </el-radio-group>
         <template v-if="graphMode === 'master'">
-          <el-input v-model.trim="subjectInput" placeholder="学科，例如 Java" @keydown.enter.prevent="loadGraphFlow" />
-          <el-button type="primary" @click="loadGraphFlow">加载图谱</el-button>
+          <el-input v-model.trim="subjectInput" placeholder="输入学科，例如 数学、物理、Java" @keydown.enter.prevent="applyGraphFilter" />
+          <el-button type="primary" @click="applyGraphFilter">加载图谱</el-button>
         </template>
       </div>
     </section>
@@ -57,7 +57,7 @@
 
           <el-empty
             v-if="!loading && graph.nodes.length === 0"
-            :description="graphMode === 'master' ? '当前学科还没有知识点' : '还没有已发布的个人图谱'"
+            :description="graphMode === 'master' ? (currentSubject ? '当前学科还没有已收录知识点，可上传教材或使用自由主题学习' : '请先输入学科并加载图谱') : '还没有已发布的个人图谱'"
             :image-size="120"
           />
           </template>
@@ -119,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getKnowledgeGraph, getPersonalGraph } from '../api'
@@ -165,10 +165,10 @@ const router = useRouter()
 const loading = ref(false)
 const graphMode = ref<GraphMode>(route.query.mode === 'personal' ? 'personal' : 'master')
 const renderMode = ref<RenderMode>('2d')
-const subjectInput = ref(String(route.query.subject || 'Java'))
+const subjectInput = ref(String(route.query.subject || '').trim())
 const focusedNodeId = ref<number | null>(graphMode.value === 'master' ? Number(route.query.focusKnowledgePointId) || null : null)
 const graph = reactive<{ title: string; nodes: DisplayNode[]; edges: DisplayEdge[] }>({
-  title: 'Java',
+  title: '请选择学科',
   nodes: [],
   edges: []
 })
@@ -176,7 +176,7 @@ const graph = reactive<{ title: string; nodes: DisplayNode[]; edges: DisplayEdge
 const canvasWidth = 1000
 const rowHeight = 126
 const nodeCenterOffsetY = 30
-const currentSubject = computed(() => subjectInput.value.trim() || 'Java')
+const currentSubject = computed(() => String(route.query.subject || '').trim())
 const nodeMap = computed(() => new Map(graph.nodes.map((node) => [node.id, node])))
 const positionedNodes = computed<PositionedNode[]>(() => {
   if (graph.nodes.length === 0) return []
@@ -212,34 +212,43 @@ const drawableEdges = computed<DrawableEdge[]>(() => graph.edges
 const focusedNode = computed(() => focusedNodeId.value ? nodeMap.value.get(focusedNodeId.value) || null : null)
 
 onMounted(loadGraphFlow)
+let requestVersion = 0
+onUnmounted(() => { requestVersion++ })
 
 watch(
-  () => route.query.subject,
-  async (subject) => {
-    subjectInput.value = String(subject || 'Java')
-    if (graphMode.value === 'master') await loadGraphFlow()
+  () => [route.query.subject, route.query.mode, route.query.documentId, route.query.focusKnowledgePointId],
+  async () => {
+    subjectInput.value = currentSubject.value
+    graphMode.value = route.query.mode === 'personal' ? 'personal' : 'master'
+    if (graphMode.value === 'master') renderMode.value = '2d'
+    await loadGraphFlow()
   }
 )
 
-watch(
-  () => route.query.focusKnowledgePointId,
-  (id) => {
-    if (graphMode.value === 'master') focusedNodeId.value = Number(id) || null
+async function applyGraphFilter() {
+  const subject = subjectInput.value.trim()
+  const mode = graphMode.value
+  if (subject === currentSubject.value && mode === (route.query.mode === 'personal' ? 'personal' : 'master')) {
+    await loadGraphFlow()
+  } else {
+    await router.replace({ query: { ...route.query, mode, subject: subject || undefined, focusKnowledgePointId: undefined } })
   }
-)
-
-watch(graphMode, async (mode) => {
-  if (mode === 'master') renderMode.value = '2d'
-  focusedNodeId.value = mode === 'master' ? Number(route.query.focusKnowledgePointId) || null : null
-  await router.replace({ query: { ...route.query, mode } })
-})
+}
 
 async function loadGraphFlow() {
+  const version = ++requestVersion
+  const mode = graphMode.value
+  const subject = currentSubject.value
   loading.value = true
+  graph.nodes = []; graph.edges = []
+  focusedNodeId.value = null
+  graph.title = mode === 'master' ? subject || '请选择学科' : '我的资料图谱'
   try {
-    if (graphMode.value === 'master') {
-      const result = await getKnowledgeGraph(currentSubject.value)
-      graph.title = result.subject || currentSubject.value
+    if (mode === 'master') {
+      if (!subject) return
+      const result = await getKnowledgeGraph(subject)
+      if (version !== requestVersion) return
+      graph.title = result.subject || subject
       graph.nodes = result.nodes.map((node) => ({
         id: node.id,
         name: node.name,
@@ -253,10 +262,12 @@ async function loadGraphFlow() {
         relationType: edge.relationType,
         relationReason: edge.relationReason
       }))
+      focusedNodeId.value = Number(route.query.focusKnowledgePointId) || null
       return
     }
     const documentId = Number(route.query.documentId) || undefined
     const result = await getPersonalGraph(documentId)
+    if (version !== requestVersion) return
     graph.title = '我的资料图谱'
     graph.nodes = result.nodes.map((node) => ({
       id: node.id,
@@ -275,11 +286,13 @@ async function loadGraphFlow() {
       relationReason: edge.relationReason
     }))
   } catch (error) {
-    graph.nodes = []
-    graph.edges = []
-    ElMessage.error(error instanceof Error ? error.message : '加载知识图谱失败')
+    if (version === requestVersion) {
+      graph.nodes = []
+      graph.edges = []
+      ElMessage.error(error instanceof Error ? error.message : '加载知识图谱失败')
+    }
   } finally {
-    loading.value = false
+    if (version === requestVersion) loading.value = false
   }
 }
 
@@ -329,6 +342,6 @@ function relationLabel(type?: string) {
 }
 
 function goLearningPath(knowledgePointId: number) {
-  router.push({ name: 'learn', query: { knowledgePointId: String(knowledgePointId) } })
+  router.push({ name: 'learn', query: { knowledgePointId: String(knowledgePointId), subject: graph.title } })
 }
 </script>

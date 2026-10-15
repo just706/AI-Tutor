@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 public class KnowledgeMapServiceImpl implements KnowledgeMapService {
 
     private static final int MASTERED_THRESHOLD = 70;
-    private static final String DEFAULT_SUBJECT = "Java";
     private static final String GRAPH_STATUS_MASTERED = "mastered";
     private static final String GRAPH_STATUS_LEARNING = "learning";
     private static final String GRAPH_STATUS_WEAK = "weak";
@@ -96,7 +95,8 @@ public class KnowledgeMapServiceImpl implements KnowledgeMapService {
     @Override
     public KnowledgeGraphVO graph(String subject) {
         Long userId = UserContext.getRequired().getId();
-        String normalizedSubject = isBlank(subject) ? DEFAULT_SUBJECT : subject.trim();
+        if (isBlank(subject)) throw new com.aitutor.exception.BusinessException(400, "请先选择学科。");
+        String normalizedSubject = subject.trim();
 
         KnowledgeGraphVO graph = new KnowledgeGraphVO();
         graph.setSubject(normalizedSubject);

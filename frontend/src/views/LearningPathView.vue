@@ -8,7 +8,15 @@
         </div>
         <el-button :icon="Refresh" circle :loading="loadingKnowledge" @click="loadKnowledgeTreeFlow" />
       </div>
-      <el-input v-model.trim="knowledgeSubject" placeholder="学科，例如 Java" @change="loadKnowledgeTreeFlow" />
+      <el-select :model-value="knowledgeSubject" filterable allow-create clearable placeholder="选择或输入学科" @change="selectSubject">
+        <el-option v-for="subject in subjects" :key="subject" :label="subject" :value="subject" />
+      </el-select>
+      <p v-if="selectionNotice" class="empty-line">{{ selectionNotice }}</p>
+      <div class="topic-search-box">
+        <p class="eyebrow">Free Topic</p>
+        <el-input v-model.trim="topicInput" placeholder="输入想学习的主题" @keydown.enter.prevent="useTopicInput" />
+        <el-button type="primary" plain @click="useTopicInput">使用自由主题</el-button>
+      </div>
       <el-tree
         v-loading="loadingKnowledge"
         class="knowledge-tree"
@@ -31,15 +39,15 @@
       </div>
 
       <section v-if="chatTopic" class="handoff-panel">
-        <p class="eyebrow">From Chat</p>
+        <p class="eyebrow">Free Topic</p>
         <h3>{{ chatTopic }}</h3>
         <p>
-          这个主题来自 AI Chat。当前学习路径只展示已经进入标准知识库的知识点；
-          如果没有自动定位，说明它还没有对应的数据库知识点。
+          可以选择已收录的知识点，也可以按当前主题生成临时学习路径。
+          临时路径不等于已有教材依据或经过验证的课程。
         </p>
         <div class="handoff-actions">
           <el-button type="primary" :loading="aiPathLoading" @click="generateAiPathFlow">生成 AI 路径</el-button>
-          <el-button @click="router.push({ name: 'practice', query: { topic: chatTopic, source: 'chat' } })">
+          <el-button @click="goPractice">
             生成练习
           </el-button>
           <el-button @click="router.push({ name: 'chat' })">回到 Chat 继续学</el-button>
@@ -85,7 +93,7 @@
         >
           开始教学
         </el-button>
-        <el-button :icon="EditPen" :disabled="!selectedKnowledgePoint" @click="goPractice">进入练习</el-button>
+        <el-button :icon="EditPen" :disabled="!selectedKnowledgePoint && !chatTopic" @click="goPractice">进入练习</el-button>
       </div>
 
       <div v-if="teachingResult" class="teaching-box">
@@ -137,30 +145,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { EditPen, Reading, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { evaluateTeaching, generateAiPath, listKnowledgeTree, listLearningRecords, startTeaching } from '../api'
+import { evaluateTeaching, generateAiPath, listLearningRecords, startTeaching } from '../api'
 import { useWorkspaceStore } from '../stores/workspace'
 import type {
   AiGeneratedPath,
-  KnowledgePoint,
   LearningRecord,
   TeachingEvaluationResult,
   TeachingStartResult
 } from '../types/domain'
-import { findKnowledgePoint, firstSelectableKnowledgePoint, flattenKnowledgePoints } from '../utils/knowledge'
+import { useKnowledgeSelection } from '../composables/useKnowledgeSelection'
 import { formatTime } from '../utils/format'
 import { renderMarkdown } from '../utils/markdown'
 
 const router = useRouter()
-const route = useRoute()
 const workspaceStore = useWorkspaceStore()
-const knowledgeSubject = ref('Java')
-const knowledgeTree = ref<KnowledgePoint[]>([])
-const selectedKnowledgePointId = ref<number | null>(null)
-const loadingKnowledge = ref(false)
+const { knowledgeSubject, subjects, knowledgeTree, selectedKnowledgePoint, selectedKnowledgePointId,
+  activeTopic: chatTopic, generationTopic, selectionKey, selectionNotice, loadingKnowledge, loadKnowledgeTreeFlow,
+  selectSubject, selectKnowledgePoint, selectTopic, navigationQuery } = useKnowledgeSelection()
+const topicInput = ref('')
 const learningRecords = ref<LearningRecord[]>([])
 const teachingLoading = ref(false)
 const aiPathLoading = ref(false)
@@ -169,42 +175,33 @@ const teachingResult = ref<TeachingStartResult | null>(null)
 const evaluationResult = ref<TeachingEvaluationResult | null>(null)
 const aiGeneratedPath = ref<AiGeneratedPath | null>(null)
 
-const selectedKnowledgePoint = computed(() =>
-  flattenKnowledgePoints(knowledgeTree.value).find((item) => item.id === selectedKnowledgePointId.value) || null
-)
 const selectedRecord = computed(() =>
   learningRecords.value.find((item) => item.knowledgePointId === selectedKnowledgePointId.value) || null
 )
-const chatTopic = computed(() => String(route.query.topic || '').trim())
 
 onMounted(async () => {
   await Promise.all([loadKnowledgeTreeFlow(), loadLearningRecordsFlow()])
-  await applyRouteSelection()
 })
 
-watch(
-  () => [route.query.subject, route.query.knowledgePointId, route.query.topic],
-  async () => {
-    await applyRouteSelection()
-  }
-)
-
-watch(chatTopic, () => {
+let contextVersion = 0
+onUnmounted(() => { contextVersion++ })
+watch(selectionKey, () => {
+  contextVersion++
+  topicInput.value = chatTopic.value
   aiGeneratedPath.value = null
-})
+  teachingResult.value = null
+  evaluationResult.value = null
+  teachingAnswer.value = ''
+  teachingLoading.value = false
+  aiPathLoading.value = false
+}, { immediate: true, flush: 'sync' })
 
-async function loadKnowledgeTreeFlow() {
-  loadingKnowledge.value = true
-  try {
-    knowledgeTree.value = await listKnowledgeTree(knowledgeSubject.value || 'Java')
-    if (!selectedKnowledgePointId.value && !chatTopic.value) {
-      selectedKnowledgePointId.value = firstSelectableKnowledgePoint(knowledgeTree.value)?.id || null
-    }
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载知识点失败')
-  } finally {
-    loadingKnowledge.value = false
+function useTopicInput() {
+  if (!topicInput.value.trim()) {
+    ElMessage.warning('请输入主题')
+    return
   }
+  void selectTopic(topicInput.value)
 }
 
 async function loadLearningRecordsFlow() {
@@ -215,30 +212,6 @@ async function loadLearningRecordsFlow() {
   }
 }
 
-function selectKnowledgePoint(point: KnowledgePoint) {
-  selectedKnowledgePointId.value = point.id
-}
-
-async function applyRouteSelection() {
-  const subject = String(route.query.subject || '').trim()
-  if (subject && subject !== knowledgeSubject.value) {
-    knowledgeSubject.value = subject
-    selectedKnowledgePointId.value = null
-    await loadKnowledgeTreeFlow()
-  }
-
-  const queryId = Number(route.query.knowledgePointId)
-  if (queryId && findKnowledgePoint(knowledgeTree.value, queryId)) {
-    selectedKnowledgePointId.value = queryId
-    return
-  }
-
-  // Chat 跳过来的非标准主题不要默认选中 Java 的第一个知识点，避免用户误以为已生成了路径。
-  if (chatTopic.value) {
-    selectedKnowledgePointId.value = null
-  }
-}
-
 async function generateAiPathFlow() {
   if (!chatTopic.value) {
     ElMessage.warning('缺少 Chat 主题')
@@ -246,13 +219,16 @@ async function generateAiPathFlow() {
   }
 
   aiPathLoading.value = true
+  const version = contextVersion
   try {
-    aiGeneratedPath.value = await generateAiPath(chatTopic.value)
+    const result = await generateAiPath(generationTopic.value)
+    if (version !== contextVersion) return
+    aiGeneratedPath.value = result
     ElMessage.success('AI 路径已生成')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '生成 AI 路径失败')
+    if (version === contextVersion) ElMessage.error(error instanceof Error ? error.message : '生成 AI 路径失败')
   } finally {
-    aiPathLoading.value = false
+    if (version === contextVersion) aiPathLoading.value = false
   }
 }
 
@@ -263,18 +239,21 @@ async function startTeachingFlow() {
   }
 
   teachingLoading.value = true
+  const version = contextVersion
   try {
     const result = await startTeaching(selectedKnowledgePoint.value.id)
+    if (version !== contextVersion) return
     teachingResult.value = result
     evaluationResult.value = null
     await workspaceStore.loadConversations()
+    if (version !== contextVersion) return
     await workspaceStore.selectConversation(result.conversationId)
     await loadLearningRecordsFlow()
     ElMessage.success('教学已开始')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '开始教学失败')
+    if (version === contextVersion) ElMessage.error(error instanceof Error ? error.message : '开始教学失败')
   } finally {
-    teachingLoading.value = false
+    if (version === contextVersion) teachingLoading.value = false
   }
 }
 
@@ -283,8 +262,8 @@ async function evaluateTeachingFlow() {
     ElMessage.warning('请选择知识点')
     return
   }
-  if (!workspaceStore.currentConversationId || workspaceStore.currentConversation?.mode !== 'teaching') {
-    ElMessage.warning('请先开始教学')
+  if (!teachingResult.value || teachingResult.value.knowledgePointId !== selectedKnowledgePoint.value.id) {
+    ElMessage.warning('请先开始当前知识点的教学')
     return
   }
   const answer = teachingAnswer.value.trim()
@@ -294,27 +273,30 @@ async function evaluateTeachingFlow() {
   }
 
   teachingLoading.value = true
+  const version = contextVersion
   try {
-    evaluationResult.value = await evaluateTeaching(
-      workspaceStore.currentConversationId,
+    const result = await evaluateTeaching(
+      teachingResult.value.conversationId,
       selectedKnowledgePoint.value.id,
       answer
     )
+    if (version !== contextVersion) return
+    evaluationResult.value = result
     teachingAnswer.value = ''
     await workspaceStore.selectConversation(evaluationResult.value.conversationId)
     await loadLearningRecordsFlow()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '提交回答失败')
+    if (version === contextVersion) ElMessage.error(error instanceof Error ? error.message : '提交回答失败')
   } finally {
-    teachingLoading.value = false
+    if (version === contextVersion) teachingLoading.value = false
   }
 }
 
 async function goPractice() {
-  if (!selectedKnowledgePoint.value) {
-    ElMessage.warning('请选择知识点')
+  if (!selectedKnowledgePoint.value && !chatTopic.value) {
+    ElMessage.warning('请选择知识点或输入自由主题')
     return
   }
-  await router.push({ name: 'practice', query: { knowledgePointId: selectedKnowledgePoint.value.id } })
+  await router.push({ name: 'practice', query: navigationQuery.value })
 }
 </script>

@@ -32,6 +32,8 @@
 
 ## 关键请求
 
+- `GET /api/knowledge-points/tree`：省略或留空 `subject` 时返回全部学科的知识树；指定时只返回该学科，未知学科返回空数组。学习路径和练习页面据此显示可选学科。
+- `GET /api/knowledge-map/graph`：必须提供非空 `subject`，缺失或只有空白返回业务码 `400`；未知学科返回该学科的空图谱，不回退到 Java。
 - `POST /api/tutor-agent/chat`：`conversationId` 必填，`message` 必填且不超过 4000；可选 `learningSessionId`。返回回答、意图、学习会话、策略、知识图谱上下文、记忆更新和导航动作。
 - `POST /api/conversations`：创建 `mode=rag` 的会话时可传 `documentIds`；省略或空数组表示尚未选择教材。普通会话不接受非 `null` 的 `documentIds` 字段。返回 `conversationId`。
 - `GET /api/conversations` 和 `GET /api/conversations/{conversationId}`：返回会话及其 `documentIds` 数组。读取会话前校验用户归属；旧会话尚未绑定时返回空数组。教材已删除时保留原 ID，供页面提示重新选择。

@@ -776,7 +776,9 @@ async function completeLearningSession() {
 
 function goLearningPath(knowledgePointId?: number) {
   if (knowledgePointId) {
-    router.push({ name: 'learn', query: { knowledgePointId: String(knowledgePointId) } })
+    const subject = activeKnowledgeMap.value?.unmetPrerequisites.find(point => point.knowledgePointId === knowledgePointId)?.subject
+      || (activeKnowledgeMap.value?.knowledgePointId === knowledgePointId ? activeKnowledgeMap.value.subject : undefined)
+    router.push({ name: 'learn', query: { knowledgePointId: String(knowledgePointId), subject } })
     return
   }
   router.push({ name: 'learn', query: activeTopicLabel.value ? { topic: activeTopicLabel.value, source: 'chat' } : {} })
@@ -784,16 +786,15 @@ function goLearningPath(knowledgePointId?: number) {
 
 function goPractice() {
   if (activeKnowledgeMap.value?.knowledgePointId) {
-    router.push({ name: 'practice', query: { knowledgePointId: String(activeKnowledgeMap.value.knowledgePointId) } })
+    router.push({ name: 'practice', query: { knowledgePointId: String(activeKnowledgeMap.value.knowledgePointId), subject: activeKnowledgeMap.value.subject } })
     return
   }
   router.push({ name: 'practice', query: activeTopicLabel.value ? { topic: activeTopicLabel.value, source: 'chat' } : {} })
 }
 
 function goKnowledgeGraph() {
-  const query: Record<string, string> = {
-    subject: activeKnowledgeMap.value?.subject || 'Java'
-  }
+  const query: Record<string, string> = {}
+  if (activeKnowledgeMap.value?.subject) query.subject = activeKnowledgeMap.value.subject
   if (activeKnowledgeMap.value?.knowledgePointId) {
     query.focusKnowledgePointId = String(activeKnowledgeMap.value.knowledgePointId)
   }

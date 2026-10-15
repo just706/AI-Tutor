@@ -21,6 +21,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +38,17 @@ class KnowledgeMapServiceImplTest {
     @AfterEach
     void clearUserContext() {
         UserContext.clear();
+    }
+
+    @Test
+    void missingSubjectDoesNotSilentlyLoadJavaGraph() {
+        UserContext.set(new CurrentUser(7L, "tester", "student"));
+        var service = new KnowledgeMapServiceImpl(knowledgePointMapper, knowledgeMapDependencyMapper, learningRecordMapper);
+        for (String subject : new String[] {null, "", "  "}) {
+            var error = assertThrows(com.aitutor.exception.BusinessException.class, () -> service.graph(subject));
+            assertEquals(400, error.getCode());
+        }
+        verifyNoInteractions(knowledgePointMapper, knowledgeMapDependencyMapper, learningRecordMapper);
     }
 
     @Test

@@ -8,6 +8,10 @@
         </div>
       </div>
 
+      <el-select :model-value="knowledgeSubject" filterable allow-create clearable placeholder="选择或输入学科" @change="selectSubject">
+        <el-option v-for="subject in subjects" :key="subject" :label="subject" :value="subject" />
+      </el-select>
+      <p v-if="selectionNotice" class="empty-line">{{ selectionNotice }}</p>
       <div class="topic-search-box">
         <p class="eyebrow">Free Topic</p>
         <el-input
@@ -47,7 +51,7 @@
           当前结果不写入题库，也暂不计入掌握度。
         </p>
         <div class="handoff-actions">
-          <el-button @click="router.push({ name: 'learn', query: { topic: activeTopic, source: 'practice' } })">
+          <el-button @click="goLearningPath">
             生成学习路径
           </el-button>
           <el-button @click="router.push({ name: 'chat', query: { topic: activeTopic } })">回到 Chat</el-button>
@@ -202,14 +206,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Reading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { generateAiPractice, generateQuestions, listKnowledgeTree, listQuestions, submitAnswer } from '../api'
-import type { AiPracticeQuestion, AnswerResult, KnowledgePoint, Question } from '../types/domain'
+import { generateAiPractice, generateQuestions, listQuestions, submitAnswer } from '../api'
+import type { AiPracticeQuestion, AnswerResult, Question } from '../types/domain'
 import { difficultyLabel, questionTypeLabel } from '../utils/format'
-import { findKnowledgePoint, firstSelectableKnowledgePoint, flattenKnowledgePoints } from '../utils/knowledge'
+import { useKnowledgeSelection } from '../composables/useKnowledgeSelection'
 import { renderMarkdown } from '../utils/markdown'
 
 interface LocalAiAnswerResult {
@@ -217,12 +221,11 @@ interface LocalAiAnswerResult {
   feedback: string
 }
 
-const route = useRoute()
 const router = useRouter()
-const knowledgeTree = ref<KnowledgePoint[]>([])
-const selectedKnowledgePointId = ref<number | null>(null)
+const { knowledgeSubject, subjects, knowledgeTree, selectedKnowledgePoint, activeTopic, generationTopic, selectionKey,
+  selectionNotice, loadingKnowledge, loadKnowledgeTreeFlow, selectSubject, selectKnowledgePoint,
+  selectTopic, navigationQuery } = useKnowledgeSelection()
 const topicInput = ref('')
-const loadingKnowledge = ref(false)
 const practiceForm = reactive({
   questionType: 'single_choice',
   difficulty: 'medium',
@@ -237,10 +240,6 @@ const aiAnswerResults = reactive<Record<number, LocalAiAnswerResult>>({})
 const questionLoading = ref(false)
 const answerLoadingId = ref<number | null>(null)
 
-const selectedKnowledgePoint = computed(() =>
-  flattenKnowledgePoints(knowledgeTree.value).find((item) => item.id === selectedKnowledgePointId.value) || null
-)
-const activeTopic = computed(() => topicInput.value.trim())
 const practiceTitle = computed(() => {
   if (selectedKnowledgePoint.value) {
     return selectedKnowledgePoint.value.name
@@ -251,72 +250,27 @@ const practiceTitle = computed(() => {
   return '选择知识点或输入自由主题'
 })
 
-onMounted(async () => {
-  applyRouteTopic()
-  await loadKnowledgeTreeFlow()
-  await applyRouteKnowledgePoint()
-})
-
-watch(
-  () => [route.query.knowledgePointId, route.query.topic],
-  async () => {
-    applyRouteTopic()
-    await applyRouteKnowledgePoint()
-  }
-)
-
-watch(selectedKnowledgePointId, async () => {
-  if (selectedKnowledgePoint.value) {
-    topicInput.value = ''
-    aiQuestions.value = []
-    clearAiAnswerState()
-  }
-  await loadQuestionsFlow()
-})
-
-function applyRouteTopic() {
-  const topic = String(route.query.topic || '').trim()
-  if (topic) {
-    topicInput.value = topic
-    selectedKnowledgePointId.value = null
-    questions.value = []
-  }
-}
-
-async function loadKnowledgeTreeFlow() {
-  loadingKnowledge.value = true
-  try {
-    knowledgeTree.value = await listKnowledgeTree('Java')
-    if (!activeTopic.value && !selectedKnowledgePointId.value) {
-      selectedKnowledgePointId.value = firstSelectableKnowledgePoint(knowledgeTree.value)?.id || null
-    }
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载知识点失败')
-  } finally {
-    loadingKnowledge.value = false
-  }
-}
-
-async function applyRouteKnowledgePoint() {
-  const queryId = Number(route.query.knowledgePointId)
-  if (queryId && findKnowledgePoint(knowledgeTree.value, queryId)) {
-    selectedKnowledgePointId.value = queryId
-  }
-}
-
-function selectKnowledgePoint(point: KnowledgePoint) {
-  selectedKnowledgePointId.value = point.id
-}
+let contextVersion = 0
+let questionRequest = 0
+onMounted(loadKnowledgeTreeFlow)
+onUnmounted(() => { contextVersion++; questionRequest++ })
+watch(selectionKey, () => {
+  contextVersion++; questionRequest++
+  topicInput.value = activeTopic.value
+  questions.value = []; aiQuestions.value = []
+  Object.keys(answerDrafts).forEach(key => delete answerDrafts[Number(key)])
+  Object.keys(answerResults).forEach(key => delete answerResults[Number(key)])
+  clearAiAnswerState()
+  questionLoading.value = false; answerLoadingId.value = null
+  void loadQuestionsFlow()
+}, { immediate: true, flush: 'sync' })
 
 function useTopicInput() {
-  if (!activeTopic.value) {
+  if (!topicInput.value.trim()) {
     ElMessage.warning('请输入主题')
     return
   }
-  selectedKnowledgePointId.value = null
-  questions.value = []
-  aiQuestions.value = []
-  clearAiAnswerState()
+  void selectTopic(topicInput.value)
 }
 
 async function generateQuestionFlow() {
@@ -334,18 +288,22 @@ async function generateStandardQuestionFlow() {
   }
 
   questionLoading.value = true
+  const version = contextVersion
+  const request = ++questionRequest
   try {
-    questions.value = await generateQuestions(
+    const result = await generateQuestions(
       selectedKnowledgePoint.value.id,
       practiceForm.questionType,
       practiceForm.difficulty,
       practiceForm.count
     )
+    if (version !== contextVersion || request !== questionRequest) return
+    questions.value = result
     ElMessage.success('题目已生成')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '生成题目失败')
+    if (version === contextVersion) ElMessage.error(error instanceof Error ? error.message : '生成题目失败')
   } finally {
-    questionLoading.value = false
+    if (version === contextVersion) questionLoading.value = false
   }
 }
 
@@ -356,32 +314,37 @@ async function generateAiQuestionFlow() {
   }
 
   questionLoading.value = true
+  const version = contextVersion
   try {
     const result = await generateAiPractice(
-      activeTopic.value,
+      generationTopic.value,
       practiceForm.questionType,
       practiceForm.difficulty,
       practiceForm.count
     )
+    if (version !== contextVersion) return
     aiQuestions.value = result.questions
     clearAiAnswerState()
     ElMessage.success('AI 临时题已生成')
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '生成 AI 临时题失败')
+    if (version === contextVersion) ElMessage.error(error instanceof Error ? error.message : '生成 AI 临时题失败')
   } finally {
-    questionLoading.value = false
+    if (version === contextVersion) questionLoading.value = false
   }
 }
 
 async function loadQuestionsFlow() {
+  const version = contextVersion
+  const request = ++questionRequest
   if (!selectedKnowledgePoint.value) {
     questions.value = []
     return
   }
   try {
-    questions.value = await listQuestions(selectedKnowledgePoint.value.id)
+    const result = await listQuestions(selectedKnowledgePoint.value.id)
+    if (version === contextVersion && request === questionRequest) questions.value = result
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载题目失败')
+    if (version === contextVersion && request === questionRequest) ElMessage.error(error instanceof Error ? error.message : '加载题目失败')
   }
 }
 
@@ -393,12 +356,14 @@ async function submitAnswerFlow(question: Question) {
   }
 
   answerLoadingId.value = question.id
+  const version = contextVersion
   try {
-    answerResults[question.id] = await submitAnswer(question.id, answer)
+    const result = await submitAnswer(question.id, answer)
+    if (version === contextVersion) answerResults[question.id] = result
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '提交答案失败')
+    if (version === contextVersion) ElMessage.error(error instanceof Error ? error.message : '提交答案失败')
   } finally {
-    answerLoadingId.value = null
+    if (version === contextVersion) answerLoadingId.value = null
   }
 }
 
@@ -425,11 +390,7 @@ function submitAiAnswerFlow(question: AiPracticeQuestion) {
 }
 
 function goLearningPath() {
-  if (selectedKnowledgePoint.value) {
-    router.push({ name: 'learn', query: { knowledgePointId: selectedKnowledgePoint.value.id } })
-    return
-  }
-  router.push({ name: 'learn', query: activeTopic.value ? { topic: activeTopic.value, source: 'practice' } : {} })
+  router.push({ name: 'learn', query: navigationQuery.value })
 }
 
 function choiceValue(option: string) {

@@ -166,7 +166,7 @@ export function deleteLearnerMemory(memoryId: number) {
   })
 }
 
-export function listKnowledgeTree(subject = 'Java') {
+export function listKnowledgeTree(subject?: string) {
   return request<KnowledgePoint[]>({
     url: '/knowledge-points/tree',
     method: 'GET',
@@ -174,7 +174,7 @@ export function listKnowledgeTree(subject = 'Java') {
   })
 }
 
-export function getKnowledgeGraph(subject = 'Java') {
+export function getKnowledgeGraph(subject: string) {
   return request<KnowledgeGraph>({
     url: '/knowledge-map/graph',
     method: 'GET',
