@@ -18,7 +18,7 @@ class TutorOptionOrderTest {
             Collections.rotate(options,i%sizes[i]);
             var feedback=new ArrayList<TutorLearningFlow.OptionFeedback>();
             for(int j=0;j<options.size();j++) if(!options.get(j).equals("约定为真"))
-                feedback.add(new TutorLearningFlow.OptionFeedback(label(j),"约定为真与"+options.get(j),"说明："+options.get(j),null,TutorLessonPreparation.evidence(SOURCE)));
+                feedback.add(new TutorLearningFlow.OptionFeedback(label(j),"约定真假判断","说明："+options.get(j),null,TutorLessonPreparation.evidence(SOURCE)));
             questions.add(new TutorLearningFlow.Question("判断"+i,List.copyOf(options),label(i%sizes[i]),"约定为真符合定义。",List.copyOf(feedback)));
         }
         return new TutorLearningFlow.Lesson("先理解约定。","回顾定义。",questions.get(0),List.copyOf(questions.subList(1,3)),List.copyOf(questions.subList(3,5)));
@@ -45,7 +45,7 @@ class TutorOptionOrderTest {
                     assertEquals(q.options().size()-1,q.wrongOptionFeedback().size());
                     for(var f:q.wrongOptionFeedback()) {
                         assertEquals("说明："+q.options().get(f.option().charAt(0)-'A'),f.explanation());
-                        assertEquals("约定为真与"+q.options().get(f.option().charAt(0)-'A'),f.focus());
+                        assertEquals("约定真假判断",f.focus());
                         assertEquals(List.of(new TutorLearningFlow.SourceEvidence("E1",SOURCE)),f.evidence());
                     }
                 }

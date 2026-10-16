@@ -168,7 +168,7 @@ const modelServer = createServer(async (request, response) => {
       const optionTexts=['与所给定义一致','与所给定义不一致','忽略定义中的条件'];
       const question = (label, correctOption) => ({prompt:`${data.topic}：${label}`,
         options:optionTexts,correctOption,explanation:'请对照定义核对当前判断。',
-        wrongOptionFeedback:['A','B','C'].filter(option=>option!==correctOption).map(option=>({option,focus:`${label}：${optionTexts[option.charCodeAt(0)-65]}`,
+        wrongOptionFeedback:['A','B','C'].filter(option=>option!==correctOption).map(option=>({option,focus:optionTexts[option.charCodeAt(0)-65],
           explanation:`仅针对${label}中“${optionTexts[option.charCodeAt(0)-65]}”的说法补充说明，请依据下面原文重新判断。`,evidenceIds}))});
       content = JSON.stringify({schemaVersion:3,supported:true,explanation:`先理解本次资料：${sourceText}`,
         remedialExplanation:`先回顾定义，再比较容易混淆的含义：${sourceText}`,

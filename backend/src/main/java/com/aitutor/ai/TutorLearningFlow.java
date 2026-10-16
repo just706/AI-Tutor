@@ -162,6 +162,19 @@ public final class TutorLearningFlow {
                 }
             }
         }
+        if (lesson.diagnosis().wrongOptionFeedback().stream().allMatch(feedback -> feedback.evidence() != null)) {
+            var diagnosisFocuses = focuses(List.of(lesson.diagnosis()));
+            var checkFocuses = focuses(lesson.checks());
+            var practiceFocuses = focuses(lesson.practices());
+            if (!checkFocuses.containsAll(diagnosisFocuses) || !practiceFocuses.containsAll(diagnosisFocuses)
+                    || !practiceFocuses.containsAll(checkFocuses))
+                throw new BusinessException(600,"备课区分点未覆盖后续检查和练习，请重试。");
+        }
+    }
+    private static HashSet<String> focuses(List<Question> questions) {
+        var focuses = new HashSet<String>();
+        questions.forEach(question -> question.wrongOptionFeedback().forEach(feedback -> focuses.add(feedback.focus().trim())));
+        return focuses;
     }
     private static List<Question> allQuestions(Lesson lesson) {
         var questions = new ArrayList<Question>();

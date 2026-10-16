@@ -171,8 +171,21 @@ class TutorLessonPreparationTest {
         assertTrue(prompt.contains("\"schemaVersion\":3"));
         assertTrue(prompt.contains("必须包含 focus"));
         assertTrue(prompt.contains("仅 evidenceIds 重合不能复用"));
+        assertTrue(prompt.contains("规划2至4个可跨题复用的概念区分标签"));
+        assertTrue(prompt.contains("诊断题每个 focus 必须在至少一道理解检查和至少一道应用练习"));
+        assertTrue(prompt.contains("两道理解检查使用的每个 focus 也必须在至少一道应用练习"));
         assertTrue(prompt.contains("不描述学生的心理、能力、隐藏推理"));
         assertTrue(prompt.contains("不输出 sourceQuote"));
+    }
+
+    @Test void uniqueQuestionSpecificFocusesCannotSilentlyDisableDistinctionRouting() throws Exception {
+        var root=response();
+        for(int i=0;i<root.path("questions").size();i++) {
+            var feedback=root.path("questions").get(i).path("wrongOptionFeedback");
+            for(int j=0;j<feedback.size();j++)
+                ((ObjectNode)feedback.get(j)).put("focus","第"+i+"题选项"+j+"的局部描述");
+        }
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(root.toString(),SOURCE));
     }
 
     @Test void malformedNestedLegacyDuplicateAndTrailingJsonAreNotRepaired() throws Exception {

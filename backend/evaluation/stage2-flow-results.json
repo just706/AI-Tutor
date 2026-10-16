@@ -150,10 +150,38 @@
       "rawResponseFileSha256": "f6efb6b89843d6d07952659c55fd40b46509db0c507d71c9a4a426194e7b6aaa",
       "cleanup": "removed",
       "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/contract-real-v5"
+    },
+    {
+      "run": "real-v6-schema3-free-text-focus",
+      "date": "2026-10-16",
+      "preparationSchemaVersion": 3,
+      "automaticChecksPassed": 47,
+      "automaticChecksTotal": 47,
+      "realCalls": 5,
+      "requestedModel": "deepseek-v4-flash",
+      "responseModels": ["deepseek-flash"],
+      "totalTokens": 12177,
+      "contentReviewPassed": false,
+      "factualCasesPassed": 5,
+      "factualCasesTotal": 5,
+      "questionsReviewed": 20,
+      "wrongOptionFeedbackReviewed": 45,
+      "wrongOptionFeedbackFactAndEvidencePassed": 45,
+      "psychologyClaimsFound": 0,
+      "generatedLessonsWithReusableExactFocus": 0,
+      "generatedLessonsReviewed": 4,
+      "exactRepeatedFocusGroups": 0,
+      "focusEntriesParticipatingInExactReuse": 0,
+      "focusEntriesReviewed": 45,
+      "observedDistinctionMatches": 0,
+      "observedNoDistinctionMatches": 6,
+      "failure": "The free-text focus contract produced only question-specific sentences, so no exact focus was reusable across questions and the selector could not exercise distinction routing.",
+      "cleanup": "removed",
+      "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema3-real-v1-20261016"
     }
   ],
-  "totalRealCalls": 25,
-  "authorizedMaximumCalls": 25,
+  "totalRealCalls": 30,
+  "authorizedMaximumCalls": 30,
   "failurePreserved": {
     "run": "real-v1",
     "caseId": "M01",
@@ -192,7 +220,7 @@
       "reason": "返回supported:false，无定义或题目捏造；保持澄清阶段和原历史。"
     }
   ],
-  "backendTestsPassed": 219,
+  "backendTestsPassed": 220,
   "browserVerified": false,
   "userPageFeedback": {
     "date": "2026-10-11",
@@ -217,10 +245,10 @@
     "页面验收和真实教材检索备课质量不包含在本轮中。",
     "编号及结构校验不能自动证明证据支持解释；仍需真实内容核验。",
     "错误反馈提前随备课生成；schema 3新学习先匹配所选错误选项和候选题的同名可观察区分点，再以原文重合作同类题排序，旧v1进度继续使用原规则。标签由模型生成，不证明已识别学生心理、能力或真实错因，无自由文本诊断。",
-    "本轮累计25次授权已用完，不自动追加真实调用。",
+    "本轮累计30次授权已用完，不自动追加真实调用。",
     "选项位置依赖检测仅覆盖常见字母与相对位置表达，可能保守跳过变量名，不能替代语义审阅；均衡只适用于同选项数且可重排的题组。",
     "上下文校验只识别常见引用词及题干开头的无前提回指，可能误拦或漏检；不证明所有题干语义独立。",
-    "当前提示新增每题完整条件及schema 3 focus要求，尚无对应真实模型生成验收；旧J02响应回放被拒绝，当前保留45/46原始结果，此前42/43记录单独保留。",
+    "schema 3首次真实生成的事实、答案、解释与证据通过审阅，但45条focus无一跨题逐字复用，6次实际选题均无区分点匹配；修订后的标签规划和覆盖校验尚无真实复测。旧J02响应回放被拒绝，当前保留45/46原始结果，此前42/43记录单独保留。",
     "选题仅在两道检查、两道练习中进行，题池可能没有合适备用题；本地合成分支通过不证明对真实学习有效。"
   ],
   "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011",
@@ -279,7 +307,7 @@
     "realEvaluated": false,
     "realContentBaseline": "real-v5-evidence-contract-v2",
     "newExternalCalls": 0,
-    "backendTestsPassed": 219,
+    "backendTestsPassed": 220,
     "frontendTestsPassed": 44,
     "frontendBuildPassed": true,
     "localApiChecksPassed": 47,
@@ -287,8 +315,8 @@
     "persistedLegacyFlowsCompatible": true,
     "oldModelFormatAccepted": false,
     "invalidResponseRepair": false,
-    "jarSha256": "b9a367125d2795678e88f9fc0703fbb1d111e8e72a385d5ee8d8f1388e918984",
-    "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-question-matching-api-final-20261016",
+    "jarSha256": "12670a4754946eca004df77c87544125cd7b307e920b68a3b9a5a6e9a40eb4c3",
+    "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema3-local-final-20261016",
     "questionContext": "reject common cross-question references and leading anaphora without local conditions; new preparations only",
     "questionSelection": {
       "policy": "distinction_then_evidence_v2",
@@ -302,6 +330,7 @@
       "curatedCasesPassed": 4,
       "curatedDomains": ["Java", "数学", "自定义规则"],
       "legacyPolicy": "evidence_overlap_v1",
+      "newPreparationCoverage": "all diagnosis focuses must occur in checks and practices; all check focuses must occur in practices",
       "semanticMisconceptionMatchingVerified": false
     }
   },
