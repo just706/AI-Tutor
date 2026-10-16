@@ -13,7 +13,7 @@ class TutorLessonPreparationTest {
 
     private ObjectNode response() throws Exception {
         ObjectNode root = (ObjectNode) JSON.readTree("""
-                {"schemaVersion":2,"supported":true,"explanation":"先理解两条规则。","remedialExplanation":"回顾编号与颜色。","questions":[]}
+                {"schemaVersion":3,"supported":true,"explanation":"先理解两条规则。","remedialExplanation":"回顾编号与颜色。","questions":[]}
                 """);
         for (int i=0;i<5;i++) {
             var q = root.withArray("questions").addObject();
@@ -22,7 +22,7 @@ class TutorLessonPreparationTest {
             q.put("correctOption","A").put("explanation","四比一多三，因此保持红色。");
             for (String option : List.of("B","C")) {
                 var item=q.withArray("wrongOptionFeedback").addObject();
-                item.put("option",option).put("explanation","编号四比一多三，颜色仍是红色；所选项不符合两条规则。");
+                item.put("option",option).put("focus","编号加三后颜色不变").put("explanation","编号四比一多三，颜色仍是红色；所选项不符合两条规则。");
                 item.putArray("evidenceIds").add("E1").add("E2");
             }
         }
@@ -41,6 +41,8 @@ class TutorLessonPreparationTest {
         assertTrue(text.contains("规则甲：编号增加三后颜色保持不变。"));
         assertTrue(text.contains("规则乙：编号一对应红色，编号二对应蓝色。"));
         assertFalse(text.contains("本次需要区分：null"));
+        assertEquals("编号加三后颜色不变",lesson.diagnosis().wrongOptionFeedback().get(0).focus());
+        assertEquals(TutorQuestionSelector.POLICY,state.selection().policy());
     }
 
     @Test void newLessonDistributesAnswerPositionsEvenWhenModelAlwaysUsesA() throws Exception {
@@ -147,19 +149,58 @@ class TutorLessonPreparationTest {
         assertThrows(BusinessException.class,()->TutorLessonPreparation.evidence("字".repeat(4001)));
     }
 
-    @Test void modelCannotSupplyOrRewriteQuoteTextOrGuessFocus() throws Exception {
-        for(String field:List.of("sourceQuote","focus")) {
+    @Test void sourceQuoteAndInvalidFocusRejectWholePreparation() throws Exception {
+        var quoted=response();
+        ((ObjectNode)quoted.path("questions").get(0).path("wrongOptionFeedback").get(0)).put("sourceQuote","模型附加的文本");
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(quoted.toString(),SOURCE));
+        for(String value:List.of(""," ","区".repeat(121))) {
             var root=response();
-            ((ObjectNode)root.path("questions").get(0).path("wrongOptionFeedback").get(0)).put(field,"模型附加的文本");
+            ((ObjectNode)root.path("questions").get(0).path("wrongOptionFeedback").get(0)).put("focus",value);
             assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(root.toString(),SOURCE));
         }
+        var missing=response();
+        ((ObjectNode)missing.path("questions").get(0).path("wrongOptionFeedback").get(0)).remove("focus");
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(missing.toString(),SOURCE));
+        var malformed=response();
+        ((ObjectNode)malformed.path("questions").get(0).path("wrongOptionFeedback").get(0)).putObject("focus").put("text","错误结构");
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(malformed.toString(),SOURCE));
+    }
+
+    @Test void promptDeclaresSchemaThreeFocusContractWithoutPsychologyClaims() {
+        String prompt=new AiPromptBuilder().buildLessonPrompt();
+        assertTrue(prompt.contains("\"schemaVersion\":3"));
+        assertTrue(prompt.contains("必须包含 focus"));
+        assertTrue(prompt.contains("仅 evidenceIds 重合不能复用"));
+        assertTrue(prompt.contains("不描述学生的心理、能力、隐藏推理"));
+        assertTrue(prompt.contains("不输出 sourceQuote"));
     }
 
     @Test void malformedNestedLegacyDuplicateAndTrailingJsonAreNotRepaired() throws Exception {
         String good=response().toString();
         for(String bad:List.of(good.substring(0,good.length()-1),good+"{}",good.replace("\"supported\":true","\"supported\":true,\"supported\":false"),
-                "{\"supported\":true,\"lesson\":{}}"))
+                good.replace("\"schemaVersion\":3","\"schemaVersion\":2"),"{\"supported\":true,\"lesson\":{}}"))
             assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(bad,SOURCE));
+    }
+
+    @Test void savedSchemaTwoStateWithoutFocusContinuesUnderLegacyPolicy() throws Exception {
+        var state=TutorLearningFlow.begin("编号规则",SOURCE,TutorLessonPreparation.parse(response().toString(),SOURCE));
+        ObjectNode saved=(ObjectNode)JSON.readTree(TutorLearningFlow.write(state));
+        ((ObjectNode)saved.path("selection")).put("policy",TutorQuestionSelector.LEGACY_POLICY);
+        var lesson=(ObjectNode)saved.path("lesson");
+        var questions=new java.util.ArrayList<com.fasterxml.jackson.databind.JsonNode>();
+        questions.add(lesson.path("diagnosis"));
+        lesson.path("checks").forEach(questions::add);
+        lesson.path("practices").forEach(questions::add);
+        questions.forEach(question -> question.path("wrongOptionFeedback").forEach(feedback -> ((ObjectNode)feedback).remove("focus")));
+
+        var restored=TutorLearningFlow.read(saved.toString());
+        assertEquals(TutorQuestionSelector.LEGACY_POLICY,restored.selection().policy());
+        assertNull(restored.lesson().diagnosis().wrongOptionFeedback().get(0).focus());
+        String wrong=restored.lesson().diagnosis().wrongOptionFeedback().get(0).option();
+        restored=TutorLearningFlow.advance(restored,restored.version(),"answer",wrong);
+        restored=TutorLearningFlow.advance(restored,restored.version(),"continue","");
+        assertEquals("CHECKING",restored.stage());
+        assertEquals(TutorQuestionSelector.LEGACY_POLICY,restored.selection().policy());
     }
 
     @Test void incompleteQuestionsMissingFeedbackOrWrongMappingsRejectWholeUnit() throws Exception {

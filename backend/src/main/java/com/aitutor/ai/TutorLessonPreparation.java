@@ -23,7 +23,7 @@ public final class TutorLessonPreparation {
                            String remedialExplanation, List<PreparedQuestion> questions) {}
     public record PreparedQuestion(String prompt, List<String> options, String correctOption,
                                    String explanation, List<PreparedFeedback> wrongOptionFeedback) {}
-    public record PreparedFeedback(String option, String explanation, List<String> evidenceIds) {}
+    public record PreparedFeedback(String option, String focus, String explanation, List<String> evidenceIds) {}
 
     private TutorLessonPreparation() {}
 
@@ -60,7 +60,7 @@ public final class TutorLessonPreparation {
             Prepared prepared=JSON.readValue(response,Prepared.class);
             if (prepared == null || prepared.supported() == null) throw invalid();
             if (!prepared.supported()) throw new BusinessException(400,"资料不足，请补充该主题的定义、例子或教材片段。");
-            if (!Integer.valueOf(2).equals(prepared.schemaVersion()) || prepared.questions() == null
+            if (!Integer.valueOf(3).equals(prepared.schemaVersion()) || prepared.questions() == null
                     || prepared.questions().size()!=5) throw invalid();
             Map<String,TutorLearningFlow.SourceEvidence> catalog=evidence(source).stream()
                     .collect(Collectors.toMap(TutorLearningFlow.SourceEvidence::id,Function.identity()));
@@ -76,7 +76,7 @@ public final class TutorLessonPreparation {
                         if (id == null || !catalog.containsKey(id)) throw invalid();
                         quotes.add(catalog.get(id));
                     }
-                    feedback.add(new TutorLearningFlow.OptionFeedback(f.option(),null,f.explanation(),null,List.copyOf(quotes)));
+                    feedback.add(new TutorLearningFlow.OptionFeedback(f.option(),f.focus(),f.explanation(),null,List.copyOf(quotes)));
                 }
                 questions.add(new TutorLearningFlow.Question(q.prompt(),q.options(),q.correctOption(),q.explanation(),List.copyOf(feedback)));
             }

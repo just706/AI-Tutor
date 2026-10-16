@@ -18,7 +18,7 @@ class TutorOptionOrderTest {
             Collections.rotate(options,i%sizes[i]);
             var feedback=new ArrayList<TutorLearningFlow.OptionFeedback>();
             for(int j=0;j<options.size();j++) if(!options.get(j).equals("约定为真"))
-                feedback.add(new TutorLearningFlow.OptionFeedback(label(j),null,"说明："+options.get(j),null,TutorLessonPreparation.evidence(SOURCE)));
+                feedback.add(new TutorLearningFlow.OptionFeedback(label(j),"约定为真与"+options.get(j),"说明："+options.get(j),null,TutorLessonPreparation.evidence(SOURCE)));
             questions.add(new TutorLearningFlow.Question("判断"+i,List.copyOf(options),label(i%sizes[i]),"约定为真符合定义。",List.copyOf(feedback)));
         }
         return new TutorLearningFlow.Lesson("先理解约定。","回顾定义。",questions.get(0),List.copyOf(questions.subList(1,3)),List.copyOf(questions.subList(3,5)));
@@ -45,6 +45,7 @@ class TutorOptionOrderTest {
                     assertEquals(q.options().size()-1,q.wrongOptionFeedback().size());
                     for(var f:q.wrongOptionFeedback()) {
                         assertEquals("说明："+q.options().get(f.option().charAt(0)-'A'),f.explanation());
+                        assertEquals("约定为真与"+q.options().get(f.option().charAt(0)-'A'),f.focus());
                         assertEquals(List.of(new TutorLearningFlow.SourceEvidence("E1",SOURCE)),f.evidence());
                     }
                 }
@@ -95,7 +96,7 @@ class TutorOptionOrderTest {
         for(String text:List.of("选项A正确","B 是条件名称","选项 C","A和B均不对","以上皆是","以上选项均不符合","第一个选项","前两项均对","其他选项都错误","All of the above","the second option","choice 2","option a","选项b","b选项错误")) {
             for(int field=0;field<4;field++) {
                 var options=field==1?List.of(text,q.options().get(1),q.options().get(2)):q.options();
-                var feedback=field==3?List.of(new TutorLearningFlow.OptionFeedback("B",null,text,null,TutorLessonPreparation.evidence(SOURCE)),q.wrongOptionFeedback().get(1)):q.wrongOptionFeedback();
+                var feedback=field==3?List.of(new TutorLearningFlow.OptionFeedback("B","位置引用",text,null,TutorLessonPreparation.evidence(SOURCE)),q.wrongOptionFeedback().get(1)):q.wrongOptionFeedback();
                 var dependent=new TutorLearningFlow.Question(field==0?text:q.prompt(),options,q.correctOption(),field==2?text:q.explanation(),feedback);
                 var input=new TutorLearningFlow.Lesson(base.explanation(),base.remedialExplanation(),dependent,base.checks(),base.practices());
                 assertEquals(dependent,TutorOptionOrder.arrange(input,new Random(4)).diagnosis(),"必须保留依赖位置的题目："+text);

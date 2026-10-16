@@ -1,0 +1,42 @@
+{
+  "version": "stage2-question-matching-v1",
+  "description": "Curated local cases for matching an observed wrong-option distinction to a later question. Evidence overlap alone is not the expected decision.",
+  "cases": [
+    {
+      "id": "java-same-key-replacement",
+      "domain": "Java",
+      "diagnosisPrompt": "HashMap 中同键再次 put 会怎样？",
+      "targetFocus": "同键替换与多值并存",
+      "candidateFocuses": ["键唯一与值唯一", "同键替换与多值并存"],
+      "expectedIndex": 1,
+      "expectedReason": "DISTINCTION_MATCH"
+    },
+    {
+      "id": "math-instantaneous-rate",
+      "domain": "数学",
+      "diagnosisPrompt": "导数描述哪一种变化率？",
+      "targetFocus": "一点处的瞬时变化率",
+      "candidateFocuses": ["区间平均变化率", "一点处的瞬时变化率"],
+      "expectedIndex": 1,
+      "expectedReason": "DISTINCTION_MATCH"
+    },
+    {
+      "id": "custom-remainder-color",
+      "domain": "自定义规则",
+      "diagnosisPrompt": "编号四应使用哪种颜色？",
+      "targetFocus": "编号加三后颜色不变",
+      "candidateFocuses": ["编号与颜色直接对应", "编号加三后颜色不变"],
+      "expectedIndex": 1,
+      "expectedReason": "DISTINCTION_MATCH"
+    },
+    {
+      "id": "no-matching-distinction",
+      "domain": "自定义规则",
+      "diagnosisPrompt": "编号四应使用哪种颜色？",
+      "targetFocus": "编号加三后颜色不变",
+      "candidateFocuses": ["编号与颜色直接对应", "颜色名称与纹路对应"],
+      "expectedIndex": 0,
+      "expectedReason": "NO_DISTINCTION_MATCH"
+    }
+  ]
+}

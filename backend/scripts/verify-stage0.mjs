@@ -168,9 +168,9 @@ const modelServer = createServer(async (request, response) => {
       const optionTexts=['与所给定义一致','与所给定义不一致','忽略定义中的条件'];
       const question = (label, correctOption) => ({prompt:`${data.topic}：${label}`,
         options:optionTexts,correctOption,explanation:'请对照定义核对当前判断。',
-        wrongOptionFeedback:['A','B','C'].filter(option=>option!==correctOption).map(option=>({option,
+        wrongOptionFeedback:['A','B','C'].filter(option=>option!==correctOption).map(option=>({option,focus:`${label}：${optionTexts[option.charCodeAt(0)-65]}`,
           explanation:`仅针对${label}中“${optionTexts[option.charCodeAt(0)-65]}”的说法补充说明，请依据下面原文重新判断。`,evidenceIds}))});
-      content = JSON.stringify({schemaVersion:2,supported:true,explanation:`先理解本次资料：${sourceText}`,
+      content = JSON.stringify({schemaVersion:3,supported:true,explanation:`先理解本次资料：${sourceText}`,
         remedialExplanation:`先回顾定义，再比较容易混淆的含义：${sourceText}`,
         questions:[question('诊断题','A'),question('检查题一','B'),question('检查题二','A'),
         question('应用题一','A'),question('应用题二','B')]});
@@ -182,14 +182,14 @@ const modelServer = createServer(async (request, response) => {
           assert.equal(units.length,1,'选题测试资料必须有唯一对应原文'); return units[0].id;
         };
         const red=ref('亮纹代表红色。'),blue=ref('暗纹代表蓝色。'),green=ref('无纹代表绿色。');
-        const feedback=(option,evidenceIds)=>({option,explanation:'请对照原文中的纹路与颜色对应关系。',evidenceIds});
-        const q=(prompt,color,id)=>({prompt,options:[color,'无法确定'],correctOption:'A',
-          explanation:`根据给定规则，答案是${color}。`,wrongOptionFeedback:[feedback('B',[id])]});
-        content=JSON.stringify({schemaVersion:2,supported:true,explanation:routingTextbook,remedialExplanation:routingTextbook,
+        const feedback=(option,focus,evidenceIds)=>({option,focus,explanation:'请对照原文中的纹路与颜色对应关系。',evidenceIds});
+        const q=(prompt,color,id,focus)=>({prompt,options:[color,'无法确定'],correctOption:'A',
+          explanation:`根据给定规则，答案是${color}。`,wrongOptionFeedback:[feedback('B',focus,[id])]});
+        content=JSON.stringify({schemaVersion:3,supported:true,explanation:routingTextbook,remedialExplanation:routingTextbook,
           questions:[{prompt:'亮纹代表什么颜色？',options:['红色','蓝色','绿色'],correctOption:'A',explanation:'亮纹代表红色。',
-            wrongOptionFeedback:[feedback('B',[red,blue]),feedback('C',[red,green])]},
-          q('暗纹代表什么颜色？','蓝色',blue),q('无纹代表什么颜色？','绿色',green),
-          q('暗纹卡片应涂什么颜色？','蓝色',blue),q('无纹卡片应涂什么颜色？','绿色',green)]});
+            wrongOptionFeedback:[feedback('B','亮纹与暗纹的颜色对应',[red,blue]),feedback('C','亮纹与无纹的颜色对应',[red,green])]},
+          q('暗纹代表什么颜色？','蓝色',blue,'亮纹与暗纹的颜色对应'),q('无纹代表什么颜色？','绿色',green,'亮纹与无纹的颜色对应'),
+          q('暗纹卡片应涂什么颜色？','蓝色',blue,'亮纹与暗纹的颜色对应'),q('无纹卡片应涂什么颜色？','绿色',green,'亮纹与无纹的颜色对应')]});
       }
       if (invalidOptionFeedbackNext) {
         const prepared=JSON.parse(content);
@@ -1049,15 +1049,16 @@ try {
     const flow=turn.result.learningSession.flow;
     assert.equal(flow.prompt,prompt);
     const saved=readSavedFlow(turn.result.learningSession.id),trace=saved.selection.history.at(-1);
-    assert.equal(saved.selection.policy,'evidence_overlap_v1');
+    assert.equal(saved.selection.policy,'distinction_then_evidence_v2');
     assert.equal(trace.question,prompt); assert.equal(trace.reason,reason);
     const lastWrong=saved.evidence.findLast(answer=>!answer.correct);
     assert.equal(trace.basedOnQuestion,lastWrong.question); assert.equal(trace.selectedOption,lastWrong.selectedOption);
-    assert.equal(trace.sharedEvidenceIds.length>0,reason==='SHARED_EVIDENCE');
+    assert.equal(trace.sharedEvidenceIds.length>0,reason==='DISTINCTION_MATCH');
     assert(flow.selectionReason && turn.result.answer.includes(flow.selectionReason));
     const history=await api('/conversations/'+turn.conversationId+'/messages',{token});
     assert.equal(history.at(-1).messageContent,turn.result.answer);
-    for(const hidden of ['sharedEvidenceIds','basedOnQuestion','wrongOptionFeedback','evidence_overlap_v1'])
+    for(const hidden of ['sharedEvidenceIds','basedOnQuestion','wrongOptionFeedback','distinction_then_evidence_v2',
+      '亮纹与暗纹的颜色对应','亮纹与无纹的颜色对应'])
       assert(!JSON.stringify(turn.result).includes(hidden));
     const active=await api('/learning-sessions/active?conversationId='+turn.conversationId,{token});
     assert.deepEqual(active.flow,flow);
@@ -1067,32 +1068,32 @@ try {
     const turn=await flowStart('纹路颜色'),calls=modelRequests.length;
     routingLessonNext=true; await flowStep(turn,'clarify',routingTextbook,'DIAGNOSING');
     await selectByText(turn,wrongColor,'TEACHING'); await flowStep(turn,'continue','检查理解','CHECKING');
-    await assertSelection(turn,`${pattern}代表什么颜色？`,'SHARED_EVIDENCE');
+    await assertSelection(turn,`${pattern}代表什么颜色？`,'DISTINCTION_MATCH');
     await flowAnswer(turn,true,'PRACTICE');
-    await assertSelection(turn,`${pattern}卡片应涂什么颜色？`,'SHARED_EVIDENCE');
+    await assertSelection(turn,`${pattern}卡片应涂什么颜色？`,'DISTINCTION_MATCH');
     if(pattern==='无纹') {
       await flowAnswer(turn,false,'RETEACHING'); await flowStep(turn,'continue','继续检查','CHECKING');
-      await assertSelection(turn,'暗纹代表什么颜色？','NO_SHARED_EVIDENCE');
+      await assertSelection(turn,'暗纹代表什么颜色？','NO_DISTINCTION_MATCH');
       await flowAnswer(turn,true,'PRACTICE');
-      await assertSelection(turn,'暗纹卡片应涂什么颜色？','NO_SHARED_EVIDENCE');
+      await assertSelection(turn,'暗纹卡片应涂什么颜色？','NO_DISTINCTION_MATCH');
     }
     await flowAnswer(turn,true,'FEEDBACK');
     const saved=readSavedFlow(turn.result.learningSession.id);
     assert.equal(new Set(saved.evidence.map(answer=>answer.question)).size,saved.evidence.length);
     assert.equal(modelRequests.length,calls+1,'选题只读取已保存资料，不增加模型调用');
   }
-  pass('不同错误选项按补讲原文选择检查题和练习；换序后不重复、无匹配时回退，选题理由与历史和刷新一致');
+  pass('不同错误选项按可观察区分点选择检查题和练习；原文只用于同类题排序，无匹配时回退，选题理由与历史和刷新一致');
 
   const routingDocument=await upload(routingTextbook,'guided-routing.txt',token);
   await waitForExtraction(routingDocument.personalGraphExtractionId,token);
   const routingTurn=await makeTextbookFlow([routingDocument.documentId]),routingCalls=modelRequests.length;
   routingLessonNext=true; routingTurn.result=await startTextbookFlow(routingTurn,'无纹');
   await selectByText(routingTurn,'绿色','TEACHING'); await flowStep(routingTurn,'continue','检查理解','CHECKING');
-  await assertSelection(routingTurn,'无纹代表什么颜色？','SHARED_EVIDENCE');
+  await assertSelection(routingTurn,'无纹代表什么颜色？','DISTINCTION_MATCH');
   assert(routingTurn.result.learningSession.flow.textbookBased);
   assert.equal(routingTurn.result.sources[0].documentId,routingDocument.documentId);
   await flowAnswer(routingTurn,true,'PRACTICE');
-  await assertSelection(routingTurn,'无纹卡片应涂什么颜色？','SHARED_EVIDENCE');
+  await assertSelection(routingTurn,'无纹卡片应涂什么颜色？','DISTINCTION_MATCH');
   await flowAnswer(routingTurn,true,'FEEDBACK'); assert.equal(modelRequests.length,routingCalls+1);
   pass('教材入口使用相同选题规则并保留教材引用，备课后不追加模型调用');
 
@@ -1169,6 +1170,7 @@ try {
               const text=saved.options[feedback.option.charCodeAt(0)-65];
               const original=raw.wrongOptionFeedback.find(f=>raw.options[f.option.charCodeAt(0)-65]===text);
               assert(original,'重排不得丢失选项对应的补讲');
+              assert.equal(feedback.focus,original.focus);
               assert.equal(feedback.explanation,original.explanation);
               assert.deepEqual(feedback.evidence.map(e=>e.id),original.evidenceIds);
               assert(feedback.evidence.every(e=>lessonInputs.at(-1).source.some(unit=>unit.id===e.id && unit.text===e.text)));

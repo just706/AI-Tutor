@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import com.aitutor.exception.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import static com.aitutor.ai.TutorLearningFlow.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -15,6 +17,9 @@ class TutorQuestionSelectionTest {
 
     static OptionFeedback feedback(String option, SourceEvidence... evidence) {
         return new OptionFeedback(option, null, "请比较这些原文中的条件。", null, List.of(evidence));
+    }
+    static OptionFeedback feedback(String option, String focus, SourceEvidence... evidence) {
+        return new OptionFeedback(option, focus, "请比较这些原文中的条件。", null, List.of(evidence));
     }
     static Question q(String prompt, SourceEvidence evidence) {
         return new Question(prompt, List.of("资料中的颜色", "无法确定"), "A", "依据给定规则。",
@@ -34,6 +39,80 @@ class TutorQuestionSelectionTest {
     @Test void differentWrongOptionsChooseChecksSharingTheirRemediationEvidence() {
         assertEquals("暗纹代表什么颜色？", view(firstCheck("B")).prompt());
         assertEquals("无纹代表什么颜色？", view(firstCheck("C")).prompt());
+    }
+
+    @Test void observableDistinctionWinsWhenBroadEvidenceIsShared() {
+        assertFocusWins("HashMap 中同键再次 put 会怎样？", "键唯一与值唯一", "同键替换与多值并存");
+        assertFocusWins("导数描述哪一种变化率？", "区间平均变化率", "一点处的瞬时变化率");
+        assertFocusWins("编号四应使用哪种颜色？", "编号与颜色直接对应", "编号加三后颜色不变");
+    }
+
+    private static void assertFocusWins(String prompt, String otherFocus, String targetFocus) {
+        var diagnosis = new Question(prompt, List.of("正确结论", "错误结论"), "A", "依据资料判断。",
+                List.of(feedback("B", targetFocus, RED)));
+        var unrelated = new Question("先出现的其他区分题："+otherFocus, List.of("正确", "错误"), "A", "依据资料判断。",
+                List.of(feedback("B", otherFocus, RED)));
+        var targeted = new Question("后出现的目标区分题："+targetFocus, List.of("正确", "错误"), "A", "依据资料判断。",
+                List.of(feedback("B", targetFocus, RED)));
+        var l = new Lesson("讲解", "补讲", diagnosis, List.of(unrelated, targeted), lesson().practices());
+        var choice = TutorQuestionSelector.choose(TutorQuestionSelector.POLICY, l,
+                List.of(new Evidence("DIAGNOSING", diagnosis.prompt(), "B", false)), "CHECKING");
+        assertEquals(1, choice.index(), prompt);
+        assertEquals("DISTINCTION_MATCH", choice.selection().reason());
+    }
+
+    @Test void noDistinctionMatchUsesOriginalOrderWithoutEvidenceTargetingClaim() {
+        var diagnosis = new Question("诊断", List.of("正确", "错误"), "A", "说明",
+                List.of(feedback("B", "目标区分点", RED)));
+        var first = new Question("第一题", List.of("正确", "错误"), "A", "说明",
+                List.of(feedback("B", "其他区分点一", BLUE)));
+        var second = new Question("第二题", List.of("正确", "错误"), "A", "说明",
+                List.of(feedback("B", "其他区分点二", RED)));
+        var l = new Lesson("讲解", "补讲", diagnosis, List.of(first, second), lesson().practices());
+        var choice = TutorQuestionSelector.choose(TutorQuestionSelector.POLICY, l,
+                List.of(new Evidence("DIAGNOSING", "诊断", "B", false)), "CHECKING");
+        assertEquals(0, choice.index());
+        assertEquals("NO_DISTINCTION_MATCH", choice.selection().reason());
+        assertTrue(choice.selection().sharedEvidenceIds().isEmpty());
+        String visibleReason=TutorQuestionSelector.reason(choice.selection());
+        assertFalse(visibleReason.contains("目标区分点"));
+        assertFalse(visibleReason.contains("原文"));
+    }
+
+    @Test void incompleteFeedbackCannotEnableNewPolicyOrEvidenceFallback() {
+        var empty=new Question("空反馈",List.of("正确","错误"),"A","说明",List.of());
+        var emptyLesson=new Lesson("讲解","补讲",empty,List.of(empty,empty),List.of(empty,empty));
+        assertEquals(TutorQuestionSelector.LEGACY_POLICY,TutorQuestionSelector.policyFor(emptyLesson));
+        var diagnosis=new Question("诊断",List.of("正确","错误"),"A","说明",List.of(feedback("B",RED)));
+        var first=new Question("第一题",List.of("正确","错误"),"A","说明",List.of(feedback("B","其他",BLUE)));
+        var second=new Question("第二题",List.of("正确","错误"),"A","说明",List.of(feedback("B","其他",RED)));
+        var l=new Lesson("讲解","补讲",diagnosis,List.of(first,second),lesson().practices());
+        assertEquals(TutorQuestionSelector.LEGACY_POLICY,TutorQuestionSelector.policyFor(l));
+        var choice=TutorQuestionSelector.choose(TutorQuestionSelector.POLICY,l,
+                List.of(new Evidence("DIAGNOSING","诊断","B",false)),"CHECKING");
+        assertEquals(0,choice.index());
+        assertEquals("NO_DISTINCTION_MATCH",choice.selection().reason());
+        assertTrue(choice.selection().sharedEvidenceIds().isEmpty());
+    }
+
+    @Test void curatedCrossDomainMatchingCasesStayStable() throws Exception {
+        var root=new ObjectMapper().readTree(Files.readString(Path.of("evaluation/stage2-question-matching-cases.json")));
+        assertEquals("stage2-question-matching-v1",root.path("version").asText());
+        assertEquals(4,root.path("cases").size());
+        for(var item:root.path("cases")) {
+            String target=item.path("targetFocus").asText();
+            var diagnosis=new Question(item.path("diagnosisPrompt").asText(),List.of("正确","错误"),"A","说明",
+                    List.of(feedback("B",target,RED)));
+            var candidates=new java.util.ArrayList<Question>();
+            for(var focus:item.path("candidateFocuses"))
+                candidates.add(new Question("候选："+focus.asText(),List.of("正确","错误"),"A","说明",
+                        List.of(feedback("B",focus.asText(),RED))));
+            var l=new Lesson("讲解","补讲",diagnosis,List.copyOf(candidates),lesson().practices());
+            var choice=TutorQuestionSelector.choose(TutorQuestionSelector.POLICY,l,
+                    List.of(new Evidence("DIAGNOSING",diagnosis.prompt(),"B",false)),"CHECKING");
+            assertEquals(item.path("expectedIndex").asInt(),choice.index(),item.path("id").asText());
+            assertEquals(item.path("expectedReason").asText(),choice.selection().reason(),item.path("id").asText());
+        }
     }
 
     @Test void practiceStillUsesMostRecentMistakeAfterCorrectCheck() {

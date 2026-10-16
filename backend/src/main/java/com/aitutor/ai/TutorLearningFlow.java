@@ -53,11 +53,11 @@ public final class TutorLearningFlow {
     public static State begin(String topic, String source, Lesson lesson, Materials materials) {
         requireText(topic, 200); requireText(source, 4000); validate(lesson);
         return new State(1, "DIAGNOSING", topic, source, lesson, 0, 0, List.of(), "", materials,
-                new SelectionState(TutorQuestionSelector.POLICY, List.of()));
+                new SelectionState(TutorQuestionSelector.policyFor(lesson), List.of()));
     }
     public static State advance(State state, int version, String action, String answer) {
         if (state.version() != version) throw new BusinessException(409, "学习进度已更新，请刷新后继续。");
-        if (state.selection() != null && !TutorQuestionSelector.POLICY.equals(state.selection().policy()))
+        if (state.selection() != null && !TutorQuestionSelector.supports(state.selection().policy()))
             throw new BusinessException(500, "保存的选题规则无法识别，请重新打开会话。");
         if ("continue".equals(action) && List.of("TEACHING", "RETEACHING").contains(state.stage())) {
             if (state.selection() != null) return select(state, "CHECKING", state.evidence(), "");
@@ -86,8 +86,8 @@ public final class TutorLearningFlow {
         else if (state.selection() != null) {
             if (correct && "CHECKING".equals(state.stage())) return select(state, "PRACTICE", List.copyOf(evidence), feedback);
             if (correct) stage = "FEEDBACK";
-            else stage = TutorQuestionSelector.choose(state.lesson(), evidence, "CHECKING") != null
-                    && TutorQuestionSelector.choose(state.lesson(), evidence, "PRACTICE") != null ? "RETEACHING" : "REVIEW";
+            else stage = TutorQuestionSelector.choose(state.selection().policy(), state.lesson(), evidence, "CHECKING") != null
+                    && TutorQuestionSelector.choose(state.selection().policy(), state.lesson(), evidence, "PRACTICE") != null ? "RETEACHING" : "REVIEW";
         }
         else if (correct) stage = "CHECKING".equals(state.stage()) ? "PRACTICE" : "FEEDBACK";
         else {
@@ -102,7 +102,7 @@ public final class TutorLearningFlow {
         return new State(s.version() + 1, stage, s.topic(), s.source(), s.lesson(), check, practice, evidence, feedback, s.materials(), s.selection());
     }
     private static State select(State s, String stage, List<Evidence> evidence, String feedback) {
-        var choice = TutorQuestionSelector.choose(s.lesson(), evidence, stage);
+        var choice = TutorQuestionSelector.choose(s.selection().policy(), s.lesson(), evidence, stage);
         if (choice == null) return copy(s, "REVIEW", s.checkIndex(), s.practiceIndex(), evidence, feedback);
         var history = new ArrayList<>(s.selection().history());
         history.add(choice.selection());
@@ -147,8 +147,9 @@ public final class TutorLearningFlow {
                     throw new BusinessException(600, "补充说明与题目选项不匹配，请重试。");
                 requireText(feedback.explanation(), 1000);
                 if (feedback.evidence() != null) {
+                    requireText(feedback.focus(), 120);
                     if (feedback.evidence().isEmpty() || feedback.evidence().size()>4
-                            || feedback.sourceQuote()!=null || feedback.focus()!=null
+                            || feedback.sourceQuote()!=null
                             || new HashSet<>(feedback.evidence()).size()!=feedback.evidence().size()
                             || !TutorLessonPreparation.evidence(source).containsAll(feedback.evidence()))
                         throw new BusinessException(600,"补讲中的证据与本轮资料不匹配，请重试。");
