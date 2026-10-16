@@ -1220,6 +1220,21 @@ try {
   }
 
   if (options['hold-for-browser']) {
+    // 独立账号只包含本次页面验收资料，便于核对教材选择、会话隔离和重新登录。
+    const flowBrowserUsername = 'stage0_flow_browser';
+    await api('/auth/register', { body: { username: flowBrowserUsername, password } });
+    const flowBrowserLogin = await api('/auth/login', { body: { username: flowBrowserUsername, password } });
+    const browserCases = [];
+    const browserSuite = flowSuite || JSON.parse(readFileSync(flowSuitePath, 'utf8'));
+    for (const [id, topic, fileName] of [['J01','ArrayList','browser-arraylist.txt'],
+      ['J02','HashMap','browser-hashmap.txt'],['M01','导数','browser-math.txt']]) {
+      const source = browserSuite.cases.find(item => item.id === id).source;
+      const doc = await upload(source, fileName, flowBrowserLogin.token);
+      await waitForExtraction(doc.personalGraphExtractionId, flowBrowserLogin.token);
+      const convo = await api('/conversations', { token: flowBrowserLogin.token,
+        body: { title: `${topic}教材页面验收`, mode: 'rag', documentIds: [] } });
+      browserCases.push({ id, topic, fileName, documentId: doc.documentId, conversationId: convo.conversationId });
+    }
     const browserDocument = await upload(textbook, 'browser-collections.txt', token);
     await waitForExtraction(browserDocument.personalGraphExtractionId, token);
     const browserConversation = await api('/conversations', { token, body: { title: '浏览器教材会话', mode: 'rag', documentIds: [browserDocument.documentId] } });
@@ -1227,7 +1242,8 @@ try {
     writeFileSync(path.join(outputDir, 'browser-fixture.json'), JSON.stringify({ apiBase, username: 'stage0_owner', password,
       conversationId: browserConversation.conversationId, documentId: browserDocument.documentId,
       mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId,
-      strategyConversations, flowConversations, browserFailureControl, finishPath }, null, 2));
+      strategyConversations, flowConversations, browserFailureControl, finishPath,
+      flowBrowser: { username: flowBrowserUsername, password, cases: browserCases } }, null, 2));
     console.log(`浏览器验收环境已就绪，临时账号与地址见 ${path.join(outputDir, 'browser-fixture.json')}。完成后创建该文件中 finishPath 指定的标记；30 分钟后自动清理。`);
     const deadline = Date.now() + 30 * 60 * 1000;
     while (!existsSync(finishPath) && Date.now() < deadline) await delay(500);
