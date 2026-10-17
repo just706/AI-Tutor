@@ -13,7 +13,8 @@ class TutorLessonPreparationTest {
 
     private ObjectNode response() throws Exception {
         ObjectNode root = (ObjectNode) JSON.readTree("""
-                {"schemaVersion":3,"supported":true,"explanation":"先理解两条规则。","remedialExplanation":"回顾编号与颜色。","questions":[]}
+                {"schemaVersion":4,"supported":true,"explanation":"先理解两条规则。","remedialExplanation":"回顾编号与颜色。",
+                "distinctions":[{"id":"D1","label":"编号加三后颜色不变"},{"id":"D2","label":"编号与颜色直接对应"}],"questions":[]}
                 """);
         for (int i=0;i<5;i++) {
             var q = root.withArray("questions").addObject();
@@ -22,11 +23,31 @@ class TutorLessonPreparationTest {
             q.put("correctOption","A").put("explanation","四比一多三，因此保持红色。");
             for (String option : List.of("B","C")) {
                 var item=q.withArray("wrongOptionFeedback").addObject();
-                item.put("option",option).put("focus","编号加三后颜色不变").put("explanation","编号四比一多三，颜色仍是红色；所选项不符合两条规则。");
+                item.put("option",option).put("distinctionId",option.equals("B")?"D1":"D2")
+                        .put("explanation","编号四比一多三，颜色仍是红色；所选项不符合两条规则。");
                 item.putArray("evidenceIds").add("E1").add("E2");
             }
         }
         return root;
+    }
+
+    @Test void schemaFourResolvesSharedDistinctionIdsToOneServerStoredLabel() throws Exception {
+        var lesson=TutorLessonPreparation.parse(response().toString(),SOURCE);
+        assertEquals(java.util.Set.of("编号加三后颜色不变","编号与颜色直接对应"),
+                lesson.diagnosis().wrongOptionFeedback().stream().map(TutorLearningFlow.OptionFeedback::focus)
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(java.util.Set.of("编号加三后颜色不变","编号与颜色直接对应"),
+                lesson.checks().get(0).wrongOptionFeedback().stream().map(TutorLearningFlow.OptionFeedback::focus)
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(TutorQuestionSelector.POLICY,TutorQuestionSelector.policyFor(lesson));
+    }
+
+    @Test void schemaFourRejectsFeedbackThatReferencesUnknownDistinction() throws Exception {
+        var root=response();
+        ((ObjectNode)root.path("questions").get(0).path("wrongOptionFeedback").get(0))
+                .put("distinctionId","D9");
+        assertEquals(600,assertThrows(BusinessException.class,
+                ()->TutorLessonPreparation.parse(root.toString(),SOURCE)).getCode());
     }
 
     @Test void serverMapsFlatQuestionsAndRestoresMultipleExactQuotes() throws Exception {
@@ -41,7 +62,8 @@ class TutorLessonPreparationTest {
         assertTrue(text.contains("规则甲：编号增加三后颜色保持不变。"));
         assertTrue(text.contains("规则乙：编号一对应红色，编号二对应蓝色。"));
         assertFalse(text.contains("本次需要区分：null"));
-        assertEquals("编号加三后颜色不变",lesson.diagnosis().wrongOptionFeedback().get(0).focus());
+        assertTrue(java.util.Set.of("编号加三后颜色不变","编号与颜色直接对应")
+                .contains(lesson.diagnosis().wrongOptionFeedback().get(0).focus()));
         assertEquals(TutorQuestionSelector.POLICY,state.selection().policy());
     }
 
@@ -149,49 +171,61 @@ class TutorLessonPreparationTest {
         assertThrows(BusinessException.class,()->TutorLessonPreparation.evidence("字".repeat(4001)));
     }
 
-    @Test void sourceQuoteAndInvalidFocusRejectWholePreparation() throws Exception {
+    @Test void sourceQuoteAndInvalidDistinctionCatalogRejectWholePreparation() throws Exception {
         var quoted=response();
         ((ObjectNode)quoted.path("questions").get(0).path("wrongOptionFeedback").get(0)).put("sourceQuote","模型附加的文本");
         assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(quoted.toString(),SOURCE));
         for(String value:List.of(""," ","区".repeat(121))) {
             var root=response();
-            ((ObjectNode)root.path("questions").get(0).path("wrongOptionFeedback").get(0)).put("focus",value);
+            ((ObjectNode)root.path("distinctions").get(0)).put("label",value);
             assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(root.toString(),SOURCE));
         }
         var missing=response();
-        ((ObjectNode)missing.path("questions").get(0).path("wrongOptionFeedback").get(0)).remove("focus");
+        ((ObjectNode)missing.path("distinctions").get(0)).remove("label");
         assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(missing.toString(),SOURCE));
         var malformed=response();
-        ((ObjectNode)malformed.path("questions").get(0).path("wrongOptionFeedback").get(0)).putObject("focus").put("text","错误结构");
+        ((ObjectNode)malformed.path("distinctions").get(0)).putObject("label").put("text","错误结构");
         assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(malformed.toString(),SOURCE));
+
+        var duplicateId=response(); ((ObjectNode)duplicateId.path("distinctions").get(1)).put("id","D1");
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(duplicateId.toString(),SOURCE));
+        var skippedId=response(); ((ObjectNode)skippedId.path("distinctions").get(1)).put("id","D3");
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(skippedId.toString(),SOURCE));
+        var duplicateLabel=response(); ((ObjectNode)duplicateLabel.path("distinctions").get(1)).put("label","编号加三后颜色不变");
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(duplicateLabel.toString(),SOURCE));
+        var tooFew=response(); tooFew.withArray("distinctions").remove(1);
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(tooFew.toString(),SOURCE));
+        var tooMany=response();
+        for(int i=3;i<=5;i++) tooMany.withArray("distinctions").addObject().put("id","D"+i).put("label","额外标签"+i);
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(tooMany.toString(),SOURCE));
+        var unused=response(); unused.withArray("distinctions").addObject().put("id","D3").put("label","未使用标签");
+        assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(unused.toString(),SOURCE));
     }
 
-    @Test void promptDeclaresSchemaThreeFocusContractWithoutPsychologyClaims() {
+    @Test void promptDeclaresSchemaFourDistinctionCatalogWithoutPsychologyClaims() {
         String prompt=new AiPromptBuilder().buildLessonPrompt();
-        assertTrue(prompt.contains("\"schemaVersion\":3"));
-        assertTrue(prompt.contains("必须包含 focus"));
-        assertTrue(prompt.contains("仅 evidenceIds 重合不能复用"));
-        assertTrue(prompt.contains("规划2至4个可跨题复用的概念区分标签"));
-        assertTrue(prompt.contains("诊断题每个 focus 必须在至少一道理解检查和至少一道应用练习"));
-        assertTrue(prompt.contains("两道理解检查使用的每个 focus 也必须在至少一道应用练习"));
+        assertTrue(prompt.contains("\"schemaVersion\":4"));
+        assertTrue(prompt.contains("顶层 distinctions 定义2至4个"));
+        assertTrue(prompt.contains("必须包含 distinctionId"));
+        assertTrue(prompt.contains("不在反馈中另写或改写标签"));
+        assertTrue(prompt.contains("诊断题每个 distinctionId 必须在至少一道理解检查和至少一道应用练习"));
+        assertTrue(prompt.contains("两道理解检查使用的每个 distinctionId 也必须在至少一道应用练习"));
         assertTrue(prompt.contains("不描述学生的心理、能力、隐藏推理"));
         assertTrue(prompt.contains("不输出 sourceQuote"));
     }
 
-    @Test void uniqueQuestionSpecificFocusesCannotSilentlyDisableDistinctionRouting() throws Exception {
+    @Test void distinctionIdsThatDoNotCoverLaterStagesCannotSilentlyDisableRouting() throws Exception {
         var root=response();
-        for(int i=0;i<root.path("questions").size();i++) {
-            var feedback=root.path("questions").get(i).path("wrongOptionFeedback");
-            for(int j=0;j<feedback.size();j++)
-                ((ObjectNode)feedback.get(j)).put("focus","第"+i+"题选项"+j+"的局部描述");
-        }
+        for(int i=1;i<root.path("questions").size();i++)
+            root.path("questions").get(i).path("wrongOptionFeedback").forEach(feedback ->
+                    ((ObjectNode)feedback).put("distinctionId","D1"));
         assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(root.toString(),SOURCE));
     }
 
     @Test void malformedNestedLegacyDuplicateAndTrailingJsonAreNotRepaired() throws Exception {
         String good=response().toString();
         for(String bad:List.of(good.substring(0,good.length()-1),good+"{}",good.replace("\"supported\":true","\"supported\":true,\"supported\":false"),
-                good.replace("\"schemaVersion\":3","\"schemaVersion\":2"),"{\"supported\":true,\"lesson\":{}}"))
+                good.replace("\"schemaVersion\":4","\"schemaVersion\":3"),"{\"supported\":true,\"lesson\":{}}"))
             assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(bad,SOURCE));
     }
 

@@ -166,12 +166,14 @@ const modelServer = createServer(async (request, response) => {
       lessonInputs.push(data);
       const evidenceIds=data.source.slice(0,2).map(unit=>unit.id);
       const optionTexts=['与所给定义一致','与所给定义不一致','忽略定义中的条件'];
+      const distinctions=optionTexts.map((label,index)=>({id:`D${index+1}`,label}));
       const question = (label, correctOption) => ({prompt:`${data.topic}：${label}`,
         options:optionTexts,correctOption,explanation:'请对照定义核对当前判断。',
-        wrongOptionFeedback:['A','B','C'].filter(option=>option!==correctOption).map(option=>({option,focus:optionTexts[option.charCodeAt(0)-65],
+        wrongOptionFeedback:['A','B','C'].filter(option=>option!==correctOption).map(option=>({option,distinctionId:`D${option.charCodeAt(0)-64}`,
           explanation:`仅针对${label}中“${optionTexts[option.charCodeAt(0)-65]}”的说法补充说明，请依据下面原文重新判断。`,evidenceIds}))});
-      content = JSON.stringify({schemaVersion:3,supported:true,explanation:`先理解本次资料：${sourceText}`,
+      content = JSON.stringify({schemaVersion:4,supported:true,explanation:`先理解本次资料：${sourceText}`,
         remedialExplanation:`先回顾定义，再比较容易混淆的含义：${sourceText}`,
+        distinctions,
         questions:[question('诊断题','A'),question('检查题一','B'),question('检查题二','A'),
         question('应用题一','A'),question('应用题二','B')]});
       if (routingLessonNext) {
@@ -182,14 +184,15 @@ const modelServer = createServer(async (request, response) => {
           assert.equal(units.length,1,'选题测试资料必须有唯一对应原文'); return units[0].id;
         };
         const red=ref('亮纹代表红色。'),blue=ref('暗纹代表蓝色。'),green=ref('无纹代表绿色。');
-        const feedback=(option,focus,evidenceIds)=>({option,focus,explanation:'请对照原文中的纹路与颜色对应关系。',evidenceIds});
-        const q=(prompt,color,id,focus)=>({prompt,options:[color,'无法确定'],correctOption:'A',
-          explanation:`根据给定规则，答案是${color}。`,wrongOptionFeedback:[feedback('B',focus,[id])]});
-        content=JSON.stringify({schemaVersion:3,supported:true,explanation:routingTextbook,remedialExplanation:routingTextbook,
+        const feedback=(option,distinctionId,evidenceIds)=>({option,distinctionId,explanation:'请对照原文中的纹路与颜色对应关系。',evidenceIds});
+        const q=(prompt,color,id,distinctionId)=>({prompt,options:[color,'无法确定'],correctOption:'A',
+          explanation:`根据给定规则，答案是${color}。`,wrongOptionFeedback:[feedback('B',distinctionId,[id])]});
+        content=JSON.stringify({schemaVersion:4,supported:true,explanation:routingTextbook,remedialExplanation:routingTextbook,
+          distinctions:[{id:'D1',label:'亮纹与暗纹的颜色对应'},{id:'D2',label:'亮纹与无纹的颜色对应'}],
           questions:[{prompt:'亮纹代表什么颜色？',options:['红色','蓝色','绿色'],correctOption:'A',explanation:'亮纹代表红色。',
-            wrongOptionFeedback:[feedback('B','亮纹与暗纹的颜色对应',[red,blue]),feedback('C','亮纹与无纹的颜色对应',[red,green])]},
-          q('暗纹代表什么颜色？','蓝色',blue,'亮纹与暗纹的颜色对应'),q('无纹代表什么颜色？','绿色',green,'亮纹与无纹的颜色对应'),
-          q('暗纹卡片应涂什么颜色？','蓝色',blue,'亮纹与暗纹的颜色对应'),q('无纹卡片应涂什么颜色？','绿色',green,'亮纹与无纹的颜色对应')]});
+            wrongOptionFeedback:[feedback('B','D1',[red,blue]),feedback('C','D2',[red,green])]},
+          q('暗纹代表什么颜色？','蓝色',blue,'D1'),q('无纹代表什么颜色？','绿色',green,'D2'),
+          q('暗纹卡片应涂什么颜色？','蓝色',blue,'D1'),q('无纹卡片应涂什么颜色？','绿色',green,'D2')]});
       }
       if (invalidOptionFeedbackNext) {
         const prepared=JSON.parse(content);
@@ -1170,7 +1173,7 @@ try {
               const text=saved.options[feedback.option.charCodeAt(0)-65];
               const original=raw.wrongOptionFeedback.find(f=>raw.options[f.option.charCodeAt(0)-65]===text);
               assert(original,'重排不得丢失选项对应的补讲');
-              assert.equal(feedback.focus,original.focus);
+              assert.equal(feedback.focus,prepared.distinctions.find(item=>item.id===original.distinctionId)?.label);
               assert.equal(feedback.explanation,original.explanation);
               assert.deepEqual(feedback.evidence.map(e=>e.id),original.evidenceIds);
               assert(feedback.evidence.every(e=>lessonInputs.at(-1).source.some(unit=>unit.id===e.id && unit.text===e.text)));

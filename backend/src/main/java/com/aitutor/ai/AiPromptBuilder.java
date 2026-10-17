@@ -23,12 +23,13 @@ public class AiPromptBuilder {
                 不足以设计下面全部内容时返回 {"supported":false}，不要补造事实。
                 讲解、补讲与题目都必须受资料支持。新例子只能变更资料明确给出规则的输入，
                 不能从单个示例推广资料未给出的一般规则、公式或性质；未给通用规则时，换一种方式解释已有例子。
-                返回一个完整 JSON，只有 schemaVersion、supported、explanation、remedialExplanation、questions 五个字段。
+                返回一个完整 JSON，只有 schemaVersion、supported、explanation、remedialExplanation、distinctions、questions 六个字段。
                 格式如下，示例只展示一道题的结构，实际 questions 必须有五道完整题目，不照抄占位内容：
-                {"schemaVersion":3,"supported":true,"explanation":"简洁讲解，最多300字","remedialExplanation":"回顾基础，最多120字",
+                {"schemaVersion":4,"supported":true,"explanation":"简洁讲解，最多300字","remedialExplanation":"回顾基础，最多120字",
+                "distinctions":[{"id":"D1","label":"可跨题复用的概念区分标签"},{"id":"D2","label":"另一项概念区分标签"}],
                 "questions":[{"prompt":"题干","options":["选项一","选项二","选项三"],"correctOption":"A","explanation":"本题理由，最多60字",
-                "wrongOptionFeedback":[{"option":"B","focus":"可跨题复用的概念区分标签，最多120字","explanation":"具体比较B的说法与资料支持的结论，最多80字","evidenceIds":["E1","E2"]},
-                {"option":"C","focus":"另一项可跨题复用的概念区分标签，最多120字","explanation":"回应C选项的具体说法，最多80字","evidenceIds":["E1"]}]}]}
+                "wrongOptionFeedback":[{"option":"B","distinctionId":"D1","explanation":"具体比较B的说法与资料支持的结论，最多80字","evidenceIds":["E1","E2"]},
+                {"option":"C","distinctionId":"D2","explanation":"回应C选项的具体说法，最多80字","evidenceIds":["E1"]}]}]}
                 questions 按顺序包含一题诊断、两题理解检查、两题应用练习；不要输出 lesson、diagnosis、checks 或 practices 字段。
                 五道题的题干必须各不相同，每题优先3个不重复选项（允许2至4个），恰有一个答案，答案为大写字母A至D。
                 options 不加字母前缀。题干不能直接给出所问答案，也不能用“依据资料，答案为……”等方式泄题。
@@ -40,14 +41,14 @@ public class AiPromptBuilder {
                 每题 wrongOptionFeedback 必须覆盖全部错误选项且各出现一次，不包含正确选项；字母随本题实际选项对应，不能照抄示例。
                 不同错误选项要回应其具体说法，不能只重复通用补讲；只说明能核对的差异。
                 不从选项猜测学生如何算错，不使用“把函数值当导数”“符号弄反”等未经该选项本身证实的标签，不断定学生心理或能力。
-                生成题目前先依据资料规划2至4个可跨题复用的概念区分标签。每条反馈必须包含 focus，并从这些标签中选择一个。
-                focus 只写稳定的概念差异，例如“同键替换与多值并存”或“瞬时变化率与区间平均变化率”；
+                生成题目前先在顶层 distinctions 定义2至4个可跨题复用的概念区分标签，id 依次使用D1至D4且不得重复，label不得重复。
+                label 只写稳定的概念差异，例如“同键替换与多值并存”或“瞬时变化率与区间平均变化率”；
                 不写题号、选项字母、本题具体数值、具体元素、完整判断句或解释。具体比较只写在 explanation。
-                同一区分点必须逐字复用完全相同的 focus；仅 evidenceIds 重合不能复用。不同区分点使用不同 focus。
-                诊断题每个 focus 必须在至少一道理解检查和至少一道应用练习的 wrongOptionFeedback 中逐字出现；
-                两道理解检查使用的每个 focus 也必须在至少一道应用练习的 wrongOptionFeedback 中逐字出现。
+                每条反馈必须包含 distinctionId 并引用顶层已定义的一个id，不在反馈中另写或改写标签；每个顶层标签至少使用一次。
+                仅 evidenceIds 重合不能视为同一区分点。诊断题每个 distinctionId 必须在至少一道理解检查和至少一道应用练习中出现；
+                两道理解检查使用的每个 distinctionId 也必须在至少一道应用练习中出现。
                 题目可用不同输入和场景检查同一概念区分，同时保持五道题题干和具体判断不同。
-                focus 不描述学生的心理、能力、隐藏推理或未由所选项直接表现的错误过程。
+                label 不描述学生的心理、能力、隐藏推理或未由所选项直接表现的错误过程。
                 每条反馈先选择支持判断的 evidenceIds，再根据本题和这些原文写 explanation。每条选择1至4个不同编号，只能从输入选择。
                 一条解释用了多条规则，就必须选齐对应依据；只含相同名称或数字的原文不算支持。无法支持时收窄解释或返回 supported:false。
                 不输出 sourceQuote 或引文文本，由服务端根据编号还原原文；编号存在不代表所选依据一定相关。
