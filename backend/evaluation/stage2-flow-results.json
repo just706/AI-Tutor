@@ -713,5 +713,45 @@
     "statePreservedAfterFailure": 5,
     "historyPreservedAfterFailure": 5,
     "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v1-20261017"
+  },
+  "providerTransportVerification": {
+    "date": "2026-10-17",
+    "status": "locally_verified_real_content_review_pending",
+    "externalGenerationCalls": 0,
+    "cumulativeAuthorizedAttempts": 40,
+    "authorizedMaximumCalls": 40,
+    "scriptRegressionTestsPassed": 11,
+    "localApiChecksPassed": 47,
+    "localCleanup": "removed",
+    "networkDiagnosis": {
+      "restrictedErrorCode": "EACCES",
+      "authorizedAnonymousHttpStatus": 401,
+      "authenticationVerified": false,
+      "historicalFailureRootCauseConfirmed": false
+    },
+    "faultInjection": {
+      "mode": "offline_fetch_interception",
+      "expectedExitCode": 1,
+      "preliminaryChecksPassed": 42,
+      "syntheticGenerationAttempts": 1,
+      "externalGenerationCalls": 0,
+      "skippedCases": [
+        "J02",
+        "M01",
+        "U01",
+        "U02"
+      ],
+      "firstCaseStateAndHistoryPreserved": true,
+      "cleanup": "removed"
+    },
+    "scriptSha256": "6b21de8ac1efb23326198a0e81e5577eb2e52d80aebff26012a5ccb7ed032eaf",
+    "providerHelperSha256": "b7f574d1d38592402c9684589c428553dfc8b785daec0b34258ebd9009907381",
+    "jarSha256": "0f3ce3bff5b8a9422e1638c16d496e529a157c171a549171b25d214a614f2a76",
+    "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-provider-guard-20261017",
+    "limitations": [
+      "Anonymous connectivity does not verify credentials, balance or model generation.",
+      "The injected transport failure sends no external inference request and is not a real model evaluation.",
+      "Original real-v8 artifacts and the 40/40 authorized attempt count remain unchanged."
+    ]
   }
 }

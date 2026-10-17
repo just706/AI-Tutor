@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
+import { createEvaluationProvider } from './evaluation-provider.mjs';
 
 const { values: options } = parseArgs({ options: {
   'project-root': { type: 'string', default: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..') },
@@ -87,6 +88,10 @@ if(realTeacher || realFlow) {
   assert.equal(teacherProvider.origin,'https://api.deepseek.com');
   assert(!teacherProvider.username && !teacherProvider.password && !teacherProvider.search && !teacherProvider.hash);
 }
+const realProvider = realTeacher || realFlow ? createEvaluationProvider({
+  baseUrl: teacherProvider.href, apiKey: teacherKey, maxCalls: realFlow ? 5 : 16,
+}) : null;
+let providerPreflight;
 const configuredUrl = setting('SPRING_DATASOURCE_URL', 'jdbc:mysql://localhost:3306/ai_tutor');
 const dbUrl = new URL(configuredUrl.replace(/^jdbc:/, '').replace(/^mysql:/, 'http:'));
 assert(['localhost', '127.0.0.1'].includes(dbUrl.hostname), '验收脚本仅允许连接本机 MySQL。');
@@ -229,15 +234,9 @@ const modelServer = createServer(async (request, response) => {
         flowRequests.push(record);
         try {
           if (realFlow) {
-            assert(realFlowCalls < 5, '此固定题集单次最多5次真实调用，不自动重试');
-            realFlowCalls++;
-            const upstream = await fetch(teacherProvider.href.replace(/\/$/,'')+'/chat/completions', {
-              method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+teacherKey},
-              body:JSON.stringify(payload), signal:AbortSignal.timeout(60000), redirect:'error'
-            });
-            record.httpStatus = upstream.status;
-            assert(upstream.ok, '备课模型返回非成功状态');
-            const result = await upstream.json();
+            let result;
+            try { result = await realProvider.complete(payload, record); }
+            finally { realFlowCalls = realProvider.calls; }
             content = result.choices?.[0]?.message?.content;
             assert(typeof content === 'string' && content.trim(), '备课模型未返回内容');
             record.responseModel = result.model; record.usage = result.usage;
@@ -285,13 +284,9 @@ const modelServer = createServer(async (request, response) => {
       assert(replies[context.teachingStrategy]);
       content = replies[context.teachingStrategy];
       if(realTeacher) {
-        assert(realTeacherCalls < 16, '教师真实模型验收单次最多16次调用'); realTeacherCalls++;
-        const upstream = await fetch(teacherProvider.href.replace(/\/$/,'')+'/chat/completions', {
-          method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+teacherKey},
-          body:JSON.stringify(payload),signal:AbortSignal.timeout(60000),redirect:'error'
-        });
-        assert(upstream.ok, '教师模型返回非成功状态：'+upstream.status);
-        const result = await upstream.json();
+        let result;
+        try { result = await realProvider.complete(payload, record); }
+        finally { realTeacherCalls = realProvider.calls; }
         content = result.choices?.[0]?.message?.content;
         assert(typeof content === 'string' && content.trim(), '教师模型未返回回答');
         record.responseModel = result.model; record.usage = result.usage;
@@ -307,7 +302,8 @@ const modelServer = createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 20, completion_tokens: 10 } }));
   } catch (error) {
-    modelErrors.push({caseId:activeFlowCase?.id, type:error.name, message:error.message});
+    modelErrors.push({caseId:activeFlowCase?.id, type:error.name, message:error.message,
+      providerError:error.diagnostic});
     response.writeHead(400, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ error: { message: 'verification model failure' } }));
   }
@@ -348,6 +344,26 @@ async function upload(text, filename, token) {
 
 let failure;
 try {
+  if (flowSuite) {
+    writeFileSync(path.join(outputDir,'flow-cases.json'), JSON.stringify(flowSuite,null,2));
+    writeFileSync(path.join(outputDir,'flow-provenance.json'), JSON.stringify({version:flowSuite.version,
+      suiteSha256:createHash('sha256').update(readFileSync(flowSuitePath)).digest('hex'),
+      scriptSha256:createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex'),
+      providerHelperSha256:createHash('sha256').update(readFileSync(new URL('./evaluation-provider.mjs',import.meta.url))).digest('hex'),
+      jarSha256:createHash('sha256').update(readFileSync(jarPath)).digest('hex'),
+      requestedModel:realFlow ? teacherModel : (replayFlow ? 'saved-response-replay' : 'local-verification'),
+      mode:options['flow-evaluation'], replaySha256},null,2));
+  }
+  if (realProvider) {
+    providerPreflight = await realProvider.preflight();
+    writeFileSync(path.join(outputDir,'provider-preflight.json'),JSON.stringify(providerPreflight,null,2));
+    if (!providerPreflight.passed) {
+      for (const item of flowSuite?.cases ?? []) flowCaseResults.push({id:item.id, passed:false,
+        expectedSupported:item.supported, states:[], skipped:true, status:'blocked',
+        reason:'匿名连接预检失败，未创建学习会话或发送生成请求。'});
+      assert.fail('真实验收连接预检失败；未发送生成请求，详见 provider-preflight.json。');
+    }
+  }
   // 不使用 IF NOT EXISTS；只有确认由本次创建的库才能在 finally 中删除。
   sql(`CREATE DATABASE ${schema} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`, false);
   databaseCreated = true;
@@ -1128,16 +1144,14 @@ try {
 
   // 这些路径只验证 Java 按参考选项推进；事实正确性另按固定 rubric 审阅原始备课。
   if (flowSuite) {
-    writeFileSync(path.join(outputDir,'flow-cases.json'), JSON.stringify(flowSuite,null,2));
-    writeFileSync(path.join(outputDir,'flow-provenance.json'), JSON.stringify({version:flowSuite.version,
-      suiteSha256:createHash('sha256').update(readFileSync(flowSuitePath)).digest('hex'),
-      scriptSha256:createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex'),
-      jarSha256:createHash('sha256').update(readFileSync(jarPath)).digest('hex'),
-      requestedModel:realFlow ? teacherModel : (replayFlow ? 'saved-response-replay' : 'local-verification'),
-      mode:options['flow-evaluation'], replaySha256},null,2));
     for (const item of flowSuite.cases) {
       const record = {id:item.id, passed:false, expectedSupported:item.supported, states:[]};
       flowCaseResults.push(record);
+      if (realFlow && realProvider.blocked) {
+        Object.assign(record,{skipped:true,status:'blocked',
+          reason:'本轮此前发生连接、鉴权、限流或服务错误，未追加生成请求。',providerError:realProvider.blocked});
+        continue;
+      }
       let turn, initialHistory;
       try {
         turn = await flowStart(item.topic);
@@ -1277,6 +1291,7 @@ try {
     passed: !failure, checks, model: realTeacher || realFlow ? teacherModel : (replayFlow ? 'saved responses; not a new model-quality evaluation' : 'local deterministic stub; not a model-quality evaluation'),
     teacherModelMode:options['teacher-model'],realTeacherCalls,requiresTeacherAnswerReview:realTeacher,
     flowEvaluationMode:options['flow-evaluation'],realFlowCalls,requiresFlowAnswerReview:realFlow,
+    providerPreflight, providerFailure:realProvider?.blocked,
     flowSuiteVersion:flowSuite?.version,flowCaseCount:flowCaseResults.length,replaySha256,
     temporaryDatabase: schema, cleanup: databaseCreated ? (databaseRemoved ? 'removed' : 'failed') : 'not needed',
     error: failure?.message, time: new Date().toISOString(),
