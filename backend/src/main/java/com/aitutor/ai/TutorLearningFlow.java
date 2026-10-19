@@ -123,9 +123,14 @@ public final class TutorLearningFlow {
             if (q == null) throw new BusinessException(600, "教学题目不完整，请重试。");
             requireText(q.prompt(), 1500); requireText(q.explanation(), 2000);
             if (!prompts.add(q.prompt().replaceAll("\\s+", ""))) throw new BusinessException(600, "检查题重复，请重新生成。");
-            if (q.options() == null || q.options().size() < 2 || q.options().size() > 4
-                    || new HashSet<>(q.options()).size() != q.options().size()) throw new BusinessException(600, "题目选项无效，请重试。");
-            q.options().forEach(option -> requireText(option, 1000));
+            if (q.options() == null || q.options().size() < 2 || q.options().size() > 4)
+                throw new BusinessException(600, "题目选项无效，请重试。");
+            var comparableOptions = new HashSet<String>();
+            for (String option : q.options()) {
+                requireText(option, 1000);
+                if (!comparableOptions.add(normalizeComparableText(option)))
+                    throw new BusinessException(600, "题目选项无效，请重试。");
+            }
             if (q.correctOption() == null || q.correctOption().length() != 1 || q.correctOption().charAt(0) < 'A'
                     || q.correctOption().charAt(0) >= 'A' + q.options().size()) throw new BusinessException(600, "题目参考答案无效，请重试。");
         }
@@ -170,6 +175,12 @@ public final class TutorLearningFlow {
                     || !practiceFocuses.containsAll(checkFocuses))
                 throw new BusinessException(600,"备课区分点未覆盖后续检查和练习，请重试。");
         }
+    }
+    private static String normalizeComparableText(String text) {
+        var normalized = new StringBuilder(text.length());
+        text.codePoints().filter(codePoint -> !Character.isWhitespace(codePoint))
+                .forEach(normalized::appendCodePoint);
+        return normalized.toString();
     }
     private static HashSet<String> focuses(List<Question> questions) {
         var focuses = new HashSet<String>();

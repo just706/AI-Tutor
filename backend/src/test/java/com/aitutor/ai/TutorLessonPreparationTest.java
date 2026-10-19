@@ -210,6 +210,9 @@ class TutorLessonPreparationTest {
         assertTrue(prompt.contains("不在反馈中另写或改写标签"));
         assertTrue(prompt.contains("诊断题每个 distinctionId 必须在至少一道理解检查和至少一道应用练习"));
         assertTrue(prompt.contains("两道理解检查使用的每个 distinctionId 也必须在至少一道应用练习"));
+        assertTrue(prompt.contains("先为五题写完整条件、选项和理由"));
+        assertTrue(prompt.contains("必须恰有一个选项成立"));
+        assertTrue(prompt.contains("不把干扰项的数值反推成学生的计算步骤"));
         assertTrue(prompt.contains("不描述学生的心理、能力、隐藏推理"));
         assertTrue(prompt.contains("不输出 sourceQuote"));
     }
@@ -220,6 +223,14 @@ class TutorLessonPreparationTest {
             root.path("questions").get(i).path("wrongOptionFeedback").forEach(feedback ->
                     ((ObjectNode)feedback).put("distinctionId","D1"));
         assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(root.toString(),SOURCE));
+    }
+
+    @Test void optionsThatOnlyDifferByWhitespaceCannotCreateASecondAnswer() throws Exception {
+        var root=response();
+        ((com.fasterxml.jackson.databind.node.ArrayNode)root.path("questions").get(0).path("options"))
+                .set(1,JSON.getNodeFactory().textNode(" 红色 "));
+        assertEquals(600, assertThrows(BusinessException.class,
+                () -> TutorLessonPreparation.parse(root.toString(),SOURCE)).getCode());
     }
 
     @Test void malformedNestedLegacyDuplicateAndTrailingJsonAreNotRepaired() throws Exception {
