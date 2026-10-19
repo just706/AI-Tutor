@@ -1,10 +1,10 @@
 {
   "suiteVersion": "stage2-flow-v1",
   "date": "2026-10-10",
-  "updatedDate": "2026-10-17",
+  "updatedDate": "2026-10-19",
   "reviewer": "Codex",
-  "scope": "备课契约v2的历史真实内容基线、schema 3两轮真实生成质量验收，以及schema 4显式区分标签目录的本地契约、接口流程、旧状态兼容和一次真实网络失败验收。",
-  "status": "schema4_real_attempted_network_failed_content_review_blocked",
+  "scope": "备课契约v2的历史真实内容基线、schema 3两轮真实生成质量验收，以及schema 4显式区分标签目录的本地契约、接口流程、旧状态兼容、网络失败保护和真实内容验收。",
+  "status": "schema4_real_content_review_failed",
   "runs": [
     {
       "run": "real-v1",
@@ -258,10 +258,82 @@
       "jarSha256": "0f3ce3bff5b8a9422e1638c16d496e529a157c171a549171b25d214a614f2a76",
       "cleanup": "removed",
       "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v1-20261017"
+    },
+    {
+      "run": "real-v9-schema4-content",
+      "date": "2026-10-17",
+      "reviewedDate": "2026-10-19",
+      "preparationSchemaVersion": 4,
+      "passed": false,
+      "automaticChecksPassed": 44,
+      "automaticChecksTotal": 47,
+      "preliminaryChecksPassed": 42,
+      "preliminaryChecksTotal": 42,
+      "flowCasesPassed": 2,
+      "flowCasesTotal": 5,
+      "realCalls": 5,
+      "realTeacherCalls": 0,
+      "providerPreflightHttpStatus": 401,
+      "requestedModel": "deepseek-v4-flash",
+      "responseModels": [
+        "deepseek-flash"
+      ],
+      "modelResponsesReceived": 5,
+      "http200Responses": 5,
+      "modelErrors": 0,
+      "totalTokens": 11880,
+      "contentReviewStatus": "failed",
+      "contentReviewPassed": false,
+      "interfaceCasesPassed": 2,
+      "interfaceCasesTotal": 5,
+      "contentCasesPassed": 3,
+      "contentCasesTotal": 5,
+      "generatedLessonsAccepted": 1,
+      "generatedLessonsReviewed": 4,
+      "questionsReviewed": 20,
+      "questionsWithUnambiguousUniqueAnswer": 18,
+      "wrongOptionFeedbackReviewed": 46,
+      "wrongOptionFeedbackPassed": 40,
+      "unsupportedErrorProcessClaimsFound": 4,
+      "distinctionsReviewed": 14,
+      "unusedDistinctionsFound": 1,
+      "observedDistinctionMatches": 2,
+      "observedNoDistinctionMatches": 1,
+      "statePreservedAfterRejectedPreparation": 3,
+      "historyPreservedAfterRejectedPreparation": 3,
+      "u02SupportedFalseConfirmed": true,
+      "failures": [
+        {
+          "id": "J01",
+          "reason": "题目和11条错误反馈的内容通过，但理解检查使用的D1没有覆盖到应用练习，服务端拒绝整轮备课。"
+        },
+        {
+          "id": "M01",
+          "reason": "诊断标签D1和D3没有覆盖到理解检查；第五题A和D均可正确回答“不能”，另有4条反馈从选项数值推测学生的计算过程。"
+        },
+        {
+          "id": "U01",
+          "reason": "D3未被任何反馈引用，解析器因标签未使用拒绝响应；第三题A和B均为真，且B的反馈误读了选项。"
+        }
+      ],
+      "passedCases": [
+        "J02",
+        "U02"
+      ],
+      "failure": "4份有效资料仅J02被完整接受；J01、M01和U01被严格契约拒绝，M01与U01还各有1道双正确答案题。schema 4真实内容与路由质量验收失败。",
+      "rootCause": "服务端契约已能拒绝未使用标签和阶段覆盖不足，但当前提示仍不能让真实模型稳定满足契约、保证唯一答案或避免推测隐藏计算过程。",
+      "contentReviewSha256": "861d895f76eb00f9988b11535c6f1e723ef373a14844613662325a94fadf1742",
+      "rawResponseFileSha256": "ed3730b43abdd69f24272257d8be10ad0b7948a3c8ed90b18640b15d51910c18",
+      "suiteSha256": "d14a995c60231fea0c8c9f5e607f00601cfa3a2f24a8a8f0f9f13e1af27c8526",
+      "scriptSha256": "6b21de8ac1efb23326198a0e81e5577eb2e52d80aebff26012a5ccb7ed032eaf",
+      "providerHelperSha256": "b7f574d1d38592402c9684589c428553dfc8b785daec0b34258ebd9009907381",
+      "jarSha256": "0f3ce3bff5b8a9422e1638c16d496e529a157c171a549171b25d214a614f2a76",
+      "cleanup": "removed",
+      "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v2-20261017"
     }
   ],
-  "totalRealCalls": 40,
-  "authorizedMaximumCalls": 40,
+  "totalRealCalls": 45,
+  "authorizedMaximumCalls": 45,
   "failurePreserved": {
     "run": "real-v1",
     "caseId": "M01",
@@ -325,13 +397,13 @@
     "页面验收和真实教材检索备课质量不包含在本轮中。",
     "编号及结构校验不能自动证明证据支持解释；仍需真实内容核验。",
     "错误反馈提前随备课生成；schema 3新学习先匹配所选错误选项和候选题的同名可观察区分点，再以原文重合作同类题排序，旧v1进度继续使用原规则。标签由模型生成，不证明已识别学生心理、能力或真实错因，无自由文本诊断。",
-    "累计40次真实调用授权已用完；schema 4 最新一轮的5次请求均因网络 fetch failed 失败，未形成真实模型内容结论，不自动追加调用。",
+    "累计45次真实调用授权已用完；最新5次schema 4请求均收到HTTP 200，但真实内容与路由质量验收失败，不自动追加调用。",
     "选项位置依赖检测仅覆盖常见字母与相对位置表达，可能保守跳过变量名，不能替代语义审阅；均衡只适用于同选项数且可重排的题组。",
     "上下文校验只识别常见引用词及题干开头的无前提回指，可能误拦或漏检；不证明所有题干语义独立。",
     "schema 3首次真实生成的事实、答案、解释与证据通过审阅，但45条focus无一跨题逐字复用，6次实际选题均无区分点匹配。第二次真实生成已有11组跨题逐字复用标签，但4份有效资料仅J01满足完整覆盖契约，J02、M01、U01均被严格拒绝；M01另有平均变化率选项歧义，U01补讲颜色顺序错误，唯一接受案例未走错误分支，仍未观察到真实DISTINCTION_MATCH。旧J02响应回放被拒绝，当前保留45/46原始结果，此前42/43记录单独保留。",
-    "当前schema 4把2至4个区分标签集中定义为有序ID目录，错误反馈只能引用目录ID；服务端统一还原标签文本并继续校验阶段覆盖。该契约仅通过本地替身与固定用例，尚无真实生成质量结论。",
+    "当前schema 4把2至4个区分标签集中定义为有序ID目录，错误反馈只能引用目录ID；服务端统一还原标签文本并继续校验阶段覆盖。真实复测中4份有效资料仅J02被完整接受，说明契约的拒绝边界生效，但模型生成稳定性仍未通过。",
     "选题仅在两道检查、两道练习中进行，题池可能没有合适备用题；本地合成分支通过不证明对真实学习有效。",
-    "schema 4 最新真实验收的 J01、J02、M01、U01、U02 均未收到模型响应；content-review.json 将内容审查标记为 blocked。U02 的 supported:false 未由真实响应确认，只确认失败后没有推进且状态与历史保留。"
+    "schema 4第一次真实验收的5次请求均在收到响应前fetch failed，该历史记录仍保留为blocked；第二次5次请求均HTTP 200，U02已确认supported:false，J02观察到2次DISTINCTION_MATCH和1次NO_DISTINCTION_MATCH。J01、M01、U01被契约拒绝，M01和U01各有1道双正确答案题，阶段2仍未完成。"
   ],
   "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011",
   "authorizationUpdatedDate": "2026-10-17",
@@ -382,14 +454,14 @@
     "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-feedback-20261011/replay-revised"
   },
   "historicalEvidenceLocation": "D:\\AI-Tutor-工作资料\\work\\stage2-flow-evaluation-20261010",
-  "finalCaseReviewAppliesTo": "仅real-v5原始提示和固定响应的历史内容审阅；schema 3已在real-v6与real-v7真实评测，均未通过新增区分点质量标准。当前schema 4在real-v8尝试真实验收时全部请求失败，没有可审阅的模型内容。",
+  "finalCaseReviewAppliesTo": "real-v5仅是历史内容基线；schema 3的real-v6与real-v7均未通过新区分点标准。schema 4的real-v8因网络失败受阻，real-v9已取得5份真实响应并完成逐案审阅，结论为内容与路由质量验收失败。",
   "currentImplementation": {
     "preparationSchemaVersion": 4,
-    "date": "2026-10-17",
-    "realEvaluated": false,
+    "date": "2026-10-19",
+    "realEvaluated": true,
     "realEvaluationPassed": false,
-    "previousRealEvaluationRun": "real-v7-schema3-reusable-focus",
-    "realEvaluationPendingReason": "schema 4真实验收已消耗5次调用，但DeepSeek请求全部因 TypeError: fetch failed 失败，未形成真实模型内容结论；累计40次授权已用完，不能追加调用。",
+    "previousRealEvaluationRun": "real-v8-schema4-network-failure",
+    "realEvaluationPendingReason": "schema 4真实内容已审阅，但4份有效资料仅J02被完整接受；J01、M01、U01契约失败，M01和U01还各有1道双正确答案题，因此阶段二第三项仍待修正。",
     "realContentBaseline": "real-v5-evidence-contract-v2",
     "newExternalCalls": 5,
     "backendTestsPassed": 222,
@@ -421,9 +493,9 @@
       "semanticMisconceptionMatchingVerified": false
     },
     "realEvaluationAttempted": true,
-    "realEvaluationBlocked": true,
-    "lastRealEvaluationRun": "real-v8-schema4-network-failure",
-    "realEvaluationEvidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v1-20261017"
+    "realEvaluationBlocked": false,
+    "lastRealEvaluationRun": "real-v9-schema4-content",
+    "realEvaluationEvidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v2-20261017"
   },
   "currentImplementationReplay": {
     "originalResponsesUnmodified": true,
@@ -702,31 +774,41 @@
     "evidenceLocation": "D:/AI-Tutor-工作资料/work/stage2-option-order-20261012/final-replay"
   },
   "latestRealEvaluation": {
-    "run": "real-v8-schema4-network-failure",
-    "status": "blocked",
+    "run": "real-v9-schema4-content",
+    "status": "failed",
     "realCalls": 5,
-    "networkFailures": 5,
-    "contentQualityConclusion": "unavailable",
-    "distinctionConclusion": "unavailable",
-    "distinctionMatchConclusion": "unavailable",
-    "u02SupportedFalseConfirmed": false,
-    "statePreservedAfterFailure": 5,
-    "historyPreservedAfterFailure": 5,
-    "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v1-20261017"
+    "modelResponsesReceived": 5,
+    "http200Responses": 5,
+    "totalTokens": 11880,
+    "interfaceCasesPassed": 2,
+    "interfaceCasesTotal": 5,
+    "contentCasesPassed": 3,
+    "contentCasesTotal": 5,
+    "questionsWithUnambiguousUniqueAnswer": 18,
+    "questionsReviewed": 20,
+    "wrongOptionFeedbackPassed": 40,
+    "wrongOptionFeedbackReviewed": 46,
+    "contentQualityConclusion": "failed",
+    "distinctionConclusion": "failed",
+    "distinctionMatchConclusion": "J02 observed two DISTINCTION_MATCH selections and one NO_DISTINCTION_MATCH fallback",
+    "u02SupportedFalseConfirmed": true,
+    "statePreservedAfterRejectedPreparation": 3,
+    "historyPreservedAfterRejectedPreparation": 3,
+    "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v2-20261017"
   },
   "providerTransportVerification": {
     "date": "2026-10-17",
-    "status": "locally_verified_real_content_review_pending",
-    "externalGenerationCalls": 0,
-    "cumulativeAuthorizedAttempts": 40,
-    "authorizedMaximumCalls": 40,
+    "status": "real_generation_confirmed_content_review_failed",
+    "externalGenerationCalls": 5,
+    "cumulativeAuthorizedAttempts": 45,
+    "authorizedMaximumCalls": 45,
     "scriptRegressionTestsPassed": 11,
     "localApiChecksPassed": 47,
     "localCleanup": "removed",
     "networkDiagnosis": {
       "restrictedErrorCode": "EACCES",
       "authorizedAnonymousHttpStatus": 401,
-      "authenticationVerified": false,
+      "authenticationVerified": true,
       "historicalFailureRootCauseConfirmed": false
     },
     "faultInjection": {
@@ -748,10 +830,18 @@
     "providerHelperSha256": "b7f574d1d38592402c9684589c428553dfc8b785daec0b34258ebd9009907381",
     "jarSha256": "0f3ce3bff5b8a9422e1638c16d496e529a157c171a549171b25d214a614f2a76",
     "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-provider-guard-20261017",
+    "subsequentRealGeneration": {
+      "run": "real-v9-schema4-content",
+      "http200Responses": 5,
+      "modelErrors": 0,
+      "totalTokens": 11880,
+      "contentReviewPassed": false,
+      "evidenceLocation": "C:/Users/飘泊月/Documents/Codex/2026-10-15/ai-tutor-thread-01a0c3b1-fb04-78d2/work/stage2-schema4-real-v2-20261017"
+    },
     "limitations": [
-      "Anonymous connectivity does not verify credentials, balance or model generation.",
+      "The historical anonymous 401 preflight alone did not verify credentials, balance or model generation; the later five HTTP 200 generation responses verified credential and model access for that run only.",
       "The injected transport failure sends no external inference request and is not a real model evaluation.",
-      "Original real-v8 artifacts and the 40/40 authorized attempt count remain unchanged."
+      "Original real-v8 artifacts and its historical 40/40 authorized attempt count remain unchanged; the subsequent authorized run brings the cumulative total to 45/45."
     ]
   }
 }
