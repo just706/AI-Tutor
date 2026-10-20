@@ -81,6 +81,12 @@ public final class RagKeywordScorer {
         // 对象和所问属性分别校验，避免长中文名称掩盖完全缺失的属性证据。
         String evidence = evidenceText(text);
         if (question.subjects().stream().anyMatch(name -> !RagQuestionParser.containsName(evidence, name))) return 0;
+        // 标题的主体和完整属性须在同一句出现，避免拼接片段中其他对象的属性。
+        if (question.completeFocus() && (focus.chinese().isEmpty()
+                || java.util.Arrays.stream(evidence.split("[。！？；;\\r\\n]"))
+                .noneMatch(sentence -> question.subjects().stream()
+                        .allMatch(name -> RagQuestionParser.containsName(sentence, name))
+                        && tokenize(sentence).chinese().containsAll(focus.chinese())))) return 0;
         if (genericFeatures && question.subjects().stream().anyMatch(name -> !describesSubject(text, name))) return 0;
         if (!question.subjects().isEmpty() && !question.comparison()
                 && (coverage(overlap(focus.latin(), document.latin()), focus.latin().size()) < MIN_LATIN_COVERAGE

@@ -22,7 +22,9 @@ const { values: options } = parseArgs({ options: {
   'hold-for-browser': { type: 'boolean', default: false },
   'teacher-model': { type: 'string', default: 'stub' },
   'flow-evaluation': { type: 'string', default: 'off' },
+  'textbook-flow-evaluation': { type: 'string', default: 'off' },
   'flow-replay-file': { type: 'string' },
+  'textbook-flow-replay-file': { type: 'string' },
 } });
 assert(options['output-dir'], '必须指定 --output-dir，日志和临时上传文件应保存在源码仓库外。');
 const projectRoot = path.resolve(options['project-root']);
@@ -46,12 +48,19 @@ if (options['env-file']) {
 const setting = (name, fallback) => process.env[name] ?? config[name] ?? fallback;
 assert(['stub','real'].includes(options['teacher-model']));
 assert(['off','stub','real','replay'].includes(options['flow-evaluation']));
+assert(['off','stub','real','replay'].includes(options['textbook-flow-evaluation']));
 const realTeacher = options['teacher-model'] === 'real';
 const realFlow = options['flow-evaluation'] === 'real';
+const realTextbookFlow = options['textbook-flow-evaluation'] === 'real';
+const hasRealModel = realTeacher || realFlow || realTextbookFlow;
 const replayFlow = options['flow-evaluation'] === 'replay';
-assert(!(realTeacher && realFlow), '两类真实模型验收请分别运行，以明确数据和调用预算。');
-assert(!(realTeacher && replayFlow), '本地回放不能同时启用真实教师模型。');
+const replayTextbookFlow = options['textbook-flow-evaluation'] === 'replay';
+const hasReplay = replayFlow || replayTextbookFlow;
+assert(!(realTeacher && (realFlow || realTextbookFlow)), '两类真实模型验收请分别运行，以明确数据和调用预算。');
+assert(!(hasRealModel && hasReplay), '真实模型验收不能与本地回放混用。');
 assert.equal(Boolean(options['flow-replay-file']), replayFlow, 'replay 模式必须提供 --flow-replay-file，其他模式不得提供。');
+assert.equal(Boolean(options['textbook-flow-replay-file']), replayTextbookFlow,
+  'replay 模式必须提供 --textbook-flow-replay-file，其他模式不得提供。');
 const flowSuitePath = path.join(backendRoot, 'evaluation/stage2-flow-cases.json');
 const flowSuite = options['flow-evaluation'] === 'off' ? null : JSON.parse(readFileSync(flowSuitePath, 'utf8'));
 if (flowSuite) {
@@ -59,9 +68,22 @@ if (flowSuite) {
   assert.equal(new Set(flowSuite.cases.map(item => item.id)).size, 5);
   assert(flowSuite.cases.every(item => ['correct','remediate','insufficient'].includes(item.path)));
 }
+const textbookFlowSuitePath = path.join(backendRoot,'evaluation/stage2-textbook-flow-cases.json');
+const textbookFlowSuite = options['textbook-flow-evaluation']==='off' ? null
+  : JSON.parse(readFileSync(textbookFlowSuitePath,'utf8'));
+if(textbookFlowSuite) {
+  assert.equal(textbookFlowSuite.cases.length,2);
+  assert.equal(new Set(textbookFlowSuite.cases.map(item=>item.id)).size,2);
+  assert(textbookFlowSuite.cases.every(item=>item.supported===true && item.path==='remediate'
+    && typeof item.source==='string' && item.source.length>15 && item.source.length<800
+    && /^[a-z0-9-]+\.txt$/.test(item.filename)));
+}
 const replayBytes = replayFlow ? readFileSync(options['flow-replay-file']) : null;
 const replaySha256 = replayBytes ? createHash('sha256').update(replayBytes).digest('hex') : undefined;
 const replayRequests = replayBytes ? JSON.parse(replayBytes.toString('utf8')) : [];
+const textbookReplayBytes = replayTextbookFlow ? readFileSync(options['textbook-flow-replay-file']) : null;
+const textbookReplaySha256 = textbookReplayBytes ? createHash('sha256').update(textbookReplayBytes).digest('hex') : undefined;
+const textbookReplayRequests = textbookReplayBytes ? JSON.parse(textbookReplayBytes.toString('utf8')) : [];
 function lessonSourceText(source) {
   if (typeof source === 'string') return source; // 仅为历史响应的本地回放保留旧输入格式。
   assert(Array.isArray(source) && source.length>0 && source.length<=64);
@@ -71,25 +93,37 @@ function lessonSourceText(source) {
   });
   return source.map(unit=>unit.text).join('');
 }
-if (replayFlow) {
-  assert(Array.isArray(replayRequests) && replayRequests.length === flowSuite.cases.length, '回放必须包含完整固定题集。');
-  assert.equal(new Set(replayRequests.map(item => item.caseId)).size, flowSuite.cases.length);
-  for (const item of flowSuite.cases) {
-    const saved = replayRequests.find(request => request.caseId === item.id);
+for (const [enabled,requests,suite,textbook] of [
+  [replayFlow,replayRequests,flowSuite,false],
+  [replayTextbookFlow,textbookReplayRequests,textbookFlowSuite,true],
+]) {
+  if (!enabled) continue;
+  assert(Array.isArray(requests) && requests.length === suite.cases.length, '回放必须包含完整固定题集。');
+  assert.equal(new Set(requests.map(item => item.caseId)).size,suite.cases.length,'回放案例编号不得重复。');
+  for (const item of suite.cases) {
+    const saved = requests.find(request => request.caseId === item.id);
     assert(saved && typeof saved.answer === 'string' && saved.answer.trim(), '回放案例缺少原始响应。');
-    assert.equal(lessonSourceText(JSON.parse(saved.messages.at(-1).content).source), item.source, '回放资料必须与冻结题集一致。');
+    assert(Array.isArray(saved.messages) && saved.messages.at(-1)?.role==='user','回放缺少原始资料消息。');
+    const data=JSON.parse(saved.messages.at(-1).content);
+    const expectedSource=textbook ? `片段1｜文档：${item.filename}｜chunkIndex：0\n${item.source}` : item.source;
+    assert.equal(lessonSourceText(data.source),expectedSource,'回放资料必须与冻结题集一致。');
+    if(textbook) {
+      assert(Array.isArray(data.source),'教材回放必须保留编号证据目录。');
+      assert.equal(data.topic,item.topic,'教材回放主题必须与冻结题集一致。');
+    }
   }
 }
 const teacherModel = setting('DEEPSEEK_MODEL_NAME','deepseek-v4-flash');
 const teacherKey = setting('DEEPSEEK_API_KEY','');
 const teacherProvider = new URL(setting('DEEPSEEK_BASE_URL','https://api.deepseek.com'));
-if(realTeacher || realFlow) {
+if(hasRealModel) {
   assert(teacherKey, '真实模型密钥未配置');
   assert.equal(teacherProvider.origin,'https://api.deepseek.com');
   assert(!teacherProvider.username && !teacherProvider.password && !teacherProvider.search && !teacherProvider.hash);
 }
-const realProvider = realTeacher || realFlow ? createEvaluationProvider({
-  baseUrl: teacherProvider.href, apiKey: teacherKey, maxCalls: realFlow ? 5 : 16,
+const realModelCallLimit = realTeacher ? 16 : (realFlow ? 5 : 0)+(realTextbookFlow ? 2 : 0);
+const realProvider = hasRealModel ? createEvaluationProvider({
+  baseUrl: teacherProvider.href, apiKey: teacherKey, maxCalls: realModelCallLimit,
 }) : null;
 let providerPreflight;
 const configuredUrl = setting('SPRING_DATASOURCE_URL', 'jdbc:mysql://localhost:3306/ai_tutor');
@@ -125,11 +159,22 @@ const modelRequests = [];
 const modelErrors = [];
 const teacherRequests = [];
 const flowRequests = [];
+const textbookFlowRequests = [];
 const lessonInputs = [];
 const flowCaseResults = [];
+const textbookFlowCaseResults = [];
+function saveEvaluationArtifacts() {
+  for(const [filename,data] of [
+    ['model-errors.json',modelErrors],['teacher-requests.json',teacherRequests],
+    ['flow-requests.json',flowRequests],['flow-case-results.json',flowCaseResults],
+    ['textbook-flow-requests.json',textbookFlowRequests],['textbook-flow-case-results.json',textbookFlowCaseResults],
+  ]) writeFileSync(path.join(outputDir,filename),JSON.stringify(data,null,2));
+}
 let realTeacherCalls = 0;
 let realFlowCalls = 0;
+let realTextbookFlowCalls = 0;
 let activeFlowCase;
+let activeTextbookFlowCase;
 let malformedLessonNext = false;
 let unsupportedLessonNext = false;
 let invalidOptionFeedbackNext;
@@ -226,22 +271,34 @@ const modelServer = createServer(async (request, response) => {
         content=JSON.stringify(prepared); invalidQuestionContextNext=undefined;
       }
       if (unsupportedLessonNext) { unsupportedLessonNext=false; content='{"supported":false}'; }
-      if (activeFlowCase) {
-        assert.equal(sourceText, activeFlowCase.source, '只允许发送固定题集内的自编资料');
-        assert.equal(data.topic, activeFlowCase.resolvedTopic);
-        const record = {caseId:activeFlowCase.id, messages:payload.messages, requestedModel:payload.model,
-          mode:options['flow-evaluation'], startedAt:new Date().toISOString()};
-        flowRequests.push(record);
+      if (activeFlowCase || activeTextbookFlowCase) {
+        assert(!(activeFlowCase && activeTextbookFlowCase),'两种备课案例不得同时激活');
+        const item=activeFlowCase ?? activeTextbookFlowCase;
+        const textbookCase=Boolean(activeTextbookFlowCase);
+        const expectedSource=textbookCase
+          ? `片段1｜文档：${item.filename}｜chunkIndex：0\n${item.source}` : item.source;
+        assert.equal(sourceText, expectedSource, '只允许发送当前固定案例完整且一致的自编资料');
+        assert.equal(data.topic, item.resolvedTopic);
+        const record = {caseId:item.id, messages:payload.messages, requestedModel:payload.model,
+          mode:textbookCase ? options['textbook-flow-evaluation'] : options['flow-evaluation'],
+          sourceKind:textbookCase ? 'uploaded-textbook' : 'manual', startedAt:new Date().toISOString()};
+        const requests=textbookCase ? textbookFlowRequests : flowRequests;
+        assert(!requests.some(request=>request.caseId===item.id),'每个固定案例最多发送一次备课请求，不自动重试');
+        requests.push(record);
         try {
-          if (realFlow) {
+          if (textbookCase ? realTextbookFlow : realFlow) {
             let result;
+            const before=realProvider.calls;
             try { result = await realProvider.complete(payload, record); }
-            finally { realFlowCalls = realProvider.calls; }
+            finally {
+              if(textbookCase) realTextbookFlowCalls+=realProvider.calls-before;
+              else realFlowCalls+=realProvider.calls-before;
+            }
             content = result.choices?.[0]?.message?.content;
             assert(typeof content === 'string' && content.trim(), '备课模型未返回内容');
             record.responseModel = result.model; record.usage = result.usage;
-          } else if (replayFlow) {
-            const saved = replayRequests.find(request => request.caseId === activeFlowCase.id);
+          } else if (textbookCase ? replayTextbookFlow : replayFlow) {
+            const saved = (textbookCase ? textbookReplayRequests : replayRequests).find(request => request.caseId === item.id);
             const savedData=JSON.parse(saved.messages.at(-1).content);
             assert.equal(savedData.topic,data.topic,'回放主题必须一致');
             assert.equal(lessonSourceText(savedData.source),sourceText,'回放资料必须一致');
@@ -251,8 +308,8 @@ const modelServer = createServer(async (request, response) => {
               !==JSON.stringify(payload.messages.filter(m=>m.role==='system'));
             // 原样回放，包括不合法的 JSON；不修补模型响应，不产生外部调用。
             content = saved.answer;
-            record.replaySha256 = replaySha256;
-          } else if (!activeFlowCase.supported) content='{"supported":false}';
+            record.replaySha256 = textbookCase ? textbookReplaySha256 : replaySha256;
+          } else if (!item.supported) content='{"supported":false}';
           record.answer = content;
         } catch (error) { record.errorType = error.name; throw error; }
         finally { record.finishedAt = new Date().toISOString(); }
@@ -302,7 +359,7 @@ const modelServer = createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 20, completion_tokens: 10 } }));
   } catch (error) {
-    modelErrors.push({caseId:activeFlowCase?.id, type:error.name, message:error.message,
+    modelErrors.push({caseId:activeFlowCase?.id ?? activeTextbookFlowCase?.id, type:error.name, message:error.message,
       providerError:error.diagnostic});
     response.writeHead(400, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ error: { message: 'verification model failure' } }));
@@ -321,7 +378,7 @@ const api = async (route, { token, body, method = body === undefined ? 'GET' : '
     method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(!form && body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
     body: body === undefined ? undefined : form ? body : JSON.stringify(body),
-    signal: AbortSignal.timeout(realTeacher || realFlow ? 90000 : 30000),
+    signal: AbortSignal.timeout(hasRealModel ? 90000 : 30000),
   });
   const result = await response.json();
   assert.equal(result.code, code, `${method} ${route}: ${result.message}`);
@@ -354,6 +411,16 @@ try {
       requestedModel:realFlow ? teacherModel : (replayFlow ? 'saved-response-replay' : 'local-verification'),
       mode:options['flow-evaluation'], replaySha256},null,2));
   }
+  if(textbookFlowSuite) {
+    writeFileSync(path.join(outputDir,'textbook-flow-cases.json'),JSON.stringify(textbookFlowSuite,null,2));
+    writeFileSync(path.join(outputDir,'textbook-flow-provenance.json'),JSON.stringify({version:textbookFlowSuite.version,
+      suiteSha256:createHash('sha256').update(readFileSync(textbookFlowSuitePath)).digest('hex'),
+      scriptSha256:createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex'),
+      providerHelperSha256:createHash('sha256').update(readFileSync(new URL('./evaluation-provider.mjs',import.meta.url))).digest('hex'),
+      jarSha256:createHash('sha256').update(readFileSync(jarPath)).digest('hex'),
+      requestedModel:realTextbookFlow ? teacherModel : (replayTextbookFlow ? 'saved-response-replay' : 'local-verification'),
+      mode:options['textbook-flow-evaluation'],realModelCallLimit,replaySha256:textbookReplaySha256},null,2));
+  }
   if (realProvider) {
     providerPreflight = await realProvider.preflight();
     writeFileSync(path.join(outputDir,'provider-preflight.json'),JSON.stringify(providerPreflight,null,2));
@@ -361,6 +428,8 @@ try {
       for (const item of flowSuite?.cases ?? []) flowCaseResults.push({id:item.id, passed:false,
         expectedSupported:item.supported, states:[], skipped:true, status:'blocked',
         reason:'匿名连接预检失败，未创建学习会话或发送生成请求。'});
+      for (const item of textbookFlowSuite?.cases ?? []) textbookFlowCaseResults.push({id:item.id,passed:false,
+        states:[],skipped:true,status:'blocked',reason:'匿名连接预检失败，未上传资料、创建学习会话或发送生成请求。'});
       assert.fail('真实验收连接预检失败；未发送生成请求，详见 provider-preflight.json。');
     }
   }
@@ -398,8 +467,8 @@ try {
       JWT_SECRET: randomBytes(48).toString('hex'), RAG_STORAGE_DIR: path.join(outputDir, 'uploads'),
       RAG_CHUNK_SIZE: '800', RAG_CHUNK_OVERLAP: '120', RAG_TOP_K: '4',
       DEEPSEEK_BASE_URL: `http://127.0.0.1:${modelPort}`, DEEPSEEK_API_KEY: 'local-verification-only',
-      DEEPSEEK_MODEL_NAME: realTeacher || realFlow ? teacherModel : 'local-verification',
-      DEEPSEEK_TIMEOUT_MS: realTeacher || realFlow ? '60000' : '5000' },
+      DEEPSEEK_MODEL_NAME: hasRealModel ? teacherModel : 'local-verification',
+      DEEPSEEK_TIMEOUT_MS: hasRealModel ? '60000' : '5000' },
   });
   javaProcess.stdout.pipe(backendLog, { end: false });
   javaProcess.stderr.pipe(backendLog, { end: false });
@@ -1235,10 +1304,127 @@ try {
         }
       }
     }
-    assert(flowCaseResults.every(item => item.passed), '循序学习固定案例未全部通过，详见 flow-case-results.json');
   }
 
+  if(textbookFlowSuite) {
+    for(const item of textbookFlowSuite.cases) {
+      const record={id:item.id,topic:item.topic,passed:false,states:[],responses:[]};
+      textbookFlowCaseResults.push(record);
+      if(realTextbookFlow && realProvider.blocked) {
+        Object.assign(record,{skipped:true,status:'blocked',providerError:realProvider.blocked,
+          reason:'本轮此前发生连接、鉴权、限流或服务错误，未上传资料或追加生成请求。'});
+        continue;
+      }
+      let turn,initialHistory;
+      const realCallsBefore=realProvider?.calls ?? 0;
+      try {
+        record.document=await upload(item.source,item.filename,token);
+        assert.equal(record.document.processStatus,'completed');
+        record.graphExtraction=await waitForExtraction(record.document.personalGraphExtractionId,token);
+        assert.equal(realProvider?.calls ?? 0,realCallsBefore,'上传和图谱提取不得调用外部模型');
+        record.chunks=await api(`/documents/${record.document.documentId}/chunks`,{token});
+        assert.equal(record.chunks.length,1);
+        assert.equal(record.chunks[0].chunkIndex,0);
+        assert.equal(record.chunks[0].chunkText,item.source,'上传切片必须与冻结教材逐字一致');
+        const created=await api('/conversations',{token,body:{title:'教材闭环 '+item.topic,mode:'rag',
+          documentIds:[record.document.documentId]}});
+        turn={conversationId:created.conversationId};
+        record.conversationId=turn.conversationId;
+        initialHistory=await api('/conversations/'+turn.conversationId+'/messages',{token});
+        assert.deepEqual(initialHistory,[]);
+        const before=modelRequests.length;
+        activeTextbookFlowCase={...item,resolvedTopic:item.topic};
+        try {
+          turn.result=await api('/tutor-agent/chat',{token,body:{conversationId:turn.conversationId,
+            message:item.topic,flowAction:'start'}});
+        } finally { activeTextbookFlowCase=undefined; }
+        assert.equal(modelRequests.length,before+1);
+        assert.equal(turn.result.learningSession.flow.stage,'DIAGNOSING');
+        assert.equal(turn.result.learningSession.flow.topic,item.topic);
+        assert.equal(turn.result.learningSession.flow.textbookBased,true);
+        const sources=turn.result.sources;
+        assert.deepEqual(sources,[{documentId:record.document.documentId,fileName:item.filename,
+          chunkIndex:0,snippet:record.chunks[0].chunkText,available:true}]);
+        record.sources=sources;
+        const request=textbookFlowRequests.find(request=>request.caseId===item.id);
+        record.sourceCatalog=JSON.parse(request.messages.at(-1).content).source;
+        const prepared=JSON.parse(request.answer);
+        assert.equal(prepared.supported,true);
+        const snapshot=readSavedFlow(turn.result.learningSession.id);
+        record.preparedLesson=snapshot.lesson;
+        assert.deepEqual(snapshot.materials,{documentIds:[record.document.documentId],sources});
+        const original=prepared.questions,saved=[snapshot.lesson.diagnosis,...snapshot.lesson.checks,...snapshot.lesson.practices];
+        assert.equal(original.length,saved.length);
+        for(let i=0;i<saved.length;i++) {
+          assert.equal(saved[i].prompt,original[i].prompt);
+          assert.equal(saved[i].explanation,original[i].explanation);
+          assert.deepEqual([...saved[i].options].sort(),[...original[i].options].sort());
+          assert.equal(saved[i].options[saved[i].correctOption.charCodeAt(0)-65],
+            original[i].options[original[i].correctOption.charCodeAt(0)-65]);
+          for(const feedback of saved[i].wrongOptionFeedback) {
+            const raw=original[i].wrongOptionFeedback.find(candidate=>
+              original[i].options[candidate.option.charCodeAt(0)-65]===saved[i].options[feedback.option.charCodeAt(0)-65]);
+            assert(raw,'选项重排不得丢失教材补讲');
+            assert.equal(feedback.explanation,raw.explanation);
+            assert.equal(feedback.focus,prepared.distinctions.find(d=>d.id===raw.distinctionId)?.label);
+            assert.deepEqual(feedback.evidence,raw.evidenceIds.map(id=>record.sourceCatalog.find(unit=>unit.id===id)));
+          }
+        }
+        record.optionOrder={original:original.map(q=>q.correctOption),saved:saved.map(q=>q.correctOption),
+          contentAndFeedbackPreserved:true};
+        const capture=async()=>{
+          const active=await api('/learning-sessions/active?conversationId='+turn.conversationId,{token});
+          assert.deepEqual(active.flow,turn.result.learningSession.flow,'重新读取必须恢复相同阶段及当前题目');
+          assert(!JSON.stringify(active).includes('correctOption'));
+          assert(!JSON.stringify(active).includes('"lesson"'));
+          assert(!JSON.stringify(active).includes('materials'));
+          assert.deepEqual(turn.result.sources,sources);
+          record.states.push(active.flow);
+          record.responses.push(turn.result);
+        };
+        await capture();
+        const step=async(action,message,stage)=>{await flowStep(turn,action,message,stage);await capture();};
+        const answer=async(correct,stage)=>{await flowAnswer(turn,correct,stage);await capture();};
+        await answer(false,'TEACHING');
+        await step('continue','开始理解检查','CHECKING');
+        const firstCheck=turn.result.learningSession.flow.prompt;
+        await answer(false,'RETEACHING');
+        await step('continue','再次检查','CHECKING');
+        assert.notEqual(turn.result.learningSession.flow.prompt,firstCheck);
+        await answer(true,'PRACTICE');
+        await answer(true,'FEEDBACK');
+        assert(turn.result.learningSession.flow.passed);
+        record.history=await api('/conversations/'+turn.conversationId+'/messages',{token});
+        assert.equal(record.history.length,14);
+        assert(record.history.filter(message=>message.role==='assistant')
+          .every(message=>JSON.stringify(message.sources)===JSON.stringify(sources)));
+        record.savedFlow=readSavedFlow(turn.result.learningSession.id);
+        assert.deepEqual(record.savedFlow.lesson,snapshot.lesson);
+        assert.deepEqual(record.savedFlow.materials,snapshot.materials);
+        assert.equal(modelRequests.length,before+1,'教材诊断、补讲、检查、练习及恢复不得追加模型调用');
+        assert.equal((realProvider?.calls ?? 0)-realCallsBefore,realTextbookFlow ? 1 : 0);
+        await api('/conversations/'+turn.conversationId+'/messages',{token:otherToken,code:404});
+        await api('/learning-sessions/active?conversationId='+turn.conversationId,{token:otherToken,code:404});
+        record.passed=true;
+        pass('教材闭环案例 '+item.id+'：'+item.topic+'，上传检索、补讲、练习与恢复通过，内容仍须独立审阅');
+      } catch(error) {
+        record.error=error.message;
+        if(turn && initialHistory) {
+          record.stateAfterFailure=await api('/learning-sessions/active?conversationId='+turn.conversationId,{token});
+          record.historyAfterFailure=await api('/conversations/'+turn.conversationId+'/messages',{token});
+          if(!record.states.length) {
+            record.statePreservedAfterFailure=record.stateAfterFailure===null;
+            record.historyPreservedAfterFailure=JSON.stringify(record.historyAfterFailure)===JSON.stringify(initialHistory);
+          }
+        }
+      }
+    }
+  }
+  assert(flowCaseResults.every(item=>item.passed),'循序学习固定案例未全部通过，详见 flow-case-results.json');
+  assert(textbookFlowCaseResults.every(item=>item.passed),'教材循序学习案例未全部通过，详见 textbook-flow-case-results.json');
+
   if (options['hold-for-browser']) {
+    saveEvaluationArtifacts();
     // 独立账号只包含本次页面验收资料，便于核对教材选择、会话隔离和重新登录。
     const flowBrowserUsername = 'stage0_flow_browser';
     await api('/auth/register', { body: { username: flowBrowserUsername, password } });
@@ -1262,7 +1448,10 @@ try {
       conversationId: browserConversation.conversationId, documentId: browserDocument.documentId,
       mathConversationId: mathConversation.conversationId, physicsConversationId: physicsConversation.conversationId,
       strategyConversations, flowConversations, browserFailureControl, finishPath,
-      flowBrowser: { username: flowBrowserUsername, password, cases: browserCases } }, null, 2));
+      flowBrowser: { username: flowBrowserUsername, password, cases: browserCases },
+      textbookFlow: {username:'stage0_owner',password,modelMode:options['textbook-flow-evaluation'],
+        cases:textbookFlowCaseResults.filter(item=>item.passed).map(item=>({id:item.id,topic:item.topic,
+          conversationId:item.conversationId,documentId:item.document.documentId}))} }, null, 2));
     console.log(`浏览器验收环境已就绪，临时账号与地址见 ${path.join(outputDir, 'browser-fixture.json')}。完成后创建该文件中 finishPath 指定的标记；30 分钟后自动清理。`);
     const deadline = Date.now() + 30 * 60 * 1000;
     while (!existsSync(finishPath) && Date.now() < deadline) await delay(500);
@@ -1270,10 +1459,7 @@ try {
 } catch (error) {
   failure = error;
 } finally {
-  writeFileSync(path.join(outputDir,'model-errors.json'),JSON.stringify(modelErrors,null,2));
-  writeFileSync(path.join(outputDir,'teacher-requests.json'),JSON.stringify(teacherRequests,null,2));
-  writeFileSync(path.join(outputDir,'flow-requests.json'),JSON.stringify(flowRequests,null,2));
-  writeFileSync(path.join(outputDir,'flow-case-results.json'),JSON.stringify(flowCaseResults,null,2));
+  saveEvaluationArtifacts();
   if (javaProcess?.pid && javaProcess.exitCode === null) {
     javaProcess.kill();
     await javaExited;
@@ -1288,9 +1474,14 @@ try {
     catch (error) { failure ??= error; }
   }
   writeFileSync(path.join(outputDir, 'result.json'), JSON.stringify({
-    passed: !failure, checks, model: realTeacher || realFlow ? teacherModel : (replayFlow ? 'saved responses; not a new model-quality evaluation' : 'local deterministic stub; not a model-quality evaluation'),
+    passed: !failure, checks, model: hasRealModel ? teacherModel : (hasReplay ? 'saved responses; not a new model-quality evaluation' : 'local deterministic stub; not a model-quality evaluation'),
     teacherModelMode:options['teacher-model'],realTeacherCalls,requiresTeacherAnswerReview:realTeacher,
-    flowEvaluationMode:options['flow-evaluation'],realFlowCalls,requiresFlowAnswerReview:realFlow,
+    flowEvaluationMode:options['flow-evaluation'],realFlowCalls,requiresFlowAnswerReview:realFlow || replayFlow,
+    textbookFlowEvaluationMode:options['textbook-flow-evaluation'],realTextbookFlowCalls,
+    requiresTextbookFlowAnswerReview:realTextbookFlow || replayTextbookFlow,realModelCallLimit,
+    contentAcceptance:'not_evaluated',
+    realModelCalls:realProvider?.calls ?? 0,textbookFlowSuiteVersion:textbookFlowSuite?.version,
+    textbookFlowCaseCount:textbookFlowCaseResults.length,textbookReplaySha256,
     providerPreflight, providerFailure:realProvider?.blocked,
     flowSuiteVersion:flowSuite?.version,flowCaseCount:flowCaseResults.length,replaySha256,
     temporaryDatabase: schema, cleanup: databaseCreated ? (databaseRemoved ? 'removed' : 'failed') : 'not needed',

@@ -15,6 +15,8 @@ final class RagQuestionParser {
     private static final Pattern COMPARISON = Pattern.compile(
             "^(.+?)(?:有什么|有何|的)?(?:区别|差异|差别|异同|不同|相同点)(?:是什么|有哪些|在哪里|呢)?$");
     private static final Pattern FOCUS = Pattern.compile("^(.+?)(的|在|有什么|有何|是什么|如何|怎么样|怎么|底层)(.*)$");
+    private static final Pattern SPACED_ATTRIBUTE = Pattern.compile(
+            "^([\\p{IsLatin}\\p{N}_$+.#'’\\- ]+?)\\s+([\\p{IsHan}]{2,})$");
     private static final Pattern SEPARATOR = Pattern.compile("\\s*(?:和|与|及|、|\\band\\b|\\bversus\\b|\\bvs\\b)\\s*", Pattern.CASE_INSENSITIVE);
     private static final Pattern NAME = Pattern.compile("[\\p{L}\\p{N}_$+.#'’\\- ]{1,80}");
     private static final Pattern QUESTION_OR_CLAUSE = Pattern.compile(
@@ -27,20 +29,25 @@ final class RagQuestionParser {
         String text = question.trim().replaceFirst("[？?！!。]+$", "").trim()
                 .replaceFirst("^(?:请问|请)\\s*", "");
         // 多分句可能切换话题或同时提出多个任务，不能把截取的半句当作确定对象。
-        if (text.matches("(?s).*[，,。；;:：\\r\\n!?！？].*")) return new Question(List.of(), text, false);
+        if (text.matches("(?s).*[，,。；;:：\\r\\n!?！？].*")) return new Question(List.of(), text, false, false);
         Matcher comparison = COMPARISON.matcher(text);
         if (comparison.matches()) {
             List<String> pair = names(comparison.group(1));
-            if (pair.size() == 2) return new Question(pair, "", true);
+            if (pair.size() == 2) return new Question(pair, "", true, false);
         }
         if (text.startsWith("比较") || text.startsWith("对比")) {
             List<String> pair = names(text.substring(2));
-            if (pair.size() == 2) return new Question(pair, "", true);
+            if (pair.size() == 2) return new Question(pair, "", true, false);
         }
         text = INTRODUCTION.matcher(text).replaceFirst("").trim();
         Matcher focus = FOCUS.matcher(text);
-        if (focus.matches()) return new Question(names(focus.group(1)), focus.group(2) + focus.group(3), false);
-        return new Question(names(text), "", false);
+        if (focus.matches()) return new Question(names(focus.group(1)), focus.group(2) + focus.group(3), false, false);
+        Matcher spacedAttribute = SPACED_ATTRIBUTE.matcher(text);
+        if (spacedAttribute.matches()) {
+            List<String> subjects = names(spacedAttribute.group(1));
+            if (!subjects.isEmpty()) return new Question(subjects, spacedAttribute.group(2), false, true);
+        }
+        return new Question(names(text), "", false, false);
     }
 
     private static List<String> names(String phrase) {
@@ -64,5 +71,5 @@ final class RagQuestionParser {
         return Normalizer.normalize(text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 
-    record Question(List<String> subjects, String focus, boolean comparison) { }
+    record Question(List<String> subjects, String focus, boolean comparison, boolean completeFocus) { }
 }

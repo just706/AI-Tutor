@@ -611,6 +611,19 @@ class RagServiceImplTest {
         verifyNoInteractions(client,historyMapper,logMapper);
     }
 
+    @Test void lessonRetrievalSeparatesASpacedTopicNameFromItsRequestedAttribute() {
+        prepareLessonDocuments();
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(2,INDEX_ACCESS)));
+
+        var context=service.retrieveForLesson(11L,"ArrayList 索引访问");
+        assertEquals(INDEX_ACCESS,context.sources().get(0).getSnippet());
+        assertEquals(List.of(21L),context.documentIds());
+
+        assertEquals(400,assertThrows(BusinessException.class,
+                ()->service.retrieveForLesson(11L,"ArrayList 扩容倍率")).getCode());
+        verifyNoInteractions(client,historyMapper,logMapper);
+    }
+
     @Test void lessonRetrievalRefusesEmptyAndInaccessibleSelections() {
         prepareLessonDocuments();
         var conversation=conversationMapper.selectOne(null);

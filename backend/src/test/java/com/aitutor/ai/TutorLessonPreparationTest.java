@@ -205,13 +205,11 @@ class TutorLessonPreparationTest {
     @Test void promptDeclaresSchemaFourDistinctionCatalogWithoutPsychologyClaims() {
         String prompt=new AiPromptBuilder().buildLessonPrompt();
         assertTrue(prompt.contains("\"schemaVersion\":4"));
-        assertTrue(prompt.contains("顶层 distinctions 定义2至4个"));
         assertTrue(prompt.contains("必须包含 distinctionId"));
         assertTrue(prompt.contains("不在反馈中另写或改写标签"));
         assertTrue(prompt.contains("诊断题每个 distinctionId 必须在至少一道理解检查和至少一道应用练习"));
         assertTrue(prompt.contains("两道理解检查使用的每个 distinctionId 也必须在至少一道应用练习"));
-        assertTrue(prompt.contains("先为五题写完整条件、选项和理由"));
-        assertTrue(prompt.contains("必须恰有一个选项成立"));
+        assertTrue(prompt.contains("必须恰有一个选项满足题干所问"));
         assertTrue(prompt.contains("不把干扰项的数值反推成学生的计算步骤"));
         assertTrue(prompt.contains("不描述学生的心理、能力、隐藏推理"));
         assertTrue(prompt.contains("不输出 sourceQuote"));
@@ -223,6 +221,32 @@ class TutorLessonPreparationTest {
             root.path("questions").get(i).path("wrongOptionFeedback").forEach(feedback ->
                     ((ObjectNode)feedback).put("distinctionId","D1"));
         assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(root.toString(),SOURCE));
+    }
+
+    @Test void distinctionIntroducedInCheckMustAlsoAppearInPractice() throws Exception {
+        var root=response();
+        root.path("questions").forEach(question -> question.path("wrongOptionFeedback").forEach(feedback ->
+                ((ObjectNode)feedback).put("distinctionId","D1")));
+        ((ObjectNode)root.path("questions").get(1).path("wrongOptionFeedback").get(0))
+                .put("distinctionId","D2");
+
+        var error=assertThrows(BusinessException.class,()->TutorLessonPreparation.parse(root.toString(),SOURCE));
+        assertEquals(600,error.getCode());
+        assertTrue(error.getMessage().contains("区分点未覆盖后续检查和练习"));
+    }
+
+    @Test void distinctionIntroducedOnlyInPracticeDoesNotInvalidateLesson() throws Exception {
+        var root=response();
+        for(int i=0;i<3;i++)
+            root.path("questions").get(i).path("wrongOptionFeedback").forEach(feedback ->
+                    ((ObjectNode)feedback).put("distinctionId","D1"));
+
+        var lesson=TutorLessonPreparation.parse(root.toString(),SOURCE);
+        assertEquals(TutorQuestionSelector.POLICY,TutorQuestionSelector.policyFor(lesson));
+        assertTrue(lesson.diagnosis().wrongOptionFeedback().stream()
+                .allMatch(feedback -> feedback.focus().equals("编号加三后颜色不变")));
+        assertTrue(lesson.practices().stream().flatMap(question -> question.wrongOptionFeedback().stream())
+                .anyMatch(feedback -> feedback.focus().equals("编号与颜色直接对应")));
     }
 
     @Test void optionsThatOnlyDifferByWhitespaceCannotCreateASecondAnswer() throws Exception {

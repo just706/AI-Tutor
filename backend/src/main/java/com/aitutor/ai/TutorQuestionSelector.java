@@ -88,8 +88,8 @@ final class TutorQuestionSelector {
 
     static String reason(QuestionSelection selection) {
         return switch (selection.reason()) {
-            case "DISTINCTION_MATCH" -> "这道题检查与最近一次错误相同的区分点，并优先沿用相关原文。";
-            case "NO_DISTINCTION_MATCH" -> "剩余题目中没有同一区分点的题，按原顺序继续检查。";
+            case "DISTINCTION_MATCH" -> "根据本轮备课安排，优先用这道题继续检查理解。";
+            case "NO_DISTINCTION_MATCH" -> "接下来用一道未作答题继续检查理解。";
             case "SHARED_EVIDENCE" -> "这道题引用了最近一次补讲中的原文，先用它检查理解。";
             case "NO_SHARED_EVIDENCE" -> "剩余题目中没有找到引用相同原文的题，按原顺序继续检查。";
             default -> null;

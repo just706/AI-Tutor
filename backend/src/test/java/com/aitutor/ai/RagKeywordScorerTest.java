@@ -9,6 +9,31 @@ import static org.junit.jupiter.api.Assertions.*;
 class RagKeywordScorerTest {
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = {
+            "ArrayList 索引访问|ArrayList 通过索引读取元素，随机访问通常为常数时间。",
+            "Binary Search Tree 查询效率|Binary Search Tree 的查询效率与树高相关。",
+            "Ellipsoid 体积|Ellipsoid 的体积由三个半轴的长度确定。"
+    })
+    void aLatinTopicWithAChineseAttributeDoesNotBecomeOneLiteralName(String question, String text) {
+        assertTrue(new RagKeywordScorer(question, List.of(text)).score(text) > 0);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "Map 索引访问|HashMap 支持索引访问。",
+            "ArrayList 扩容倍率|ArrayList 通过索引读取元素，随机访问通常为常数时间。",
+            "Random Forest 模型误差|Random Forest 使用多棵决策树。",
+            "Java 虚拟机|Java 虚拟线程由运行时调度。",
+            "Java 虚拟机|Java 是一门编程语言。Python 虚拟机负责执行 Python 字节码。",
+            "ArrayList 索引访问|ArrayList 基于动态数组。LinkedList 支持索引访问，但访问时需要遍历链表。",
+            "Fourier 傅里叶变换|Fourier 傅里叶级数表示周期函数。",
+            "Java 栈|Java 是一门编程语言。"
+    })
+    void aSpacedTopicStillRequiresTheCompleteNameAndRequestedAttribute(String question, String text) {
+        assertEquals(0, new RagKeywordScorer(question, List.of(text)).score(text));
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
             "瞬时速度有什么特点？|瞬时速度描述某一时刻的运动状态。",
             "机会成本有什么特征？|机会成本表示放弃的最佳替代方案的价值。",
             "HashMap 的查询为什么通常较快？|HashMap 根据 key 的 hashCode() 参与计算存储或查找的位置。因此 HashMap 的查询效率通常较高。",
