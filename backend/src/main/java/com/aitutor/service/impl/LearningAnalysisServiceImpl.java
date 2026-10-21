@@ -220,10 +220,11 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
     }
 
     private Integer answerAccuracy(List<AnswerRecord> answers) {
-        if (answers.isEmpty()) {
+        long graded = answers.stream().filter(answer -> answer.getIsCorrect() != null).count();
+        if (graded == 0) {
             return 0;
         }
-        return Math.round((float) countCorrectAnswers(answers) * 100 / answers.size());
+        return Math.round((float) countCorrectAnswers(answers) * 100 / graded);
     }
 
     private Integer countChatMessages(Long userId) {
@@ -247,6 +248,7 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         Map<Long, PointAnswerStats> statsMap = buildPointAnswerStats(data.answers, data.questionMap);
         for (Map.Entry<Long, PointAnswerStats> entry : statsMap.entrySet()) {
             PointAnswerStats stats = entry.getValue();
+            if (stats.graded == 0) continue;
             int accuracy = stats.accuracy();
             int averageScore = stats.averageScore();
             if (accuracy < WEAK_THRESHOLD || averageScore < WEAK_THRESHOLD) {
@@ -328,8 +330,8 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         analysis.setDifficulty(question == null ? null : question.getDifficulty());
         analysis.setQuestionContent(question == null ? "" : previewText(question.getContent(), 160));
         analysis.setUserAnswer(answer.getUserAnswer());
-        analysis.setCorrect(safe(answer.getIsCorrect()) == 1);
-        analysis.setScore(safe(answer.getScore()));
+        analysis.setCorrect(answer.getIsCorrect() == null ? null : answer.getIsCorrect() == 1);
+        analysis.setScore(answer.getScore());
         analysis.setFeedbackPreview(previewText(answer.getAiFeedback(), 180));
         analysis.setCreateTime(answer.getCreateTime());
         return analysis;
@@ -532,9 +534,12 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         private int answered;
         private int correct;
         private int scoreSum;
+        private int graded;
 
         void add(AnswerRecord answer) {
             answered++;
+            if (answer.getIsCorrect() == null || answer.getScore() == null) return;
+            graded++;
             if (answer.getIsCorrect() != null && answer.getIsCorrect() == 1) {
                 correct++;
             }
@@ -542,17 +547,17 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         }
 
         int accuracy() {
-            if (answered == 0) {
+            if (graded == 0) {
                 return 0;
             }
-            return Math.round((float) correct * 100 / answered);
+            return Math.round((float) correct * 100 / graded);
         }
 
         int averageScore() {
-            if (answered == 0) {
+            if (graded == 0) {
                 return 0;
             }
-            return Math.round((float) scoreSum / answered);
+            return Math.round((float) scoreSum / graded);
         }
 
         int answeredCount() {

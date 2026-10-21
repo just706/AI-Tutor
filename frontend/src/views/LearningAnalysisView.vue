@@ -140,7 +140,7 @@
           <div class="answer-analysis-head">
             <strong>{{ answer.knowledgePointName || '未知知识点' }}</strong>
             <el-tag size="small" :type="answer.correct ? 'success' : 'danger'" effect="plain">
-              {{ answer.correct ? '正确' : '需要复习' }} · {{ answer.score }} 分
+              {{ answer.score === null ? '未评分' : `${answer.correct ? '正确' : '需要复习'} · ${answer.score} 分` }}
             </el-tag>
           </div>
           <p>{{ answer.questionContent || '题目内容为空' }}</p>
@@ -179,6 +179,8 @@
         </div>
       </aside>
     </section>
+    <ReviewTasks @changed="refreshAfterReview" />
+    <LearningEvidenceList :key="evidenceVersion" :points="knowledgeProgress" />
   </div>
 </template>
 
@@ -201,6 +203,8 @@ import type {
   StudyPlan
 } from '../types/domain'
 import { formatMinutes } from '../utils/format'
+import LearningEvidenceList from '../components/LearningEvidenceList.vue'
+import ReviewTasks from '../components/ReviewTasks.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -208,6 +212,8 @@ const analysisOverview = ref<LearningAnalysisOverview | null>(null)
 const evaluationOverview = ref<EvaluationOverview | null>(null)
 const knowledgeProgress = ref<KnowledgePointProgress[]>([])
 const recentAnswers = ref<RecentAnswerAnalysis[]>([])
+const evidenceVersion = ref(0)
+function refreshAfterReview() { evidenceVersion.value++; loadAnalysisOverviewFlow() }
 const studyPlan = ref<StudyPlan | null>(null)
 const analysisLoading = ref(false)
 const studyPlanLoading = ref(false)

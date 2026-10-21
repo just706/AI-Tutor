@@ -9,7 +9,6 @@ import com.aitutor.dto.SubmitAnswerRequest;
 import com.aitutor.entity.AiCallLog;
 import com.aitutor.entity.AnswerRecord;
 import com.aitutor.entity.KnowledgePoint;
-import com.aitutor.entity.LearningRecord;
 import com.aitutor.entity.Question;
 import com.aitutor.entity.StudentProfile;
 import com.aitutor.exception.AiServiceException;
@@ -17,7 +16,6 @@ import com.aitutor.exception.BusinessException;
 import com.aitutor.mapper.AiCallLogMapper;
 import com.aitutor.mapper.AnswerRecordMapper;
 import com.aitutor.mapper.KnowledgePointMapper;
-import com.aitutor.mapper.LearningRecordMapper;
 import com.aitutor.mapper.QuestionMapper;
 import com.aitutor.mapper.StudentProfileMapper;
 import com.aitutor.security.UserContext;
@@ -32,14 +30,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.LinkedHashMap;
 
 @Service
 public class QuestionServiceImpl implements QuestionService {
@@ -54,43 +50,37 @@ public class QuestionServiceImpl implements QuestionService {
     private static final String TYPE_TRUE_FALSE = "true_false";
     private static final String TYPE_SHORT_ANSWER = "short_answer";
     private static final String DIFFICULTY_MEDIUM = "medium";
-    private static final String STATUS_IN_PROGRESS = "in_progress";
-    private static final String STATUS_COMPLETED = "completed";
-    private static final String STATUS_MASTERED = "mastered";
     private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_SINGLE_CHOICE, TYPE_TRUE_FALSE, TYPE_SHORT_ANSWER);
     private static final Set<String> SUPPORTED_DIFFICULTIES = Set.of("easy", DIFFICULTY_MEDIUM, "hard");
-    private static final Pattern CHINESE_SCORE_PATTERN = Pattern.compile("\\u5f97\\u5206\\D{0,10}(\\d{1,3})");
-    private static final Pattern ENGLISH_SCORE_PATTERN = Pattern.compile("(?i)score\\D{0,10}(\\d{1,3})");
-    private static final Pattern POINT_SCORE_PATTERN = Pattern.compile("(\\d{1,3})\\s*\\u5206");
 
     private final QuestionMapper questionMapper;
     private final AnswerRecordMapper answerRecordMapper;
     private final KnowledgePointMapper knowledgePointMapper;
-    private final LearningRecordMapper learningRecordMapper;
     private final StudentProfileMapper studentProfileMapper;
     private final AiCallLogMapper aiCallLogMapper;
     private final DeepSeekClient deepSeekClient;
     private final AiPromptBuilder aiPromptBuilder;
     private final ObjectMapper objectMapper;
+    private final LearningEvidenceService evidence;
 
     public QuestionServiceImpl(QuestionMapper questionMapper,
                                AnswerRecordMapper answerRecordMapper,
                                KnowledgePointMapper knowledgePointMapper,
-                               LearningRecordMapper learningRecordMapper,
                                StudentProfileMapper studentProfileMapper,
                                AiCallLogMapper aiCallLogMapper,
                                DeepSeekClient deepSeekClient,
                                AiPromptBuilder aiPromptBuilder,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               LearningEvidenceService evidence) {
         this.questionMapper = questionMapper;
         this.answerRecordMapper = answerRecordMapper;
         this.knowledgePointMapper = knowledgePointMapper;
-        this.learningRecordMapper = learningRecordMapper;
         this.studentProfileMapper = studentProfileMapper;
         this.aiCallLogMapper = aiCallLogMapper;
         this.deepSeekClient = deepSeekClient;
         this.aiPromptBuilder = aiPromptBuilder;
         this.objectMapper = objectMapper;
+        this.evidence = evidence;
     }
 
     @Override
@@ -168,32 +158,39 @@ public class QuestionServiceImpl implements QuestionService {
         Question question = requireQuestion(questionId);
         KnowledgePoint knowledgePoint = requireKnowledgePoint(question.getKnowledgePointId());
         String studentAnswer = request.getAnswer().trim();
+        String answerKey = TYPE_SINGLE_CHOICE.equals(question.getQuestionType()) ? firstChoiceLetter(studentAnswer)
+                : TYPE_TRUE_FALSE.equals(question.getQuestionType()) ? normalizeBooleanAnswer(studentAnswer) : studentAnswer;
+        String key = evidence.lockAndKey("question", questionId.toString(), answerKey);
+        AnswerResultVO replay = evidence.replay(key, AnswerResultVO.class);
+        if (replay != null) return replay;
 
         if (isObjectiveQuestion(question.getQuestionType())) {
             // Objective questions are deterministic, so the backend scores them without another AI call.
-            return evaluateObjectiveAnswer(userId, question, knowledgePoint, studentAnswer);
+            return evaluateObjectiveAnswer(userId, question, knowledgePoint, studentAnswer, key);
         }
-        return evaluateSubjectiveAnswer(userId, question, knowledgePoint, studentAnswer);
+        return evaluateSubjectiveAnswer(userId, question, knowledgePoint, studentAnswer, key);
     }
 
     private AnswerResultVO evaluateObjectiveAnswer(Long userId,
                                                    Question question,
                                                    KnowledgePoint knowledgePoint,
-                                                   String studentAnswer) {
+                                                   String studentAnswer, String key) {
         boolean correct = answersEqual(question.getQuestionType(), question.getAnswer(), studentAnswer);
         int score = correct ? 100 : 0;
         String feedback = buildObjectiveFeedback(correct, question.getAnswer(), question.getAnalysis());
         AnswerRecord record = saveAnswerRecord(userId, question.getId(), studentAnswer, correct, score, feedback);
-        LearningRecord learningRecord = upsertLearningRecord(userId, knowledgePoint.getId(), score, 2);
-
-        return new AnswerResultVO(record.getId(), question.getId(), correct, score, question.getAnswer(),
-                question.getAnalysis(), feedback, learningRecord.getLearningStatus(), learningRecord.getMasteryLevel());
+        var item = evidence.record(key, knowledgePoint.getId(), "question", "objective",
+                evidenceSnapshot(question, knowledgePoint), studentAnswer, feedback, score, 2);
+        var response = new AnswerResultVO(record.getId(), question.getId(), correct, score, question.getAnswer(),
+                question.getAnalysis(), feedback, item.getStatusAfter(), item.getMasteryAfter());
+        evidence.finish(item, response);
+        return response;
     }
 
     private AnswerResultVO evaluateSubjectiveAnswer(Long userId,
                                                     Question question,
                                                     KnowledgePoint knowledgePoint,
-                                                    String studentAnswer) {
+                                                    String studentAnswer, String key) {
         StudentProfile profile = findProfile(userId);
         List<AiMessage> messages = List.of(
                 new AiMessage(ROLE_SYSTEM, aiPromptBuilder.buildSubjectiveAnswerPrompt(
@@ -204,21 +201,38 @@ public class QuestionServiceImpl implements QuestionService {
         AiChatResult result = null;
         try {
             result = deepSeekClient.chat(messages);
-            int score = parseScore(result.getContent());
-            boolean correct = score >= 60;
+            Integer score = LearningEvidenceService.modelScore(result.getContent());
+            Boolean correct = score == null ? null : score >= 60;
             AnswerRecord record = saveAnswerRecord(userId, question.getId(), studentAnswer, correct, score, result.getContent());
-            LearningRecord learningRecord = upsertLearningRecord(userId, knowledgePoint.getId(), score, 4);
+            var item = evidence.record(key, knowledgePoint.getId(), "question", "model",
+                    evidenceSnapshot(question, knowledgePoint), studentAnswer, result.getContent(), score, 4);
             saveAiCallLog(userId, REQUEST_TYPE_ANSWER_EVALUATE, result.getPromptTokens(),
                     result.getCompletionTokens(), "success", null);
-            return new AnswerResultVO(record.getId(), question.getId(), correct, score, question.getAnswer(),
+            var response = new AnswerResultVO(record.getId(), question.getId(), correct, score, question.getAnswer(),
                     question.getAnalysis(), result.getContent(),
-                    learningRecord.getLearningStatus(), learningRecord.getMasteryLevel());
+                    item.getStatusAfter(), item.getMasteryAfter());
+            evidence.finish(item, response);
+            return response;
         } catch (AiServiceException ex) {
             Integer promptTokens = result == null ? null : result.getPromptTokens();
             Integer completionTokens = result == null ? null : result.getCompletionTokens();
             saveAiCallLog(userId, REQUEST_TYPE_ANSWER_EVALUATE, promptTokens, completionTokens, "failed", ex.getMessage());
             throw ex;
         }
+    }
+
+    private Object evidenceSnapshot(Question question, KnowledgePoint point) {
+        var snapshot = new LinkedHashMap<String, Object>();
+        snapshot.put("knowledgePointName", point.getName());
+        snapshot.put("questionId", question.getId());
+        snapshot.put("questionType", question.getQuestionType());
+        snapshot.put("question", question.getContent());
+        snapshot.put("options", optionsFromJson(question.getOptions()));
+        snapshot.put("referenceAnswer", question.getAnswer());
+        snapshot.put("analysis", question.getAnalysis());
+        snapshot.put("source", question.getSource());
+        snapshot.put("model", isObjectiveQuestion(question.getQuestionType()) ? null : deepSeekClient.getModelName());
+        return snapshot;
     }
 
     private Question toQuestion(Long knowledgePointId,
@@ -400,7 +414,7 @@ public class QuestionServiceImpl implements QuestionService {
         return TYPE_SINGLE_CHOICE.equals(questionType) || TYPE_TRUE_FALSE.equals(questionType);
     }
 
-    private boolean answersEqual(String questionType, String expectedAnswer, String studentAnswer) {
+    static boolean answersEqual(String questionType, String expectedAnswer, String studentAnswer) {
         if (TYPE_SINGLE_CHOICE.equals(questionType)) {
             return firstChoiceLetter(expectedAnswer).equals(firstChoiceLetter(studentAnswer));
         }
@@ -410,7 +424,7 @@ public class QuestionServiceImpl implements QuestionService {
         return normalizeText(expectedAnswer).equals(normalizeText(studentAnswer));
     }
 
-    private String firstChoiceLetter(String answer) {
+    static String firstChoiceLetter(String answer) {
         String normalized = normalizeText(answer).toUpperCase(Locale.ROOT);
         if (normalized.isEmpty()) {
             return "";
@@ -419,7 +433,7 @@ public class QuestionServiceImpl implements QuestionService {
         return firstChar >= 'A' && firstChar <= 'D' ? String.valueOf(firstChar) : normalized;
     }
 
-    private String normalizeBooleanAnswer(String answer) {
+    static String normalizeBooleanAnswer(String answer) {
         String normalized = normalizeText(answer).toLowerCase(Locale.ROOT);
         if (List.of("true", "t", "yes", "y", "1", "right", "correct").contains(normalized)) {
             return "true";
@@ -430,7 +444,7 @@ public class QuestionServiceImpl implements QuestionService {
         return normalized;
     }
 
-    private String normalizeText(String value) {
+    private static String normalizeText(String value) {
         return value == null ? "" : value.trim().replaceAll("\\s+", "");
     }
 
@@ -444,85 +458,18 @@ public class QuestionServiceImpl implements QuestionService {
     private AnswerRecord saveAnswerRecord(Long userId,
                                           Long questionId,
                                           String studentAnswer,
-                                          boolean correct,
-                                          int score,
+                                          Boolean correct,
+                                          Integer score,
                                           String feedback) {
         AnswerRecord record = new AnswerRecord();
         record.setUserId(userId);
         record.setQuestionId(questionId);
         record.setUserAnswer(studentAnswer);
-        record.setIsCorrect(correct ? 1 : 0);
-        record.setScore(clampScore(score));
+        record.setIsCorrect(correct == null ? null : correct ? 1 : 0);
+        record.setScore(score);
         record.setAiFeedback(limitErrorMessage(feedback));
         answerRecordMapper.insert(record);
         return record;
-    }
-
-    private LearningRecord upsertLearningRecord(Long userId,
-                                                Long knowledgePointId,
-                                                int masteryLevel,
-                                                int additionalStudyMinutes) {
-        int score = clampScore(masteryLevel);
-        LearningRecord record = learningRecordMapper.selectOne(new LambdaQueryWrapper<LearningRecord>()
-                .eq(LearningRecord::getUserId, userId)
-                .eq(LearningRecord::getKnowledgePointId, knowledgePointId)
-                .last("LIMIT 1"));
-        if (record == null) {
-            record = new LearningRecord();
-            record.setUserId(userId);
-            record.setKnowledgePointId(knowledgePointId);
-            record.setLearningStatus(statusFromScore(score));
-            record.setMasteryLevel(score);
-            record.setStudyTime(Math.max(additionalStudyMinutes, 0));
-            learningRecordMapper.insert(record);
-            return record;
-        }
-
-        // Keep the best mastery level so one weak answer does not erase previously demonstrated mastery.
-        int currentMastery = record.getMasteryLevel() == null ? 0 : record.getMasteryLevel();
-        record.setMasteryLevel(Math.max(currentMastery, score));
-        record.setLearningStatus(statusFromScore(record.getMasteryLevel()));
-        int currentStudyTime = record.getStudyTime() == null ? 0 : record.getStudyTime();
-        record.setStudyTime(currentStudyTime + Math.max(additionalStudyMinutes, 0));
-        record.setUpdateTime(LocalDateTime.now());
-        learningRecordMapper.updateById(record);
-        return record;
-    }
-
-    private int parseScore(String feedback) {
-        Integer score = findScore(CHINESE_SCORE_PATTERN, feedback);
-        if (score == null) {
-            score = findScore(ENGLISH_SCORE_PATTERN, feedback);
-        }
-        if (score == null) {
-            score = findScore(POINT_SCORE_PATTERN, feedback);
-        }
-        return score == null ? 60 : clampScore(score);
-    }
-
-    private Integer findScore(Pattern pattern, String feedback) {
-        if (feedback == null) {
-            return null;
-        }
-        Matcher matcher = pattern.matcher(feedback);
-        if (!matcher.find()) {
-            return null;
-        }
-        return Integer.parseInt(matcher.group(1));
-    }
-
-    private int clampScore(int score) {
-        return Math.max(0, Math.min(score, 100));
-    }
-
-    private String statusFromScore(int score) {
-        if (score >= 85) {
-            return STATUS_MASTERED;
-        }
-        if (score >= 60) {
-            return STATUS_COMPLETED;
-        }
-        return STATUS_IN_PROGRESS;
     }
 
     private void saveAiCallLog(Long userId,

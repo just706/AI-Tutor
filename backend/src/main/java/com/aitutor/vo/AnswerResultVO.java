@@ -12,6 +12,8 @@ public class AnswerResultVO {
     private String learningStatus;
     private Integer masteryLevel;
 
+    public AnswerResultVO() { }
+
     public AnswerResultVO(Long answerRecordId,
                           Long questionId,
                           Boolean correct,

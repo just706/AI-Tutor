@@ -8,6 +8,8 @@ public class TeachingEvaluationVO {
     private String learningStatus;
     private Integer masteryLevel;
 
+    public TeachingEvaluationVO() { }
+
     public TeachingEvaluationVO(Long conversationId,
                                 Long knowledgePointId,
                                 String feedback,

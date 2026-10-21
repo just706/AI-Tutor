@@ -16,6 +16,8 @@ public class Conversation {
     private Long userId;
     private String title;
     private String mode;
+    @TableField("teaching_knowledge_point_id")
+    private Long teachingKnowledgePointId;
     @TableField("document_ids")
     private String documentIds;
     @TableField("create_time")
@@ -49,6 +51,11 @@ public class Conversation {
 
     public String getMode() {
         return mode;
+    }
+
+    public Long getTeachingKnowledgePointId() { return teachingKnowledgePointId; }
+    public void setTeachingKnowledgePointId(Long teachingKnowledgePointId) {
+        this.teachingKnowledgePointId = teachingKnowledgePointId;
     }
 
     public void setMode(String mode) {

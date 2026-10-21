@@ -181,6 +181,7 @@ let invalidOptionFeedbackNext;
 let invalidQuestionContextNext;
 let routingLessonNext = false;
 let failNextRag = false;
+let assessmentReplyNext;
 let modelGate;
 const browserFailureControl = path.join(outputDir, 'fail-next-rag');
 const textbook = 'ArrayList 基于动态数组，实现 List 接口，随机访问速度快，适合经常通过索引访问元素。LinkedList 基于双向链表，也实现 List 接口。ArrayList 和 LinkedList 都是 List 的常见实现类。';
@@ -208,7 +209,9 @@ const modelServer = createServer(async (request, response) => {
     const indexes = [...prompt.matchAll(/\[chunkIndex=(\d+)\]/g)].map(match => Number(match[1]));
     const evidence = [indexes[0] ?? 0];
     let content;
-    if (prompt.includes('循序学习备课助手')) {
+    if (assessmentReplyNext !== undefined) {
+      content = assessmentReplyNext; assessmentReplyNext = undefined;
+    } else if (prompt.includes('循序学习备课助手')) {
       assert.equal(payload.response_format?.type, 'json_object');
       const data = JSON.parse(payload.messages.at(-1).content);
       assert(data.topic && Array.isArray(data.source));
@@ -442,12 +445,13 @@ try {
     'stage10-agent.sql', 'stage12-learning-session.sql', 'stage13-knowledge-map.sql',
     'stage14-learner-memory.sql', 'stage15-evaluation-governance.sql',
     'stage16-personal-graph.sql', 'stage17-async-personal-graph.sql', 'stage18-conversation-documents.sql',
-    'stage19-chat-rag-sources.sql', 'stage20-rag-retry.sql', 'stage21-tutor-flow.sql',
+    'stage19-chat-rag-sources.sql', 'stage20-rag-retry.sql', 'stage21-tutor-flow.sql', 'stage22-learning-evidence.sql',
+    'stage23-review-tasks.sql', 'stage24-teaching-binding.sql',
   ];
   for (const migration of migrations) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 20);
-  for (const migration of migrations.slice(-6)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  pass('19 个数据库脚本初始化；stage16 至 stage21 重复执行；20 张表');
+  assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 22);
+  for (const migration of migrations.slice(-9)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
+  pass('22 个数据库脚本初始化；stage16 至 stage24 重复执行；22 张表');
 
   modelServer.listen(0, '127.0.0.1');
   await once(modelServer, 'listening');
@@ -1423,7 +1427,193 @@ try {
   assert(flowCaseResults.every(item=>item.passed),'循序学习固定案例未全部通过，详见 flow-case-results.json');
   assert(textbookFlowCaseResults.every(item=>item.passed),'教材循序学习案例未全部通过，详见 textbook-flow-case-results.json');
 
+  // 阶段三首批：使用固定客观题及明确的评分替身验证持久化，不做内容质量判断。
+  const evidencePoint = Number(sql("SELECT id FROM knowledge_point WHERE name='ArrayList' ORDER BY id LIMIT 1;"));
+  const ownerId = Number(sql("SELECT id FROM user WHERE username='stage0_owner';"));
+  const seedQuestion = type => Number(sql(`INSERT INTO question (knowledge_point_id,question_type,content,options,answer,analysis,source)
+    VALUES (${evidencePoint},'${type}','Which value is even?','["2","3","5","7"]','A','2 is even.','verification');
+    SELECT LAST_INSERT_ID();`));
+  const firstQuestion = seedQuestion('single_choice'), secondQuestion = seedQuestion('single_choice');
+  const submitEvidenceAnswer = (id, answer, auth=token, code=200) => api('/questions/'+id+'/answer',{token:auth,code,body:{answer}});
+  const correctEvidence = await submitEvidenceAnswer(firstQuestion,'A');
+  assert.equal(correctEvidence.masteryLevel,100);
+  const wrongEvidence = await submitEvidenceAnswer(secondQuestion,'B');
+  assert.equal(wrongEvidence.masteryLevel,40);
+  assert.equal(wrongEvidence.learningStatus,'in_progress');
+  assert.deepEqual(await submitEvidenceAnswer(firstQuestion,' a '),correctEvidence);
+  let evidenceRows=await api('/analysis/evidence?knowledgePointId='+evidencePoint,{token});
+  assert.equal(evidenceRows.length,2);
+  assert.equal(evidenceRows[0].masteryBefore,100); assert.equal(evidenceRows[0].masteryAfter,40);
+  assert.equal(JSON.parse(evidenceRows[0].snapshot).referenceAnswer,'A');
+  assert.equal(evidenceRows[0].assessmentType,'objective');
+  assert(!('responseJson' in evidenceRows[0]) && !('sourceKey' in evidenceRows[0]));
+  pass('学习证据保存题目快照、作答及状态前后值；先对后错从100调整为40；相同答案恢复原结果');
+
+  const parallelEvidence = await Promise.all([submitEvidenceAnswer(secondQuestion,'C'),submitEvidenceAnswer(secondQuestion,'C')]);
+  assert.deepEqual(parallelEvidence[0],parallelEvidence[1]);
+  assert.equal(parallelEvidence[0].masteryLevel,16);
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM answer_record WHERE user_id=${ownerId};`)),3);
+  assert.equal(Number(sql(`SELECT study_time FROM learning_record WHERE user_id=${ownerId} AND knowledge_point_id=${evidencePoint};`)),6);
+  await api('/analysis/evidence',{code:401});
+  assert.deepEqual(await api('/analysis/evidence?knowledgePointId='+evidencePoint,{token:otherToken}),[]);
+  const otherEvidence = await submitEvidenceAnswer(firstQuestion,'A',otherToken);
+  assert.notEqual(otherEvidence.answerRecordId,correctEvidence.answerRecordId);
+  assert.equal((await api('/analysis/evidence?limit=1',{token})).length,1);
+  pass('同用户并发相同答案只写一条并只计一次时间；证据需登录、按用户隔离及限制返回数量');
+
+  await api('/reviews',{code:401});
+  const [generatedReviews, duplicateReviews]=await Promise.all([
+    api('/reviews/generate',{token,body:{}}),api('/reviews/generate',{token,body:{}})]);
+  assert.equal(generatedReviews.length,1); assert.deepEqual(generatedReviews,duplicateReviews);
+  const objectiveReview=generatedReviews[0];
+  assert.equal(objectiveReview.question,'Which value is even?');
+  assert(!JSON.stringify(objectiveReview).includes('referenceAnswer'));
+  assert.deepEqual(await api('/reviews',{token:otherToken}),[]);
+  const reviewAnswer=(id,answer,auth=token,code=200)=>api('/reviews/'+id+'/answer',{token:auth,body:{answer},code});
+  await reviewAnswer(objectiveReview.id,'A',otherToken,404);
+  pass('复习任务持久化、并发生成去重、隐藏答案键并隔离用户');
+
+  sql(`UPDATE question SET content='Changed after review task creation',answer='D' WHERE id=${secondQuestion};`);
+  const reviewResults=await Promise.all([reviewAnswer(objectiveReview.id,'A'),reviewAnswer(objectiveReview.id,' a ')]);
+  assert.deepEqual(reviewResults[0],reviewResults[1]);
+  assert.equal(reviewResults[0].score,100); assert.equal(reviewResults[0].masteryBefore,16);
+  assert.equal(reviewResults[0].masteryAfter,66);
+  assert.equal(reviewResults[0].completed,true);
+  await reviewAnswer(objectiveReview.id,'B',token,409);
+  const finishedReview=(await api('/reviews',{token}))[0];
+  assert.equal(finishedReview.resultEvidenceId,reviewResults[0].evidenceId);
+  assert.deepEqual(finishedReview.result,reviewResults[0]);
+  const reviewTrace=(await api('/analysis/evidence?limit=1',{token}))[0];
+  assert.equal(JSON.parse(reviewTrace.snapshot).reviewTaskId,objectiveReview.id);
+  assert.equal(JSON.parse(reviewTrace.snapshot).sourceEvidenceId,objectiveReview.sourceEvidenceId);
+  const nextReviews=await api('/reviews/generate',{token,body:{}});
+  const nextReview=nextReviews.find(item=>item.status==='pending');
+  assert(nextReview); assert(Date.parse(nextReview.dueTime)>Date.now()+23*3600*1000);
+  await reviewAnswer(nextReview.id,'A',token,409);
+  pass('复习独立计分且并发重复只计一次；完成记录关联证据；后续复习间隔一天且禁止提前计分');
+
+  // 隔离复习用例后恢复首批基线，后续再覆盖教学复习。
+  sql(`DELETE FROM learning_evidence WHERE user_id=${ownerId} AND source_type='review';
+    DELETE FROM review_task WHERE user_id=${ownerId};
+    UPDATE learning_record SET mastery_level=16,study_time=6,learning_status='in_progress'
+    WHERE user_id=${ownerId} AND knowledge_point_id=${evidencePoint};`);
+
+  const teachingStart = await api('/teaching/start',{token,body:{knowledgePointId:evidencePoint}});
+  assert.equal(teachingStart.masteryLevel,16,'开始教学不能提高或重置状态');
+  assert.equal(Number(sql(`SELECT teaching_knowledge_point_id FROM conversation WHERE id=${teachingStart.conversationId};`)),evidencePoint);
+  const unrelatedPoint=Number(sql(`SELECT id FROM knowledge_point WHERE id<>${evidencePoint} ORDER BY id LIMIT 1;`));
+  const bindingState=()=>sql(`SELECT COUNT(*) FROM chat_history WHERE user_id=${ownerId};
+    SELECT COUNT(*) FROM learning_evidence WHERE user_id=${ownerId};
+    SELECT COALESCE(SUM(mastery_level),0),COALESCE(SUM(study_time),0) FROM learning_record WHERE user_id=${ownerId};`);
+  const beforeBindingRejection=bindingState(), callsBeforeBindingRejection=modelRequests.length;
+  await api('/teaching/evaluate',{token,code:400,body:{conversationId:teachingStart.conversationId,
+    knowledgePointId:unrelatedPoint,studentAnswer:'Wrong point must not score'}});
+  const legacyTeaching=Number(sql(`INSERT INTO conversation (user_id,title,mode) VALUES (${ownerId},'Legacy teaching','teaching'); SELECT LAST_INSERT_ID();`));
+  await api('/teaching/evaluate',{token,code:409,body:{conversationId:legacyTeaching,
+    knowledgePointId:evidencePoint,studentAnswer:'Unbound legacy must not score'}});
+  assert.equal(bindingState(),beforeBindingRejection);
+  assert.equal(modelRequests.length,callsBeforeBindingRejection);
+  pass('教学知识点绑定持久化；跨知识点评价及未绑定旧会话在模型、消息、证据和状态写入前被拒绝');
+  assessmentReplyNext='得分：92\n评价：这是测试用的模型反馈。';
+  const teachingRequest={conversationId:teachingStart.conversationId,knowledgePointId:evidencePoint,studentAnswer:'A bounded explanation'};
+  const teachingEvidence=await api('/teaching/evaluate',{token,body:teachingRequest});
+  assert.equal(teachingEvidence.masteryLevel,57);
+  const modelCallsBeforeReplay=modelRequests.length;
+  assert.deepEqual(await api('/teaching/evaluate',{token,body:teachingRequest}),teachingEvidence);
+  assert.equal(modelRequests.length,modelCallsBeforeReplay);
+  await api('/teaching/evaluate',{token:otherToken,body:teachingRequest,code:404});
+  pass('教学评价使用同一证据规则；模型评分与客观评分分开保存；重复评价不再调用模型；他人不可评价');
+
+  assessmentReplyNext='无法给出可靠分数。';
+  const unscoredTeaching=await api('/teaching/evaluate',{token,body:{...teachingRequest,studentAnswer:'Insufficient explanation'}});
+  assert.equal(unscoredTeaching.masteryLevel,57);
+  const shortQuestion=seedQuestion('short_answer');
+  assessmentReplyNext='得分：120\n评分越界。';
+  const unscoredAnswer=await submitEvidenceAnswer(shortQuestion,'Cannot be graded');
+  assert.equal(unscoredAnswer.score,null); assert.equal(unscoredAnswer.correct,null);
+  assert.equal(unscoredAnswer.masteryLevel,57);
+  const recentUnscored=await api('/analysis/recent-answers?limit=1',{token});
+  assert.equal(recentUnscored[0].score,null); assert.equal(recentUnscored[0].correct,null);
+  assert.equal((await api('/analysis/overview',{token})).answerAccuracy,33,'未评分不进入正确率分母');
+  evidenceRows=await api('/analysis/evidence?knowledgePointId='+evidencePoint,{token});
+  assert.equal(evidenceRows.length,6); assert.equal(evidenceRows[0].score,null);
+  assert.equal(evidenceRows[0].masteryBefore,evidenceRows[0].masteryAfter);
+  const modelRows=evidenceRows.filter(item=>item.assessmentType==='model');
+  assert.equal(modelRows.length,3);
+  assert.equal(modelRows.find(item=>item.score!==null).score,92);
+  pass('无分数与越界分数保存为未评分；状态不提高；近期记录保留空值且正确率排除未评分');
+
+  const rowsBeforeFailure=Number(sql(`SELECT COUNT(*) FROM learning_evidence WHERE user_id=${ownerId};`));
+  const answersBeforeFailure=Number(sql(`SELECT COUNT(*) FROM answer_record WHERE user_id=${ownerId};`));
+  failNextRag=true;
+  await submitEvidenceAnswer(shortQuestion,'A new explanation',token,600);
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM learning_evidence WHERE user_id=${ownerId};`)),rowsBeforeFailure);
+  assert.equal(Number(sql(`SELECT COUNT(*) FROM answer_record WHERE user_id=${ownerId};`)),answersBeforeFailure);
+  assert.equal(Number(sql(`SELECT mastery_level FROM learning_record WHERE user_id=${ownerId} AND knowledge_point_id=${evidencePoint};`)),57);
+  sql(`UPDATE question SET content='Changed after assessment' WHERE id=${secondQuestion};`);
+  const frozen=await api('/analysis/evidence?knowledgePointId='+evidencePoint,{token});
+  assert(frozen.filter(item=>JSON.parse(item.snapshot).questionId===secondQuestion)
+    .every(item=>JSON.parse(item.snapshot).question==='Which value is even?'));
+  pass('模型失败不写入成功证据或答题结果；修改公共题目不改写已保存的评价快照');
+
+  const teachingReview=(await api('/reviews/generate',{token,body:{}}))[0];
+  assert.equal(teachingReview.assessmentType,'model');
+  assert(teachingReview.question.includes('核心概念'));
+  assessmentReplyNext='证据不足，无法评分。';
+  const unscoredReview=await reviewAnswer(teachingReview.id,'Incomplete explanation');
+  assert.equal(unscoredReview.score,null); assert.equal(unscoredReview.completed,false);
+  assert.equal(unscoredReview.masteryAfter,57);
+  assert.equal((await api('/reviews',{token}))[0].status,'pending');
+  const callsBeforeUnscoredReplay=modelRequests.length;
+  assert.deepEqual(await reviewAnswer(teachingReview.id,'Incomplete explanation'),unscoredReview);
+  assert.equal(modelRequests.length,callsBeforeUnscoredReplay);
+  failNextRag=true;
+  await reviewAnswer(teachingReview.id,'Retry after outage',token,600);
+  assert.equal((await api('/reviews',{token}))[0].status,'pending');
+  assessmentReplyNext='得分：90\n评价：测试用反馈，未作事实核实。';
+  const modelReview=await reviewAnswer(teachingReview.id,'A complete explanation with an example');
+  assert.equal(modelReview.completed,true); assert.equal(modelReview.masteryAfter,73);
+  assert.equal(modelReview.score,90);
+  const modelReviewTrace=(await api('/analysis/evidence?limit=1',{token}))[0];
+  assert.equal(modelReviewTrace.sourceType,'review'); assert.equal(modelReviewTrace.assessmentType,'model');
+  assert.equal(modelReviewTrace.masteryBefore,57); assert.equal(modelReviewTrace.masteryAfter,73);
+  pass('教学复习保留上下文；未评分与失败保持任务及状态；有效模型评分完成并回写且保留模型边界');
+
+  await api('/reviews/page',{code:401});
+  for (const query of ['status=all','page=0','pageSize=0','pageSize=101'])
+    await api('/reviews/page?'+query,{token,code:400});
+  assert.deepEqual((await api('/reviews/page?status=completed',{token:otherToken})).items,[]);
+  await submitEvidenceAnswer(seedQuestion('single_choice'),'B');
+  let newestCompletedId;
+  for (let index=0;index<101;index++) {
+    const pending=(await api('/reviews/generate',{token,body:{}}))
+      .find(item=>item.status==='pending' && item.knowledgePointId===evidencePoint);
+    assert(pending);
+    sql(`UPDATE review_task SET due_time=DATE_SUB(NOW(),INTERVAL 1 DAY) WHERE id=${pending.id} AND user_id=${ownerId};`);
+    assert((await reviewAnswer(pending.id,'B')).completed);
+    newestCompletedId=pending.id;
+  }
+  const completedPage=await api('/reviews/page?status=completed',{token});
+  const totalCompleted=Number(sql(`SELECT COUNT(*) FROM review_task WHERE user_id=${ownerId} AND status='completed';`));
+  assert(totalCompleted>100); assert.equal(completedPage.total,totalCompleted);
+  assert.equal(completedPage.items[0].id,newestCompletedId);
+  assert(completedPage.items[0].result.completed);
+  const allCompleted=[];
+  for(let page=1;page<=Math.ceil(totalCompleted/20);page++) {
+    const saved=await api('/reviews/page?status=completed&page='+page,{token});
+    assert.equal(saved.page,page);
+    assert(saved.items.every(item=>item.status==='completed' && item.result));
+    allCompleted.push(...saved.items.map(item=>item.id));
+  }
+  assert.equal(allCompleted.length,totalCompleted);
+  assert.equal(new Set(allCompleted).size,totalCompleted);
+  const lastPage=await api('/reviews/page?status=completed&page=2147483647',{token});
+  assert.equal(lastPage.page,Math.ceil(totalCompleted/20));
+  assert.equal((await api('/reviews',{token}))[0].id,newestCompletedId);
+  pass('超过100次真实复习完成后最新结果位于首页；全部历史可分页访问且不重漏；越界页、安全参数与用户隔离通过');
+
   if (options['hold-for-browser']) {
+    await submitEvidenceAnswer(seedQuestion('single_choice'),'B');
     saveEvaluationArtifacts();
     // 独立账号只包含本次页面验收资料，便于核对教材选择、会话隔离和重新登录。
     const flowBrowserUsername = 'stage0_flow_browser';

@@ -22,13 +22,14 @@
 | 教学 | `POST /api/teaching/start`；`POST /api/teaching/evaluate`；`GET /api/teaching/records` |
 | 题目 | `POST /api/questions/generate`；`GET /api/questions`；`GET /api/questions/{questionId}`；`POST /api/questions/{questionId}/answer` |
 | AI 路径/练习 | `POST /api/ai/path/generate`；`POST /api/ai/practice/generate` |
-| 学习分析/计划 | `GET /api/analysis/overview`；`GET /api/analysis/knowledge-points`；`GET /api/analysis/recent-answers`；`POST /api/study-plans/generate` |
+| 学习分析/计划 | `GET /api/analysis/overview`；`GET /api/analysis/knowledge-points`；`GET /api/analysis/recent-answers`；`GET /api/analysis/evidence`；`POST /api/study-plans/generate` |
+| 复习 | `GET /api/reviews`；`GET /api/reviews/page`；`POST /api/reviews/generate`；`POST /api/reviews/{id}/answer` |
 | 文档 | `POST /api/documents/upload`；`GET /api/documents`；`GET /api/documents/{documentId}`；`GET /api/documents/{documentId}/chunks`；`POST /api/documents/{documentId}/reprocess`；`DELETE /api/documents/{documentId}` |
 | Agent 建议 | `POST /api/agents/suggestions/generate`；`GET /api/agents/suggestions`；`GET /api/agents/suggestions/{suggestionId}/events`；`POST /api/agents/suggestions/{suggestionId}/confirm`；`POST /api/agents/suggestions/{suggestionId}/complete`；`POST /api/agents/suggestions/{suggestionId}/dismiss` |
 | 个人图谱 | `POST /api/personal-graph/extractions`；`GET /api/personal-graph/extractions/{extractionId}`；`GET /api/personal-graph/extractions?documentId=`；`POST /api/personal-graph/extractions/{extractionId}/publish`；`GET /api/personal-graph?documentId=` |
 | 评估 | `GET /api/evaluation/overview` |
 
-上表共 57 个当前映射端点。路径中 `{id}` 为路径参数，问号后的 `documentId`、`conversationId` 等为查询参数。
+上表共 62 个当前映射端点。路径中 `{id}` 为路径参数，问号后的 `documentId`、`conversationId` 等为查询参数。
 
 ## 关键请求
 
@@ -51,6 +52,31 @@
 教材问答遇到“它”“那两种”“前者”“后者”等指代时，只从本人当前会话最近 10 条消息中的用户问题重建对象；助手回答不参与。能够明确时，使用补全对象的问题检索当前教材并发送给模型，`answer` 开头显示 `本次按“明确后的问题”理解你的追问。`。用户消息仍保存原问题。对象缺失、单复数不匹配或规则无法消除歧义时，返回业务码 `200`、澄清文字及 `sources:[]`，保存该轮用户问题与澄清，不调用模型。指代解析本身不调用额外模型；支持范围见 [AI-Design](AI-Design.md#rag-当前基线)。
 
 历史引用读取再次检查教材归属及处理状态。教材已删除、不属于当前用户或未完成处理时，保留引用数组的位置和文档 ID/索引，返回 `available=false`，`fileName`、`snippet` 为 `null`。切换教材不会改变旧回答的引用；仍有权访问的教材重处理后，旧回答返回回答时保存的原文。用户消息、普通回答、拒答及升级前未保存引用的消息返回 `sources:[]`，不从答案文本推断引用。
+
+## 学习评价与依据
+
+`GET /api/analysis/evidence` 仅返回当前用户的证据，支持可选 `knowledgePointId` 和 `limit`（默认20，限制1–100），按证据 ID 倒序。每项包括评分时的 JSON 字符串 `snapshot`、作答、反馈、判分类型、可空分数、状态前后值、可空前次有效评分 ID、规则及时间；内部哈希和原响应不公开。分析页提供查看和知识点筛选；旧记录不补造证据。
+
+`POST /api/questions/{questionId}/answer` 请求仍为 `{"answer":"..."}`。同用户同题等价客观答案／相同文本答案恢复原结果；`POST /api/teaching/evaluate` 按同用户、教学会话、知识点及相同回答恢复原结果。不重复写答题、证据和估算时长，也不再次调用模型。重放中的 `masteryLevel` 为当时值，当前值读取学习分析。模型无有效分数或明确表示证据不足时，答题结果的 `score`、`correct` 可为 `null`；近期答题接口保留空值，统计正确率和平均分时排除未评分记录。失败模型调用不写成功证据，客户端可手动重试。
+
+需先执行 stage22 和 stage24，状态规则及限制见 [AI-Design](AI-Design.md#学习会话与掌握度)。教学开始时持久保存知识点绑定；评价的知识点必须与该会话一致，否则返回400，且不调用模型或写消息、证据、状态。旧会话缺少绑定时返回409，需重新开始教学，不根据标题回填。这两类旧评价入口的事务会在同步模型调用期间持有用户锁；它们不等同于普通主教师或 RAG 的恢复协议，不承诺上游调用恰好一次。
+
+### 针对性复习
+
+需执行 stage23；以下端点均需登录，仅访问当前用户数据。
+
+| 端点 | 行为 |
+| --- | --- |
+| `GET /api/reviews` | 兼容列表，最多100项，待完成优先；待完成按到期时间升序，完成按完成时间降序 |
+| `GET /api/reviews/page` | 完整分页；`status=pending/completed`（默认pending），`page`默认1且须为正整数，`pageSize`默认20且限制1–100；非法参数返回400 |
+| `POST /api/reviews/generate` | 无请求字段；按各知识点最新有效评分生成弱项任务，返回同一任务列表；重复／并发生成不重复建任务 |
+| `POST /api/reviews/{id}/answer` | `{"answer":"A"}`，非空且最多5000字符；返回评分和证据 |
+
+分页返回 `{items,total,page,pageSize}`；越界页收敛到最后一页，空列表返回第1页。待完成按到期时间及ID升序，已完成按完成时间及ID降序；同一时间使用ID稳定排序。分析页通过分页读取全部历史，完成后切到已完成第1页并展开结果；刷新页面后可重新切换到已完成查看。
+
+任务字段为 `id,knowledgePointId,knowledgePointName,sourceEvidenceId,resultEvidenceId,assessmentType,questionType,question,options,status,dueTime,completedTime,result`。`status` 为 pending/completed，`assessmentType` 为 objective/model；不返回内部上下文或原响应。未完成时 result 为 null，隐藏答案键；完成后 result 返回持久化评分、反馈与状态变化，反馈可能含参考答案。
+
+作答结果字段为 `taskId,evidenceId,score,masteryBefore,masteryAfter,feedback,completed`。未评分时 score 为 null、completed 为 false、状态不变，任务保持待完成；同一任务同一规范化答案重放原结果。有效评分原子完成任务并关联结果证据；完成后改答或尚未到期返回409，他人任务返回404，模型失败返回600并保持任务及状态。首次复习立即可做，复习证据生成的后续任务至少间隔一天；规则及教学回述题的内容边界见 [AI-Design](AI-Design.md#学习会话与掌握度)。同步模型调用期间持有用户锁，不保证上游恰好一次。
 
 ## 循序学习
 

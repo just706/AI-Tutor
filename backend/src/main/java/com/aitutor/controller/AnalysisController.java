@@ -5,6 +5,8 @@ import com.aitutor.service.LearningAnalysisService;
 import com.aitutor.vo.KnowledgePointProgressVO;
 import com.aitutor.vo.LearningAnalysisOverviewVO;
 import com.aitutor.vo.RecentAnswerAnalysisVO;
+import com.aitutor.vo.LearningEvidenceVO;
+import com.aitutor.service.impl.LearningEvidenceService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -17,9 +19,17 @@ import java.util.List;
 public class AnalysisController {
 
     private final LearningAnalysisService learningAnalysisService;
+    private final LearningEvidenceService evidence;
 
-    public AnalysisController(LearningAnalysisService learningAnalysisService) {
+    public AnalysisController(LearningAnalysisService learningAnalysisService, LearningEvidenceService evidence) {
         this.learningAnalysisService = learningAnalysisService;
+        this.evidence = evidence;
+    }
+
+    @GetMapping("/evidence")
+    public Result<List<LearningEvidenceVO>> evidence(@RequestParam(required = false) Long knowledgePointId,
+                                                   @RequestParam(defaultValue = "20") int limit) {
+        return Result.success(evidence.list(knowledgePointId, limit));
     }
 
     @GetMapping("/overview")

@@ -163,12 +163,13 @@ try {
     'stage10-agent.sql', 'stage12-learning-session.sql', 'stage13-knowledge-map.sql',
     'stage14-learner-memory.sql', 'stage15-evaluation-governance.sql',
     'stage16-personal-graph.sql', 'stage17-async-personal-graph.sql', 'stage18-conversation-documents.sql',
-    'stage19-chat-rag-sources.sql', 'stage20-rag-retry.sql', 'stage21-tutor-flow.sql',
+    'stage19-chat-rag-sources.sql', 'stage20-rag-retry.sql', 'stage21-tutor-flow.sql', 'stage22-learning-evidence.sql',
+    'stage23-review-tasks.sql', 'stage24-teaching-binding.sql',
   ];
   for (const migration of migrations) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 20);
-  for (const migration of migrations.slice(-6)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
-  pass('19 个数据库脚本初始化；stage16 至 stage21 重复执行；20 张表');
+  assert.equal(Number(sql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();')), 22);
+  for (const migration of migrations.slice(-9)) sql(readFileSync(path.join(backendRoot, 'src/main/resources/db', migration), 'utf8'));
+  pass('22 个数据库脚本初始化；stage16 至 stage24 重复执行；22 张表');
 
   modelServer.listen(0, '127.0.0.1');
   await once(modelServer, 'listening');

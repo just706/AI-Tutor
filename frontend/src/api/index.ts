@@ -21,6 +21,10 @@ import type {
   LearningAnalysisOverview,
   LearningDocumentDetail,
   LearningRecord,
+  LearningEvidence,
+  ReviewTask,
+  ReviewResult,
+  ReviewPage,
   LoginResult,
   OrchestratorChatResult,
   PersonalGraph,
@@ -36,6 +40,28 @@ import type {
   TutorAgentChatResult,
   User
 } from '../types/domain'
+
+export function listReviews() {
+  return request<ReviewTask[]>({ url: '/reviews', method: 'GET' })
+}
+
+export function listReviewPage(status: 'pending' | 'completed', page = 1, pageSize = 20) {
+  return request<ReviewPage>({ url: '/reviews/page', method: 'GET', params: { status, page, pageSize } })
+}
+
+export function generateReviews() {
+  return request<ReviewTask[]>({ url: '/reviews/generate', method: 'POST' })
+}
+
+export function answerReview(id: number, answer: string) {
+  return request<ReviewResult>({ url: `/reviews/${id}/answer`, method: 'POST', data: { answer } })
+}
+
+export function listLearningEvidence(knowledgePointId?: number, limit = 20) {
+  return request<LearningEvidence[]>({
+    url: '/analysis/evidence', method: 'GET', params: { knowledgePointId, limit }
+  })
+}
 
 export function register(username: string, password: string) {
   return request<RegisterResult>({

@@ -25,6 +25,8 @@
 
 ## 当前实现边界
 
+阶段 3 已实现持久化练习、教学评价和针对性复习的证据闭环：近期错误会调整工程状态分，相同答案重复提交恢复原结果；学习分析页可生成、完成复习任务并分页查看完整历史。教学评价校验会话的知识点绑定。启动新后端前需执行 [stage22 学习证据迁移](docs/Database.md#已有库升级学习证据)、stage23 复习任务迁移和 stage24 教学绑定迁移；旧教学会话需重新开始才能评分。阶段 2 的备课内容质量问题仍保留，循序学习暂不用于提高掌握状态，详见 [开发进度](docs/Development.md#阶段-3让学习记录有依据)。
+
 - 后端：Java 17、Spring Boot 3.3.5、MyBatis-Plus、MySQL。
 - 前端：Vue 3、TypeScript、Pinia、Vue Router、Element Plus、Vite。
 - 模型：通过 DeepSeek HTTP API 同步生成回答；未接入 Python、LangChain/LangGraph、向量数据库或 Multi-Agent 运行时。
@@ -41,7 +43,7 @@
 
 ## 启动（Windows PowerShell）
 
-准备 Java 17、Node.js（Vite 8 要求 Node `^20.19.0` 或 `>=22.12.0`），并启动 MySQL。首次建库按 [docs/Database.md](docs/Database.md) 执行脚本；已有数据库在启动新后端前，按其中的升级说明执行 `stage18-conversation-documents.sql`、`stage19-chat-rag-sources.sql`、`stage20-rag-retry.sql` 和 `stage21-tutor-flow.sql`，均可重复执行。旧教材会话需要重新选择一次教材；旧回答没有保存过引用时，不会自动补出引用；升级前的失败消息没有请求状态，不补造重试入口。
+准备 Java 17、Node.js（Vite 8 要求 Node `^20.19.0` 或 `>=22.12.0`），并启动 MySQL。首次建库按 [docs/Database.md](docs/Database.md) 执行脚本；已有数据库在启动新后端前，按其中的升级说明依次执行 stage18 至 stage24，均可重复执行。旧教材会话需要重新选择一次教材；旧回答没有保存过引用时，不会自动补出引用；升级前的失败消息没有请求状态，不补造重试入口；缺少知识点绑定的旧教学会话需重新开始教学后评价。
 
 以下命令以项目位于 `D:\AI-Tutor` 为例；项目放在其他位置时，替换对应路径。只复制代码块中的命令，不要复制终端里的 `PS D:\AI-Tutor>` 或 `>>` 提示符。
 

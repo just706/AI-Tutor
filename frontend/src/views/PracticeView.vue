@@ -124,8 +124,7 @@
 
             <div v-if="answerResults[question.id]" class="feedback-box">
               <strong>
-                {{ answerResults[question.id].score }} 分 ·
-                {{ answerResults[question.id].correct ? '回答正确' : '需要复习' }}
+                {{ answerResults[question.id].score === null ? '未评分' : `${answerResults[question.id].score} 分 · ${answerResults[question.id].correct ? '回答正确' : '需要复习'}` }}
               </strong>
               <div class="markdown-body" v-html="renderMarkdown(answerResults[question.id].feedback)" />
             </div>

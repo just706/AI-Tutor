@@ -28,6 +28,7 @@ import com.aitutor.vo.TeachingEvaluationVO;
 import com.aitutor.vo.TeachingStartVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -35,8 +36,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -50,11 +49,6 @@ public class TeachingServiceImpl implements TeachingService {
     private static final String REQUEST_TYPE_TEACHING_START = "teaching_start";
     private static final String REQUEST_TYPE_TEACHING_EVALUATE = "teaching_evaluate";
     private static final String STATUS_IN_PROGRESS = "in_progress";
-    private static final String STATUS_COMPLETED = "completed";
-    private static final String STATUS_MASTERED = "mastered";
-    private static final Pattern CHINESE_SCORE_PATTERN = Pattern.compile("得分\\D{0,10}(\\d{1,3})");
-    private static final Pattern ENGLISH_SCORE_PATTERN = Pattern.compile("(?i)score\\D{0,10}(\\d{1,3})");
-    private static final Pattern POINT_SCORE_PATTERN = Pattern.compile("(\\d{1,3})\\s*分");
 
     private final KnowledgePointMapper knowledgePointMapper;
     private final LearningRecordMapper learningRecordMapper;
@@ -65,6 +59,7 @@ public class TeachingServiceImpl implements TeachingService {
     private final DeepSeekClient deepSeekClient;
     private final DeepSeekProperties deepSeekProperties;
     private final AiPromptBuilder aiPromptBuilder;
+    private final LearningEvidenceService evidence;
 
     public TeachingServiceImpl(KnowledgePointMapper knowledgePointMapper,
                                LearningRecordMapper learningRecordMapper,
@@ -74,7 +69,8 @@ public class TeachingServiceImpl implements TeachingService {
                                AiCallLogMapper aiCallLogMapper,
                                DeepSeekClient deepSeekClient,
                                DeepSeekProperties deepSeekProperties,
-                               AiPromptBuilder aiPromptBuilder) {
+                               AiPromptBuilder aiPromptBuilder,
+                               LearningEvidenceService evidence) {
         this.knowledgePointMapper = knowledgePointMapper;
         this.learningRecordMapper = learningRecordMapper;
         this.conversationMapper = conversationMapper;
@@ -84,18 +80,22 @@ public class TeachingServiceImpl implements TeachingService {
         this.deepSeekClient = deepSeekClient;
         this.deepSeekProperties = deepSeekProperties;
         this.aiPromptBuilder = aiPromptBuilder;
+        this.evidence = evidence;
     }
 
     @Override
+    @Transactional(noRollbackFor = AiServiceException.class)
     public TeachingStartVO start(StartTeachingRequest request) {
         Long userId = UserContext.getRequired().getId();
         KnowledgePoint knowledgePoint = requireKnowledgePoint(request.getKnowledgePointId());
-        LearningRecord record = upsertLearningRecord(userId, knowledgePoint.getId(), STATUS_IN_PROGRESS, null, 1);
+        evidence.lockAndKey("teaching_start", knowledgePoint.getId().toString(), "");
+        LearningRecord record = startLearningRecord(userId, knowledgePoint.getId());
 
         Conversation conversation = new Conversation();
         conversation.setUserId(userId);
         conversation.setTitle(buildTeachingTitle(knowledgePoint.getName()));
         conversation.setMode(MODE_TEACHING);
+        conversation.setTeachingKnowledgePointId(knowledgePoint.getId());
         conversationMapper.insert(conversation);
 
         // Teaching mode owns a normal conversation so existing message-history APIs can display it.
@@ -124,11 +124,21 @@ public class TeachingServiceImpl implements TeachingService {
     }
 
     @Override
+    @Transactional(noRollbackFor = AiServiceException.class)
     public TeachingEvaluationVO evaluate(EvaluateTeachingRequest request) {
         Long userId = UserContext.getRequired().getId();
         KnowledgePoint knowledgePoint = requireKnowledgePoint(request.getKnowledgePointId());
         Conversation conversation = requireOwnedTeachingConversation(userId, request.getConversationId());
+        if (conversation.getTeachingKnowledgePointId() == null) {
+            throw new BusinessException(409, "旧教学会话缺少知识点绑定，请重新开始教学后评价。");
+        }
+        if (!conversation.getTeachingKnowledgePointId().equals(knowledgePoint.getId())) {
+            throw new BusinessException(400, "评价知识点与教学会话不一致。");
+        }
         String answer = request.getStudentAnswer().trim();
+        String key = evidence.lockAndKey("teaching", conversation.getId() + ":" + knowledgePoint.getId(), answer);
+        TeachingEvaluationVO replay = evidence.replay(key, TeachingEvaluationVO.class);
+        if (replay != null) return replay;
 
         saveMessage(userId, conversation.getId(), ROLE_USER, answer);
 
@@ -137,16 +147,23 @@ public class TeachingServiceImpl implements TeachingService {
 
         try {
             AiChatResult result = deepSeekClient.chat(messages);
-            int score = parseScore(result.getContent());
-            String status = statusFromScore(score);
-            // Mastery is updated from the AI score, but later low scores should not erase prior progress.
-            LearningRecord record = upsertLearningRecord(userId, knowledgePoint.getId(), status, score, 5);
+            Integer score = LearningEvidenceService.modelScore(result.getContent());
+            var snapshot = new java.util.LinkedHashMap<String, Object>();
+            snapshot.put("knowledgePointName", knowledgePoint.getName());
+            snapshot.put("conversationId", conversation.getId());
+            snapshot.put("question", "教学理解评价：" + knowledgePoint.getName());
+            snapshot.put("context", messages.stream().filter(message -> !ROLE_SYSTEM.equals(message.getRole())).toList());
+            snapshot.put("model", deepSeekClient.getModelName());
+            var item = evidence.record(key, knowledgePoint.getId(), "teaching", "model",
+                    snapshot, answer, result.getContent(), score, 5);
             saveMessage(userId, conversation.getId(), ROLE_ASSISTANT, result.getContent());
             touchConversation(conversation.getId());
             saveAiCallLog(userId, REQUEST_TYPE_TEACHING_EVALUATE, result.getPromptTokens(),
                     result.getCompletionTokens(), "success", null);
-            return new TeachingEvaluationVO(conversation.getId(), knowledgePoint.getId(), result.getContent(),
-                    record.getLearningStatus(), record.getMasteryLevel());
+            var response = new TeachingEvaluationVO(conversation.getId(), knowledgePoint.getId(), result.getContent(),
+                    item.getStatusAfter(), item.getMasteryAfter());
+            evidence.finish(item, response);
+            return response;
         } catch (AiServiceException ex) {
             touchConversation(conversation.getId());
             saveAiCallLog(userId, REQUEST_TYPE_TEACHING_EVALUATE, null, null, "failed", ex.getMessage());
@@ -229,7 +246,7 @@ public class TeachingServiceImpl implements TeachingService {
                 .eq(ChatHistory::getUserId, userId)
                 .eq(ChatHistory::getConversationId, conversationId)
                 .orderByDesc(ChatHistory::getId)
-                .last("LIMIT " + maxContextMessages()));
+                .last("LIMIT " + maxContextMessages() + " FOR UPDATE"));
         Collections.reverse(recentMessages);
         return recentMessages;
     }
@@ -242,33 +259,24 @@ public class TeachingServiceImpl implements TeachingService {
         return Math.min(configured, 30);
     }
 
-    private LearningRecord upsertLearningRecord(Long userId,
-                                                Long knowledgePointId,
-                                                String learningStatus,
-                                                Integer masteryLevel,
-                                                int additionalStudyMinutes) {
+    private LearningRecord startLearningRecord(Long userId, Long knowledgePointId) {
         LearningRecord record = learningRecordMapper.selectOne(new LambdaQueryWrapper<LearningRecord>()
                 .eq(LearningRecord::getUserId, userId)
                 .eq(LearningRecord::getKnowledgePointId, knowledgePointId)
-                .last("LIMIT 1"));
+                .last("LIMIT 1 FOR UPDATE"));
         if (record == null) {
             record = new LearningRecord();
             record.setUserId(userId);
             record.setKnowledgePointId(knowledgePointId);
-            record.setLearningStatus(learningStatus);
-            record.setMasteryLevel(masteryLevel == null ? 0 : clampScore(masteryLevel));
-            record.setStudyTime(Math.max(additionalStudyMinutes, 0));
+            record.setLearningStatus(STATUS_IN_PROGRESS);
+            record.setMasteryLevel(0);
+            record.setStudyTime(1);
             learningRecordMapper.insert(record);
             return record;
         }
 
-        record.setLearningStatus(learningStatus);
-        if (masteryLevel != null) {
-            int currentMastery = record.getMasteryLevel() == null ? 0 : record.getMasteryLevel();
-            record.setMasteryLevel(Math.max(currentMastery, clampScore(masteryLevel)));
-        }
         int currentStudyTime = record.getStudyTime() == null ? 0 : record.getStudyTime();
-        record.setStudyTime(currentStudyTime + Math.max(additionalStudyMinutes, 0));
+        record.setStudyTime(currentStudyTime + 1);
         record.setUpdateTime(LocalDateTime.now());
         learningRecordMapper.updateById(record);
         return record;
@@ -323,40 +331,4 @@ public class TeachingServiceImpl implements TeachingService {
         return errorMessage.substring(0, 1000);
     }
 
-    private int parseScore(String feedback) {
-        // AI feedback is natural language; require the prompt to include a score and clamp the parsed value.
-        Integer score = findScore(CHINESE_SCORE_PATTERN, feedback);
-        if (score == null) {
-            score = findScore(ENGLISH_SCORE_PATTERN, feedback);
-        }
-        if (score == null) {
-            score = findScore(POINT_SCORE_PATTERN, feedback);
-        }
-        return score == null ? 60 : clampScore(score);
-    }
-
-    private Integer findScore(Pattern pattern, String feedback) {
-        if (feedback == null) {
-            return null;
-        }
-        Matcher matcher = pattern.matcher(feedback);
-        if (!matcher.find()) {
-            return null;
-        }
-        return Integer.parseInt(matcher.group(1));
-    }
-
-    private int clampScore(int score) {
-        return Math.max(0, Math.min(score, 100));
-    }
-
-    private String statusFromScore(int score) {
-        if (score >= 85) {
-            return STATUS_MASTERED;
-        }
-        if (score >= 60) {
-            return STATUS_COMPLETED;
-        }
-        return STATUS_IN_PROGRESS;
-    }
 }

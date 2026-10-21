@@ -310,8 +310,8 @@ export interface Question {
 export interface AnswerResult {
   answerRecordId: number
   questionId: number
-  correct: boolean
-  score: number
+  correct: boolean | null
+  score: number | null
   correctAnswer: string
   analysis: string
   feedback: string
@@ -437,10 +437,28 @@ export interface RecentAnswerAnalysis {
   difficulty?: string
   questionContent: string
   userAnswer?: string
-  correct: boolean
-  score: number
+  correct: boolean | null
+  score: number | null
   feedbackPreview: string
   createTime?: string
+}
+
+export interface LearningEvidence {
+  id: number
+  knowledgePointId: number
+  sourceType: 'question' | 'teaching'
+  assessmentType: 'objective' | 'model'
+  snapshot: string
+  studentAnswer: string
+  feedback: string
+  score: number | null
+  masteryBefore: number
+  priorEvidenceId: number | null
+  masteryAfter: number
+  statusAfter: string
+  ruleVersion: string
+  reason: string
+  createTime: string
 }
 
 export interface StudyPlan {
@@ -514,4 +532,36 @@ export interface AgentEventLog {
   eventType: string
   note?: string
   createTime?: string
+}
+export interface ReviewPage {
+  items: ReviewTask[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface ReviewTask {
+  id: number
+  knowledgePointId: number
+  knowledgePointName: string
+  sourceEvidenceId: number
+  resultEvidenceId: number | null
+  assessmentType: 'objective' | 'model'
+  questionType: string
+  question: string
+  options: string[]
+  status: 'pending' | 'completed'
+  dueTime: string
+  completedTime: string | null
+  result: ReviewResult | null
+}
+
+export interface ReviewResult {
+  taskId: number
+  evidenceId: number
+  score: number | null
+  masteryBefore: number
+  masteryAfter: number
+  feedback: string
+  completed: boolean
 }
