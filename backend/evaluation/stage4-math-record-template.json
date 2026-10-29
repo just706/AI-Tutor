@@ -1,0 +1,66 @@
+{
+  "version": "stage4-math-self-test-record-v1",
+  "materialVersion": "stage4-math-self-test-v1",
+  "materialHash": null,
+  "mode": "self_test",
+  "status": "awaiting_pretest",
+  "participantId": "P01",
+  "plannedParticipants": 1,
+  "observedParticipants": 0,
+  "pilotParticipants": 0,
+  "participationChoice": "数学（函数变化率）",
+  "consentedAt": null,
+  "priorMath": null,
+  "review": { "assistantAlgebraCheck": "pending", "independentSubjectReview": "pending" },
+  "environment": {
+    "appCommit": null,
+    "workingTreeDirty": null,
+    "promptVersion": null,
+    "modelRequested": null,
+    "modelReported": null,
+    "newModelCallBudget": 0
+  },
+  "learning": {
+    "mode": null,
+    "startedAt": null,
+    "endedAt": null,
+    "conversationId": null,
+    "taskCompleted": null,
+    "helpCount": null,
+    "citationsChecked": null,
+    "citationErrors": null,
+    "feedbackChecked": null,
+    "feedbackErrors": null,
+    "evidenceRefs": [],
+    "issues": []
+  },
+  "phases": {
+    "pre": {
+      "presentedAt": null, "startedAt": null, "completedAt": null,
+      "externalHelp": null, "durationConfirmed": null, "scoredBy": null,
+      "answers": [
+        { "questionId": "M-P1", "response": null, "score": null, "reason": null },
+        { "questionId": "M-P2", "response": null, "score": null, "reason": null }
+      ]
+    },
+    "immediate": {
+      "presentedAt": null, "startedAt": null, "completedAt": null,
+      "externalHelp": null, "durationConfirmed": null, "scoredBy": null,
+      "answers": [
+        { "questionId": "M-I1", "response": null, "score": null, "reason": null },
+        { "questionId": "M-I2", "response": null, "score": null, "reason": null }
+      ]
+    },
+    "delayed": {
+      "presentedAt": null, "startedAt": null, "completedAt": null,
+      "externalHelp": null, "durationConfirmed": null, "scoredBy": null,
+      "answers": [
+        { "questionId": "M-D1", "response": null, "score": null, "reason": null },
+        { "questionId": "M-D2", "response": null, "score": null, "reason": null }
+      ]
+    }
+  },
+  "followUp": { "windowOpensAt": null, "windowClosesAt": null, "interveningStudy": null, "reminderScheduled": false },
+  "learningEffectEstablished": false,
+  "notes": []
+}

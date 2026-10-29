@@ -7,6 +7,7 @@ import com.aitutor.mapper.*;
 import com.aitutor.security.UserContext;
 import com.aitutor.vo.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
@@ -29,10 +30,10 @@ public class ReviewService {
     }
 
     public List<ReviewTaskVO> list() {
-        return tasks.selectList(new LambdaQueryWrapper<ReviewTask>()
-                .eq(ReviewTask::getUserId,userId()).orderByDesc(ReviewTask::getStatus)
-                .orderByDesc(ReviewTask::getCompletedTime).orderByAsc(ReviewTask::getDueTime)
-                .orderByDesc(ReviewTask::getId).last("LIMIT 100")).stream().map(this::view).toList();
+        return tasks.selectList(new QueryWrapper<ReviewTask>()
+                .eq("user_id",userId()).orderByDesc("status","completed_time")
+                .orderByAsc("CASE WHEN status = 'pending' THEN due_time END")
+                .orderByDesc("id").last("LIMIT 100")).stream().map(this::view).toList();
     }
 
     public ReviewPageVO page(String status, int page, int pageSize) {

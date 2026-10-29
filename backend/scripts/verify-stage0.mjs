@@ -1596,7 +1596,7 @@ try {
   const completedPage=await api('/reviews/page?status=completed',{token});
   const totalCompleted=Number(sql(`SELECT COUNT(*) FROM review_task WHERE user_id=${ownerId} AND status='completed';`));
   assert(totalCompleted>100); assert.equal(completedPage.total,totalCompleted);
-  assert.equal(completedPage.items[0].id,newestCompletedId);
+  assert.equal(completedPage.items[0].id,newestCompletedId,'Completed page must start with latest completion');
   assert(completedPage.items[0].result.completed);
   const allCompleted=[];
   for(let page=1;page<=Math.ceil(totalCompleted/20);page++) {
@@ -1609,7 +1609,24 @@ try {
   assert.equal(new Set(allCompleted).size,totalCompleted);
   const lastPage=await api('/reviews/page?status=completed&page=2147483647',{token});
   assert.equal(lastPage.page,Math.ceil(totalCompleted/20));
-  assert.equal((await api('/reviews',{token}))[0].id,newestCompletedId);
+  // 固定同秒完成且到期时间不同，避免依赖执行速度才能暴露旧列表的排序差异。
+  sql(`UPDATE review_task SET completed_time='2026-01-01 12:00:00',
+    due_time=DATE_ADD('2025-01-01 00:00:00',INTERVAL id SECOND)
+    WHERE user_id=${ownerId} AND status='completed';`);
+  assert.equal((await api('/reviews/page?status=completed',{token})).items[0].id,newestCompletedId,
+    'Completed page must break same-second completion ties by descending ID');
+  assert.equal((await api('/reviews',{token}))[0].id,newestCompletedId,
+    'Legacy review list must break same-second completion ties by descending ID, not due time');
+  const addPendingForSort=(sourceId,due)=>Number(sql(`INSERT INTO review_task
+    (user_id,knowledge_point_id,source_evidence_id,assessment_type,snapshot,status,due_time)
+    SELECT user_id,knowledge_point_id,${sourceId},assessment_type,snapshot,'pending','${due}'
+    FROM review_task WHERE id=${newestCompletedId}; SELECT LAST_INSERT_ID();`));
+  const earlyPending=addPendingForSort(-10001,'2026-01-01 00:00:00');
+  const latePending=addPendingForSort(-10002,'2026-01-02 00:00:00');
+  const pendingFirst=await api('/reviews',{token});
+  assert.deepEqual(pendingFirst.slice(0,2).map(item=>item.id),[earlyPending,latePending],
+    'Legacy review list must still order pending tasks by earliest due time');
+  assert.equal(pendingFirst[2].id,newestCompletedId,'Completed history follows pending tasks with newest first');
   pass('超过100次真实复习完成后最新结果位于首页；全部历史可分页访问且不重漏；越界页、安全参数与用户隔离通过');
 
   if (options['hold-for-browser']) {

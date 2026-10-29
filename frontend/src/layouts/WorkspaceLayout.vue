@@ -1,83 +1,24 @@
 <template>
   <main class="workspace-shell">
-    <aside class="workspace-sidebar">
-      <div class="brand-block">
-        <div class="brand-mark">AI</div>
-        <div>
-          <div class="brand-name">AI Tutor</div>
-          <div class="brand-subtitle">Learning Workspace</div>
-        </div>
-      </div>
-
-      <el-button class="sidebar-primary" type="primary" :icon="Plus" @click="newStudySession">
-        新学习会话
-      </el-button>
-
-      <nav class="workspace-nav workspace-hub-nav" aria-label="主导航">
-        <RouterLink
-          class="workspace-nav-item"
-          :to="{ name: 'chat', query: conversationQuery }"
-          :class="{ active: route.name === 'chat' && !route.query.panel }"
-        >
-          <el-icon><ChatDotRound /></el-icon>
-          <span>AI Chat</span>
-        </RouterLink>
-        <RouterLink
-          class="workspace-nav-item"
-          :to="{ name: 'chat', query: { ...conversationQuery, panel: 'sources' } }"
-          :class="{ active: route.name === 'chat' && route.query.panel === 'sources' }"
-        >
-          <el-icon><Collection /></el-icon>
-          <span>Sources</span>
-        </RouterLink>
-        <RouterLink
-          class="workspace-nav-item"
-          :to="{ name: 'chat', query: { ...conversationQuery, panel: 'progress' } }"
-          :class="{ active: route.name === 'chat' && route.query.panel === 'progress' }"
-        >
-          <el-icon><DataAnalysis /></el-icon>
-          <span>Progress</span>
-        </RouterLink>
-      </nav>
-
-      <section class="sidebar-conversations">
-        <div class="sidebar-section-head">
-          <span>最近会话</span>
-          <el-button text type="primary" size="small" @click="workspaceStore.loadConversations()">刷新</el-button>
-        </div>
-        <div v-loading="workspaceStore.loadingConversations" class="sidebar-conversation-list">
-          <button
-            v-for="conversation in workspaceStore.conversations.slice(0, 8)"
-            :key="conversation.id"
-            class="sidebar-conversation-item"
-            :class="{ active: workspaceStore.currentConversationId === conversation.id && route.name === 'chat' }"
-            type="button"
-            @click="selectConversation(conversation.id)"
-          >
-            <strong>{{ conversation.title || '未命名会话' }}</strong>
-            <small>{{ modeLabel(conversation.mode) }} · {{ formatTime(conversation.updateTime) }}</small>
-          </button>
-          <div v-if="!workspaceStore.loadingConversations && workspaceStore.conversations.length === 0" class="sidebar-empty">
-            暂无会话
-          </div>
-        </div>
-      </section>
-
-      <div class="sidebar-footer">
-        <RouterLink class="workspace-nav-item soft" :to="{ name: 'profile' }">
-          <el-icon><Setting /></el-icon>
-          <span>学习档案</span>
-        </RouterLink>
-        <button class="workspace-nav-item soft as-button" type="button" @click="logout">
-          <el-icon><SwitchButton /></el-icon>
-          <span>退出登录</span>
-        </button>
-      </div>
+    <aside class="workspace-sidebar desktop-navigation">
+      <WorkspaceNavigation />
     </aside>
 
     <section class="workspace-main">
       <header class="workspace-topbar">
-        <div>
+        <el-tooltip content="打开导航" placement="bottom">
+          <span class="workspace-menu-trigger">
+            <el-button
+              class="workspace-menu"
+              aria-label="打开导航"
+              aria-controls="mobile-workspace-navigation"
+              :aria-expanded="navigationOpen"
+              :icon="Menu"
+              @click="navigationOpen = true"
+            />
+          </span>
+        </el-tooltip>
+        <div class="workspace-heading">
           <p class="eyebrow">{{ currentRouteLabel }}</p>
           <h1>{{ currentRouteTitle }}</h1>
         </div>
@@ -85,7 +26,7 @@
           <el-tag v-if="workspaceStore.profile.learningDirection" effect="plain">
             {{ workspaceStore.profile.learningDirection }}
           </el-tag>
-          <el-button :icon="User" circle @click="router.push({ name: 'profile' })" />
+          <el-button aria-label="学习档案" :icon="User" circle @click="router.push({ name: 'profile' })" />
         </div>
       </header>
 
@@ -93,31 +34,39 @@
         <RouterView />
       </div>
     </section>
+    <el-drawer
+      v-model="navigationOpen"
+      title="导航"
+      direction="ltr"
+      size="min(300px, calc(100vw - 32px))"
+      class="mobile-navigation-drawer"
+    >
+      <aside id="mobile-workspace-navigation" class="workspace-sidebar">
+        <WorkspaceNavigation @navigate="navigationOpen = false" />
+      </aside>
+    </el-drawer>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
-import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import {
-  ChatDotRound,
-  Collection,
-  DataAnalysis,
-  Plus,
-  Setting,
-  SwitchButton,
-  User
-} from '@element-plus/icons-vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterView, useRoute, useRouter } from 'vue-router'
+import { Menu, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { useAuthStore } from '../stores/auth'
+import WorkspaceNavigation from '../components/WorkspaceNavigation.vue'
 import { useWorkspaceStore } from '../stores/workspace'
-import { formatTime, modeLabel } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
-const conversationQuery = computed(() => ({ conversationId: workspaceStore.currentConversationId || undefined }))
+const navigationOpen = ref(false)
+const desktopViewport = window.matchMedia('(min-width: 861px)')
+function closeDesktopNavigation(event: MediaQueryListEvent) {
+  if (event.matches) navigationOpen.value = false
+}
+onMounted(() => desktopViewport.addEventListener('change', closeDesktopNavigation))
+onBeforeUnmount(() => desktopViewport.removeEventListener('change', closeDesktopNavigation))
+watch(() => route.fullPath, () => { navigationOpen.value = false })
 
 const routeLabels: Record<string, { label: string; title: string }> = {
   chat: { label: 'AI Tutor Workspace', title: 'AI Chat' },
@@ -155,19 +104,4 @@ watch([() => workspaceStore.currentConversationId, () => route.name], async ([id
   if ((Number(route.query.conversationId) || null) === id) return
   await router.replace({ query: { ...route.query, conversationId: id || undefined } })
 })
-
-async function newStudySession() {
-  workspaceStore.startDraftConversation()
-  await router.push({ name: 'chat' })
-}
-
-async function selectConversation(conversationId: number) {
-  await router.push({ name: 'chat', query: { conversationId } })
-}
-
-async function logout() {
-  workspaceStore.reset()
-  authStore.logout()
-  await router.push('/login')
-}
 </script>

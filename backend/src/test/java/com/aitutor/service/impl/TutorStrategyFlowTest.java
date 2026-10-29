@@ -161,6 +161,29 @@ class TutorStrategyFlowTest {
     }
 
     @Test
+    void shortAnswerReachesGenerationAfterTheOriginalQuestionInChronologicalOrder() {
+        ChatHistory question = new ChatHistory();
+        question.setRole("assistant");
+        question.setMessageContent("一次函数 y=2x+1，x=3 时 y 是多少？请写结果和理由。");
+        savedMessages.add(question);
+        when(client.chat(anyList())).thenAnswer(invocation -> {
+            List<AiMessage> messages = invocation.getArgument(0);
+            List<AiMessage> dialogue = messages.stream()
+                    .filter(message -> !"system".equals(message.getRole())).toList();
+            assertEquals(2, dialogue.size());
+            assertEquals("assistant", dialogue.get(0).getRole());
+            assertEquals("一次函数 y=2x+1，x=3 时 y 是多少？请写结果和理由。", dialogue.get(0).getContent());
+            assertEquals("user", dialogue.get(1).getRole());
+            assertEquals("7", dialogue.get(1).getContent());
+            return new AiChatResult("收到结果；理由尚待补充。", 12, 8);
+        });
+        AiChatRequest request = new AiChatRequest();
+        request.setConversationId(8L);
+        request.setMessage("7");
+        chat.chat(request);
+    }
+
+    @Test
     void plainChatRemainsIndependentOfTeachingPlanning() {
         when(client.chat(anyList())).thenAnswer(invocation -> {
             List<AiMessage> messages = invocation.getArgument(0);

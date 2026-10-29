@@ -1,0 +1,52 @@
+{
+  "version": "stage4-pilot-v1",
+  "design": "single_arm_feasibility_pilot",
+  "targetParticipants": { "min": 4, "max": 6 },
+  "delayedWindowHours": { "min": 48, "max": 72 },
+  "immediateWindowMinutes": 30,
+  "topicMinutes": 15,
+  "testMinutes": 5,
+  "sourceProvenance": "项目自编短资料；操作结果使用 Java 17 验证，教学适切性仍需人工审阅。",
+  "topics": [
+    {
+      "id": "arraylist",
+      "name": "ArrayList 索引与修改",
+      "source": "领域：Java 集合。ArrayList 保存有顺序的元素，允许重复，索引从0开始。size() 返回元素数量。get(i) 读取索引i的元素，不改变列表。set(i, x) 用x替换索引i的元素，数量不变。add(i, x) 在索引i插入x，原来位于该位置及其后的元素向后移动，数量增加1；add(size(), x) 表示末尾插入。remove(i) 删除索引i的元素，后续元素向前移动，数量减少1。本材料中的i是整数，remove(i)只讨论按索引删除，所有示例索引均合法。不讨论复杂度、并发或源码。",
+      "learningTask": "用自己的例子解释 get、set、add 和 remove 对元素位置及数量的不同影响，并完成一次理解检查。",
+      "questions": {
+        "pre": [
+          { "id": "A-P1", "setup": ["var values = new ArrayList<>(List.of(\"red\", \"blue\", \"green\"))"], "expression": "values.get(1)", "prompt": "写出输出，并解释索引与元素位置的关系。", "expectedOutput": "blue", "rubric": ["输出为blue，得1分", "说明索引从0开始，1对应第二个元素，得1分"] },
+          { "id": "A-P2", "setup": ["var values = new ArrayList<>(List.of(\"A\", \"B\"))", "values.add(1, \"X\")"], "expression": "values + \":\" + values.size()", "prompt": "写出输出，并解释插入后的数量变化。", "expectedOutput": "[A, X, B]:3", "rubric": ["顺序和数量均正确，得1分", "说明插入使B后移且数量增加1，得1分"] }
+        ],
+        "immediate": [
+          { "id": "A-I1", "setup": ["var values = new ArrayList<>(List.of(\"cat\", \"dog\", \"bird\"))", "values.set(1, \"fish\")"], "expression": "values + \":\" + values.size()", "prompt": "写出输出，并解释替换是否增加元素数量。", "expectedOutput": "[cat, fish, bird]:3", "rubric": ["顺序和数量均正确，得1分", "说明set替换已有元素而非插入，数量不变，得1分"] },
+          { "id": "A-I2", "setup": ["var values = new ArrayList<>(List.of(\"M\", \"N\", \"P\"))", "values.remove(0)"], "expression": "values.get(0) + \":\" + values.size()", "prompt": "写出输出，并解释删除后原第二个元素的位置。", "expectedOutput": "N:2", "rubric": ["读出N且数量为2，得1分", "说明删除后后续元素前移，N的新索引为0，得1分"] }
+        ],
+        "delayed": [
+          { "id": "A-D1", "setup": ["var values = new ArrayList<>(List.of(\"sun\", \"moon\", \"star\"))", "values.remove(1)"], "expression": "values.get(1) + \":\" + values.size()", "prompt": "写出输出，并解释为什么读取到该元素。", "expectedOutput": "star:2", "rubric": ["读出star且数量为2，得1分", "说明moon删除后star前移到索引1，得1分"] },
+          { "id": "A-D2", "setup": ["var values = new ArrayList<>(List.of(\"L\", \"R\"))", "values.add(1, \"C\")", "values.set(0, \"S\")"], "expression": "values + \":\" + values.size()", "prompt": "写出最终输出，并区分两次修改对数量的影响。", "expectedOutput": "[S, C, R]:3", "rubric": ["顺序和数量均正确，得1分", "说明add增加1而set不改变数量，得1分"] }
+        ]
+      }
+    },
+    {
+      "id": "hashmap",
+      "name": "HashMap 键值与覆盖",
+      "source": "领域：Java 集合。HashMap 保存键和值的映射，同一个键只对应一个当前值。本材料用完全相同的字符串表示相同键。put(k, v) 放入映射；相同键再次放入会替换旧值，不增加映射数量。不同键可以对应相同值。get(k) 读取当前值，本材料不放入null值，因此get返回null表示没有这个键的映射，不能当作整数0。size() 返回键值映射的数量。HashMap 不保证遍历顺序。这里不讨论空键、null值、哈希冲突、线程安全或源码。",
+      "learningTask": "用自己的例子解释同键覆盖与不同键同值的区别，并说明如何理解缺键查询，完成一次理解检查。",
+      "questions": {
+        "pre": [
+          { "id": "H-P1", "setup": ["var values = new HashMap<String, Integer>()", "values.put(\"a\", 1)", "values.put(\"a\", 4)"], "expression": "values.get(\"a\") + \":\" + values.size()", "prompt": "写出输出，并解释映射数量。", "expectedOutput": "4:1", "rubric": ["当前值为4且数量为1，得1分", "说明同键再次put覆盖旧值而非新增键，得1分"] },
+          { "id": "H-P2", "setup": ["var values = new HashMap<String, Integer>()", "values.put(\"x\", 7)", "values.put(\"y\", 7)"], "expression": "values.size()", "prompt": "写出输出，并解释两个相同值是否合并。", "expectedOutput": "2", "rubric": ["数量为2，得1分", "说明不同键可以有相同值，不会因值相同合并，得1分"] }
+        ],
+        "immediate": [
+          { "id": "H-I1", "setup": ["var values = new HashMap<String, Integer>()", "values.put(\"cat\", 2)", "values.put(\"dog\", 2)", "values.put(\"cat\", 9)"], "expression": "values.get(\"cat\") + \":\" + values.get(\"dog\") + \":\" + values.size()", "prompt": "写出输出，并解释覆盖对另一个键的影响。", "expectedOutput": "9:2:2", "rubric": ["两个值和数量均正确，得1分", "说明只替换cat的值，不改变dog也不新增键，得1分"] },
+          { "id": "H-I2", "setup": ["var values = new HashMap<String, Integer>()", "values.put(\"known\", 3)"], "expression": "values.get(\"missing\")", "prompt": "写出输出，并说明是否表示保存了整数0。", "expectedOutput": "null", "rubric": ["输出null，得1分", "说明本材料未放入null值，此处没有missing映射，不表示整数0，得1分"] }
+        ],
+        "delayed": [
+          { "id": "H-D1", "setup": ["var values = new HashMap<String, Integer>()", "values.put(\"east\", 5)", "values.put(\"west\", 5)", "values.put(\"east\", 8)", "values.put(\"west\", 6)"], "expression": "values.get(\"east\") + \":\" + values.get(\"west\") + \":\" + values.size()", "prompt": "写出最终输出，并解释两次覆盖后的数量。", "expectedOutput": "8:6:2", "rubric": ["两个当前值和数量均正确，得1分", "说明两次均覆盖已有键，共两个映射，得1分"] },
+          { "id": "H-D2", "setup": ["var values = new HashMap<String, Integer>()", "values.put(\"first\", 4)", "values.put(\"second\", 4)"], "expression": "values.get(\"third\") + \":\" + values.size()", "prompt": "写出输出，并分别解释查询结果和映射数量。", "expectedOutput": "null:2", "rubric": ["查询为null且数量为2，得1分", "说明third不存在，不同键first和second同值仍为两个映射，得1分"] }
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-// 阶段 1 固定题集验收：retrieval 模式只诊断检索；real 模式调用已配置的真实模型。
+// 固定题集：retrieval 诊断检索，real 按预算调用模型，replay 按请求指纹回放已有真实回答。
 // 示例见 docs/Development.md。需要先构建后端 jar，并安装 MySQL 客户端。
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
+import { planEvaluation, claimRealCall, takeReplayAnswer } from './stage1-plan.mjs';
 
 const { values: options } = parseArgs({ options: {
   'project-root': { type: 'string', default: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..') },
@@ -21,6 +22,8 @@ const { values: options } = parseArgs({ options: {
   mode: { type: 'string', default: 'retrieval' },
   textbook: { type: 'string' },
   only: { type: 'string' },
+  'max-real-calls': { type: 'string', default: '64' },
+  'replay-file': { type: 'string' },
   'hold-for-browser': { type: 'boolean', default: false },
 } });
 assert(options['output-dir'], '必须指定 --output-dir，日志和临时上传文件应保存在源码仓库外。');
@@ -67,14 +70,25 @@ function sql(statement, selectSchema = true) {
 
 const suitePath = path.join(backendRoot, 'evaluation/stage1-cases.json');
 const suite = JSON.parse(readFileSync(suitePath, 'utf8'));
-assert(['retrieval', 'real'].includes(options.mode), 'mode 必须是 retrieval 或 real');
-assert(options.textbook && existsSync(options.textbook), '必须指定原 Java 教材 DOCX');
+const plan = planEvaluation(suite, { only: options.only, mode: options.mode, maxRealCalls: options['max-real-calls'] });
+assert(!plan.requiresTextbook || options.textbook && existsSync(options.textbook), '所选用例包含 Java 时必须指定原 Java 教材 DOCX');
 const sha = value => createHash('sha256').update(value).digest('hex');
 const checks = [];
 const pass = name => { checks.push(name); console.log('PASS ' + name); };
-const cases = options.only ? suite.cases.filter(item => options.only.split(',').includes(item.id)) : suite.cases;
-assert(cases.length > 0, '没有匹配的用例');
-assert(!options.only || options.only.split(',').every(id => suite.cases.some(item => item.id === id)), '存在未知用例 ID');
+const cases = plan.cases;
+assert(options.mode === 'replay' ? options['replay-file'] && existsSync(options['replay-file']) : !options['replay-file'],
+  'replay mode requires --replay-file; other modes must not use it');
+const replay = options.mode === 'replay' ? JSON.parse(readFileSync(options['replay-file'], 'utf8')) : null;
+const usedReplayRequests = new Set();
+if (replay) {
+  assert.equal(replay.mode, 'real', 'Replay must originate from a real run');
+  assert.equal(replay.suiteSha256, sha(readFileSync(suitePath)), 'Replay suite differs');
+  assert.equal(replay.jarSha256, sha(readFileSync(jarPath)), 'Replay backend differs');
+  assert.equal(replay.promptSourceSha256, sha(readFileSync(path.join(backendRoot, 'src/main/java/com/aitutor/ai/AiPromptBuilder.java'))), 'Replay prompt differs');
+  assert(Array.isArray(replay.modelRequests), 'Replay requests required');
+  for (const name of plan.materials) assert.equal(replay.materials[name],
+    sha(name === 'java' ? readFileSync(options.textbook) : Buffer.from(suite.materials[name])), 'Replay material differs');
+}
 const provider = new URL(setting('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'));
 assert.equal(provider.protocol, 'https:');
 assert.equal(provider.hostname, 'api.deepseek.com', '此评测仅允许当前配置的官方 DeepSeek 目标');
@@ -102,7 +116,7 @@ const modelServer = createServer(async (request, response) => {
     modelRequests.push(record);
     let result;
     if (options.mode === 'real') {
-      assert(realCalls < 64, '单次运行最多调用 64 次真实模型，超出即停止'); realCalls++;
+      realCalls = claimRealCall(realCalls, plan.maxRealCalls);
       const upstream = await fetch(provider.href.replace(/\/$/, '') + '/chat/completions', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + modelKey },
         body: JSON.stringify(payload), signal: AbortSignal.timeout(120000), redirect: 'error'
@@ -114,6 +128,11 @@ const modelServer = createServer(async (request, response) => {
       result = await upstream.json();
       record.responseModel = result.model; record.usage = result.usage;
       record.answer = result.choices?.[0]?.message?.content;
+    } else if (options.mode === 'replay') {
+      const saved = takeReplayAnswer(replay.modelRequests, usedReplayRequests, record.promptSha256);
+      record.replayedFromRequest = saved.index;
+      record.answer = saved.answer; record.responseModel = saved.model; record.usage = saved.usage;
+      result = { model: saved.model, usage: saved.usage, choices: [{ message: { content: saved.answer } }] };
     } else {
       result = { choices: [{ message: { content: '仅用于检索诊断，不是模型质量评测。参考来源：片段1。' } }] };
     }
@@ -220,7 +239,7 @@ try {
   const documents = {};
   const materialHashes = {};
   const chunksById = new Map();
-  for (const name of ['java', ...Object.keys(suite.materials)]) {
+  for (const name of plan.materials) {
     const bytes = name === 'java' ? readFileSync(options.textbook) : Buffer.from(suite.materials[name]);
     materialHashes[name] = sha(bytes);
     const form = new FormData();
@@ -231,7 +250,7 @@ try {
     const chunks = await api('/documents/' + document.documentId + '/chunks', { token });
     chunksById.set(document.documentId, chunks);
   }
-  pass('原教材 DOCX 及五份自编跨学科材料通过真实解析上传；图谱提取使用空替身以限定问答评测调用范围');
+  pass(`${plan.materials.length} 份所选资料通过真实解析上传；图谱提取使用空替身以限定问答评测调用范围`);
   writeFileSync(path.join(outputDir, 'materials.json'), JSON.stringify({ hashes: materialHashes, documents, chunks: Object.fromEntries(chunksById) }, null, 2));
   const normalize = value => value.normalize('NFKC').replace(/\s+/g, '');
   const matches = (snippet, alternatives) => alternatives.some(value => normalize(snippet).includes(normalize(value)));
@@ -274,7 +293,8 @@ try {
   }
   const provenance = { suiteVersion: suite.version, suiteSha256: sha(readFileSync(suitePath)),
     jarSha256: sha(readFileSync(jarPath)), promptSourceSha256: sha(readFileSync(path.join(backendRoot, 'src/main/java/com/aitutor/ai/AiPromptBuilder.java'))),
-    materials: materialHashes, mode: options.mode, model, provider: provider.origin, realCalls, graphStubCalls,
+    materials: materialHashes, mode: options.mode, model, provider: provider.origin, realCalls, realCallLimit: plan.maxRealCalls, graphStubCalls,
+    replayCalls: usedReplayRequests.size, replaySourceSha256: replay ? sha(readFileSync(options['replay-file'])) : null,
     modelRequests, topK: 4, chunkSize: 800, chunkOverlap: 120, timeoutMs: 120000 };
   writeFileSync(path.join(outputDir, 'provenance.json'), JSON.stringify(provenance, null, 2));
   pass('已保存逐题问题、预期依据检查、回答、检索片段、模型请求、版本校验值及耗时；真实质量仍需逐题审阅');
@@ -306,8 +326,8 @@ try {
   }
   writeFileSync(path.join(outputDir, 'result.json'), JSON.stringify({
     passed: !failure && caseResults.length === cases.length && caseResults.every(item => item.passed), checks,
-    mode: options.mode, model, realCalls, caseCount: caseResults.length, automaticPassCount: caseResults.filter(item => item.passed).length,
-    requiresAnswerReview: options.mode === 'real', fullSuite: !options.only,
+    mode: options.mode, model, realCalls, realCallLimit: plan.maxRealCalls, caseCount: caseResults.length, automaticPassCount: caseResults.filter(item => item.passed).length,
+    requiresAnswerReview: options.mode === 'real', replayCalls: usedReplayRequests.size, fullSuite: !options.only,
     temporaryDatabase: schema, cleanup: databaseCreated ? (databaseRemoved ? 'removed' : 'failed') : 'not needed',
     error: failure?.message, time: new Date().toISOString(),
   }, null, 2));

@@ -116,7 +116,7 @@ class ReviewServiceTest {
         LearningEvidence old=new LearningEvidence(); old.setId(10L); old.setKnowledgePointId(2L);
         when(rows.selectList(any(LambdaQueryWrapper.class))).thenReturn(java.util.List.of(latest,old));
         when(tasks.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(tasks.selectList(any(LambdaQueryWrapper.class))).thenReturn(java.util.List.of());
+        when(tasks.selectList(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(java.util.List.of());
         service.generate();
         var saved=org.mockito.ArgumentCaptor.forClass(ReviewTask.class);
         verify(tasks).insert(saved.capture());
@@ -126,7 +126,7 @@ class ReviewServiceTest {
     @Test void existingPendingTaskPreventsRepeatedGeneration() {
         LearningEvidence source=new LearningEvidence(); source.setKnowledgePointId(2L); source.setMasteryAfter(40);
         when(rows.selectList(any(LambdaQueryWrapper.class))).thenReturn(java.util.List.of(source));
-        when(tasks.selectList(any(LambdaQueryWrapper.class))).thenReturn(java.util.List.of());
+        when(tasks.selectList(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(java.util.List.of());
         service.generate();
         verify(tasks,never()).insert(any(ReviewTask.class));
     }
@@ -136,7 +136,7 @@ class ReviewServiceTest {
         source.setSourceType("question"); source.setSnapshot(task.getSnapshot());
         when(rows.selectList(any(LambdaQueryWrapper.class))).thenReturn(java.util.List.of(source));
         when(tasks.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(tasks.selectList(any(LambdaQueryWrapper.class))).thenReturn(java.util.List.of());
+        when(tasks.selectList(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(java.util.List.of());
         service.generate();
         var saved=org.mockito.ArgumentCaptor.forClass(ReviewTask.class);
         verify(tasks).insert(saved.capture());

@@ -6,8 +6,10 @@
           <p class="eyebrow">Knowledge Library</p>
           <h2>资料问答</h2>
         </div>
-        <el-button type="primary" :loading="ragSending" @click="createRagConversation">新建资料会话</el-button>
-        <el-button v-if="workspaceStore.currentConversation?.mode === 'rag'" @click="openMainChat">在主聊天继续</el-button>
+        <div class="library-qa-actions">
+          <el-button type="primary" :loading="ragSending" @click="createRagConversation">新建资料会话</el-button>
+          <el-button v-if="workspaceStore.currentConversation?.mode === 'rag'" @click="openMainChat">在主聊天继续</el-button>
+        </div>
       </div>
 
       <div class="source-summary">
