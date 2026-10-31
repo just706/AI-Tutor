@@ -1,0 +1,662 @@
+{
+  "version": "stage5-retrieval-v1",
+  "implementation": "current-java-lexical",
+  "scope": "Offline retrieval only. Include the unchanged 12 non-Java stage1-v1 cases plus these synthetic challenge cases. Expectations are frozen before the first run; no generated answers or learner outcomes are evaluated.",
+  "exclusions": [
+    "document parsing/chunking",
+    "SQL and ownership enforcement",
+    "HTTP and transactions",
+    "answer generation/citation quality",
+    "learning outcomes",
+    "candidate vector retrieval"
+  ],
+  "realModelCalls": 0,
+  "candidateAcceptance": "not_evaluated",
+  "timingScope": "Seven in-process samples per case after three warmups; per-case median; excludes JVM startup, SQL, network and model calls. Tiny synthetic corpus, not production latency.",
+  "provenance": {
+    "createdAt": "2026-10-30T01:23:10.857Z",
+    "suiteSha256": "f6dba57801fce527dfcc913a9f0ef61da47609b4c975d822e617aa2a91c0a1e5",
+    "inputSha256": "ce9666079a4676375389c5fb5da90b356cd2944a665622fc5fd542f12dd817ea",
+    "sources": {
+      "backend/src/main/java/com/aitutor/service/impl/RagServiceImpl.java": "b11aef0401f7f8bc3d9a43b9584ffbd43a18dffc7eb6239a137e3e0220f30d91",
+      "backend/src/main/java/com/aitutor/ai/RagKeywordScorer.java": "cc3207fbf17e0dc7f1c9607682e0d670155e23f5e1b1b5abe715d20928157522",
+      "backend/src/main/java/com/aitutor/ai/RagQuestionParser.java": "a8796418395a19c6a6cd8db8936eeeec9930f5fb7dadbe9ee29600986ecc8d36",
+      "backend/src/main/java/com/aitutor/ai/RagFollowUpResolver.java": "968b502c8c2fb622f3ac3fb3a7924a2271960b8c69154d4245e0fcd56f5ebd0e",
+      "backend/src/main/java/com/aitutor/config/RagProperties.java": "238c85ea3d31cd6a27f1e793673ba8e1ed6e915363032b5b99d4d892b3e6f248"
+    },
+    "classes": {
+      "files": 268,
+      "sha256": "91604572d91ab59b1c851bd85930c94e5453fcd3d26f2686627ca3fd0ca1e741"
+    },
+    "dependencies": {
+      "files": 58,
+      "sha256": "e5f85fc05efd32c803fa15d92382fb358068c6f8b85bf5b9f505fcaf7ff5f352"
+    },
+    "runnerSha256": "275747bbef77d85cc9b16e68a96bab5bf97903b908acedb63002d49d11f6339b",
+    "helperSha256": "62cb6378d10149b67f7a6cd50a774dd74c824663f94ba4d39f0a4a55732727fd",
+    "nodeVersion": "v24.15.0",
+    "javaVersion": "openjdk version \"17.0.20\" 2026-07-21\r\nOpenJDK Runtime Environment Temurin-17.0.20+8 (build 17.0.20+8)\r\nOpenJDK 64-Bit Server VM Temurin-17.0.20+8 (build 17.0.20+8, mixed mode, sharing)",
+    "retrievalSha256": "194acaf63cca1ec36ddfb7fa99ce745058777a85ec367bb0c9387b7ac025de26"
+  },
+  "totalCases": 24,
+  "passedCases": 16,
+  "answerable": {
+    "passed": 9,
+    "total": 16
+  },
+  "evidenceGroups": {
+    "found": 11,
+    "total": 19
+  },
+  "refusal": {
+    "passed": 5,
+    "total": 6
+  },
+  "clarification": {
+    "passed": 2,
+    "total": 2
+  },
+  "groups": {
+    "stage1_supplement": {
+      "passed": 12,
+      "total": 12
+    },
+    "challenge": {
+      "passed": 4,
+      "total": 12
+    }
+  },
+  "cases": [
+    {
+      "caseId": "M01",
+      "resolvedQuestion": "什么是导数？",
+      "clarification": null,
+      "retrieved": [
+        "math:0"
+      ],
+      "timingSamplesMs": [
+        1.0147,
+        1.3058,
+        1.0264,
+        1.0493,
+        1.0154,
+        0.8852,
+        0.6672
+      ],
+      "elapsedMs": 1.0154,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "M02",
+      "resolvedQuestion": "导数有什么用途？",
+      "clarification": null,
+      "retrieved": [
+        "math:0"
+      ],
+      "timingSamplesMs": [
+        0.6101,
+        0.6542,
+        4.3795,
+        0.7431,
+        0.7083,
+        0.6541,
+        0.8131
+      ],
+      "elapsedMs": 0.7083,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "M03",
+      "resolvedQuestion": "它有什么用途？",
+      "clarification": "近期明确提到的对象有：导数、积分。请明确你指的是哪个对象；可以直接写出名称和问题。若要比较两种，请写出两个名称。",
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.1505,
+        0.1201,
+        0.1146,
+        0.1107,
+        0.1078,
+        0.25,
+        0.145
+      ],
+      "elapsedMs": 0.1201,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "clarification",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "P01",
+      "resolvedQuestion": "瞬时速度有什么特点？",
+      "clarification": null,
+      "retrieved": [
+        "physics:0"
+      ],
+      "timingSamplesMs": [
+        0.8342,
+        0.7407,
+        0.7053,
+        0.6656,
+        0.6469,
+        0.6377,
+        0.6457
+      ],
+      "elapsedMs": 0.6656,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "P02",
+      "resolvedQuestion": "牛顿第二定律的发现年份是多少？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.5504,
+        0.566,
+        0.5713,
+        0.5093,
+        0.5,
+        0.4697,
+        0.5667
+      ],
+      "elapsedMs": 0.5504,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "refusal",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "P03",
+      "resolvedQuestion": "牛顿第二定律的适用条件是什么？",
+      "clarification": null,
+      "retrieved": [
+        "physics:0"
+      ],
+      "timingSamplesMs": [
+        0.4028,
+        0.3906,
+        0.4378,
+        0.4512,
+        0.35,
+        0.3356,
+        0.4259
+      ],
+      "elapsedMs": 0.4028,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "E01",
+      "resolvedQuestion": "机会成本和沉没成本有什么区别？",
+      "clarification": null,
+      "retrieved": [
+        "opportunity:0",
+        "sunk:0"
+      ],
+      "timingSamplesMs": [
+        1.0221,
+        0.9843,
+        0.953,
+        0.9052,
+        0.8346,
+        0.7768,
+        0.7403
+      ],
+      "elapsedMs": 0.9052,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "E02",
+      "resolvedQuestion": "沉没成本是否应该影响后续决策？",
+      "clarification": null,
+      "retrieved": [
+        "sunk:0"
+      ],
+      "timingSamplesMs": [
+        0.1799,
+        0.2399,
+        0.1737,
+        0.1839,
+        0.1577,
+        0.1603,
+        0.1524
+      ],
+      "elapsedMs": 0.1737,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "E03",
+      "resolvedQuestion": "机会成本和沉没成本有什么区别？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.5779,
+        0.5536,
+        0.5816,
+        0.5466,
+        0.6177,
+        0.893,
+        1.3438
+      ],
+      "elapsedMs": 0.5816,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "refusal",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "C01",
+      "resolvedQuestion": "星云投影是什么？",
+      "clarification": null,
+      "retrieved": [
+        "custom:0"
+      ],
+      "timingSamplesMs": [
+        0.384,
+        0.4698,
+        0.5149,
+        0.7411,
+        0.3492,
+        0.3946,
+        0.3143
+      ],
+      "elapsedMs": 0.3946,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "C02",
+      "resolvedQuestion": "月影映射是什么？",
+      "clarification": null,
+      "retrieved": [
+        "custom:0"
+      ],
+      "timingSamplesMs": [
+        0.3519,
+        0.3325,
+        0.4083,
+        0.3847,
+        0.3413,
+        0.5206,
+        0.3982
+      ],
+      "elapsedMs": 0.3847,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "C03",
+      "resolvedQuestion": "星云投影的发明者是谁？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.4812,
+        0.438,
+        0.3961,
+        0.3731,
+        0.7502,
+        0.4522,
+        0.5188
+      ],
+      "elapsedMs": 0.4522,
+      "group": "stage1_supplement",
+      "category": "supplement",
+      "expected": "refusal",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S01",
+      "resolvedQuestion": "函数在某一点变化得有多快，用什么量表示？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.1699,
+        0.1853,
+        0.1737,
+        0.1712,
+        0.2046,
+        0.1967,
+        0.1829
+      ],
+      "elapsedMs": 0.1829,
+      "group": "challenge",
+      "category": "semantic_paraphrase",
+      "expected": "answerable",
+      "passed": false,
+      "missingEvidenceGroups": [
+        0
+      ],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S02",
+      "resolvedQuestion": "想计算曲线下面那块区域的大小，应使用哪个数学概念？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.2612,
+        0.2269,
+        0.1777,
+        0.1744,
+        0.3959,
+        0.3412,
+        0.3549
+      ],
+      "elapsedMs": 0.2612,
+      "group": "challenge",
+      "category": "semantic_paraphrase",
+      "expected": "answerable",
+      "passed": false,
+      "missingEvidenceGroups": [
+        0
+      ],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S03",
+      "resolvedQuestion": "想描述物体此刻而非整段行程的运动状况，应该用什么量？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.2166,
+        0.192,
+        0.2002,
+        0.1986,
+        0.1813,
+        0.1893,
+        0.1939
+      ],
+      "elapsedMs": 0.1939,
+      "group": "challenge",
+      "category": "semantic_paraphrase",
+      "expected": "answerable",
+      "passed": false,
+      "missingEvidenceGroups": [
+        0
+      ],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S04",
+      "resolvedQuestion": "选择一个方案时，放弃的最好备选收益叫什么？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.26,
+        0.2863,
+        0.2567,
+        0.1951,
+        0.1472,
+        0.1391,
+        0.1343
+      ],
+      "elapsedMs": 0.1951,
+      "group": "challenge",
+      "category": "semantic_paraphrase",
+      "expected": "answerable",
+      "passed": false,
+      "missingEvidenceGroups": [
+        0
+      ],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S05",
+      "resolvedQuestion": "已经花出去而且拿不回来的钱，应不应该左右接下来的选择？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.2023,
+        0.1963,
+        0.2214,
+        0.2185,
+        0.1797,
+        0.1282,
+        0.1386
+      ],
+      "elapsedMs": 0.1963,
+      "group": "challenge",
+      "category": "semantic_paraphrase",
+      "expected": "answerable",
+      "passed": false,
+      "missingEvidenceGroups": [
+        0,
+        1
+      ],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S06",
+      "resolvedQuestion": "用位置编号快速取出列表中的一项，哪种容器合适？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.4643,
+        0.426,
+        0.276,
+        0.8307,
+        0.8053,
+        0.3214,
+        0.3222
+      ],
+      "elapsedMs": 0.426,
+      "group": "challenge",
+      "category": "semantic_paraphrase",
+      "expected": "answerable",
+      "passed": false,
+      "missingEvidenceGroups": [
+        0
+      ],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S07",
+      "resolvedQuestion": "往键值容器写入已有键时，旧的映射会怎样？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.2844,
+        0.2725,
+        0.2953,
+        0.253,
+        0.2938,
+        0.4271,
+        0.3414
+      ],
+      "elapsedMs": 0.2938,
+      "group": "challenge",
+      "category": "semantic_paraphrase",
+      "expected": "answerable",
+      "passed": false,
+      "missingEvidenceGroups": [
+        0
+      ],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S08",
+      "resolvedQuestion": "导数表示什么？瞬时速度描述什么？",
+      "clarification": null,
+      "retrieved": [
+        "math:0",
+        "physics:0"
+      ],
+      "timingSamplesMs": [
+        0.4161,
+        0.345,
+        0.3306,
+        0.3482,
+        0.3252,
+        0.3529,
+        0.4908
+      ],
+      "elapsedMs": 0.3482,
+      "group": "challenge",
+      "category": "cross_chunk",
+      "expected": "answerable",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S09",
+      "resolvedQuestion": "导数这个术语最早出现在哪一年？",
+      "clarification": "请明确你指的是哪个对象；可以直接写出名称和问题。若要比较两种，请写出两个名称。",
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.0221,
+        0.0227,
+        0.0407,
+        0.0251,
+        0.0233,
+        0.0211,
+        0.0217
+      ],
+      "elapsedMs": 0.0227,
+      "group": "challenge",
+      "category": "unanswerable",
+      "expected": "refusal",
+      "passed": false,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S10",
+      "resolvedQuestion": "沉没成本是否应该影响后续决策？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.1164,
+        0.1539,
+        0.1301,
+        0.125,
+        0.1299,
+        0.121,
+        0.1165
+      ],
+      "elapsedMs": 0.125,
+      "group": "challenge",
+      "category": "selection_boundary",
+      "expected": "refusal",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S11",
+      "resolvedQuestion": "它映射成什么？",
+      "clarification": "近期明确提到的对象有：星云投影、月影映射。请明确你指的是哪个对象；可以直接写出名称和问题。若要比较两种，请写出两个名称。",
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.0461,
+        0.0672,
+        0.0459,
+        0.0672,
+        0.0467,
+        0.0473,
+        0.0454
+      ],
+      "elapsedMs": 0.0467,
+      "group": "challenge",
+      "category": "clarification",
+      "expected": "clarification",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    },
+    {
+      "caseId": "S12",
+      "resolvedQuestion": "虚拟线程在什么条件下适合使用？",
+      "clarification": null,
+      "retrieved": [],
+      "timingSamplesMs": [
+        0.4793,
+        0.5408,
+        0.8958,
+        0.5579,
+        0.6591,
+        0.4077,
+        0.3376
+      ],
+      "elapsedMs": 0.5408,
+      "group": "challenge",
+      "category": "unanswerable",
+      "expected": "refusal",
+      "passed": true,
+      "missingEvidenceGroups": [],
+      "distinctChunksSatisfied": true,
+      "resolvedSubjectSatisfied": true
+    }
+  ],
+  "latencyMs": {
+    "median": 0.36645,
+    "p95": 0.9052
+  }
+}

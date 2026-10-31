@@ -1,0 +1,9 @@
+{
+  "version": "stage5-slot-veto-v1",
+  "scope": "Offline rejection-only experiment for explicit person, year and numeric-attribute questions. It never returns supported. Missing a recognized slot blocks the entire retrieval; unverified is allowed only for this experimental comparison.",
+  "outcomes": ["blocked", "unverified"],
+  "unverifiedAllowedInExperiment": true,
+  "sourcePolicy": "Inspect only the selected snippets already retrieved. A co-occurring subject, relation and value is a surface cue, not proof of entailment. Do not add source material or rewrite the question.",
+  "comparisonPolicy": "Reuse all eight previously fixed vector/hybrid configurations on both original suites. Preserve shared clarification and all prior failures. Verify archived input/result hashes before reuse; do not rerun embeddings or make model calls.",
+  "acceptance": "No regression on previously passing retrieval cases, and no false allowance or false rejection in the additional contrastive evidence fixture. Any remaining error rejects general answerability acceptance. Previously observed examples are development cases, not independent validation."
+}

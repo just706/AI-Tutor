@@ -33,6 +33,7 @@ async function main() {
   const unexpected = []
   const errors = []
   const measurements = []
+  let showLongDirection = false
   const check = (name, condition, detail) => checks.push({ name, passed: !!condition, detail })
   try {
     const context = await browser.newContext({ viewport: { width: 360, height: 800 }, serviceWorkers: 'block' })
@@ -45,7 +46,8 @@ async function main() {
       let data
       if (request.method() === 'GET') {
         if (endpoint === '/users/me') data = { id: 7, username: 'layout-tester', role: 'student' }
-        else if (endpoint === '/profile') data = null
+        else if (endpoint === '/profile') data = showLongDirection
+          ? { learningDirection: 'Java、数学与物理的跨学科学习和长期复习计划' } : null
         else if (endpoint === '/conversations') data = conversations
         else if (/^\/conversations\/\d+$/.test(endpoint)) data = conversations.find(c => c.id === Number(endpoint.split('/').pop()))
         else if (/^\/conversations\/\d+\/messages$/.test(endpoint)) data = messages
@@ -91,17 +93,21 @@ async function main() {
         })
         const summary = panel.querySelector('.source-summary')
         const content = window.document.querySelector('.workspace-content')
+        const topbar = window.document.querySelector('.workspace-topbar')
         const panels = [...window.document.querySelectorAll('.library-page > .panel')].map(element => ({
           name: element.className,
           overflow: element.scrollWidth > element.clientWidth + 1
         }))
         return { textareaTop: textarea.top, textareaBottom: textarea.bottom, buttons,
+          topbarHeight: topbar.getBoundingClientRect().height,
           panelOverflow: panel.scrollWidth > panel.clientWidth + 1,
           summaryOverflow: summary.scrollWidth > summary.clientWidth + 1,
           contentOverflow: content.scrollWidth > content.clientWidth + 1, panels,
           pageOverflow: window.document.documentElement.scrollWidth > innerWidth }
       })
       measurements.push({ width, ...geometry })
+      check(`${width}px: workspace header reserves only necessary space`, width <= 860
+        ? geometry.topbarHeight <= 52 : geometry.topbarHeight === 0, geometry.topbarHeight)
       check(`${width}px: header actions fit inside panel`, geometry.buttons.every(b => b.inside), geometry.buttons)
       check(`${width}px: no page or panel clipping`, !geometry.pageOverflow && !geometry.panelOverflow && !geometry.summaryOverflow, geometry)
       check(`${width}px: all library panels fit workspace`, !geometry.contentOverflow && geometry.panels.every(p => !p.overflow), geometry.panels)
@@ -113,6 +119,35 @@ async function main() {
       }
       if ([360, 390, 1440].includes(width)) await page.screenshot({ path: path.join(output, `library-${width}.png`), fullPage: true, animations: 'disabled' })
     }
+
+    showLongDirection = true
+    for (const width of [320, 360, 861, 1440]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto(`${baseURL}/chat?conversationId=1`)
+      await page.locator('.chat-main .message.assistant').waitFor()
+      await page.locator('.topbar-actions .el-tag').waitFor({ state: 'attached' })
+      const geometry = await page.evaluate(() => {
+        const header = document.querySelector('.workspace-topbar')
+        const bounds = header.getBoundingClientRect()
+        const title = header.querySelector('h1')
+        const content = document.querySelector('.workspace-content')
+        const contentBounds = content.getBoundingClientRect()
+        const chatBounds = document.querySelector('.chat-workbench').getBoundingClientRect()
+        const buttons = [...header.querySelectorAll('button')].filter(button => button.getBoundingClientRect().width > 0)
+        return { headerHeight: bounds.height, titleFits: title.scrollWidth <= title.clientWidth + 1,
+          buttonsFit: buttons.every(button => {
+            const box = button.getBoundingClientRect()
+            return box.left >= bounds.left && box.right <= bounds.right && box.top >= bounds.top && box.bottom <= bounds.bottom
+          }), contentOverflow: content.scrollWidth > content.clientWidth + 1,
+          remainingBottomSpace: contentBounds.bottom - parseFloat(getComputedStyle(content).paddingBottom) - chatBounds.bottom }
+      })
+      measurements.push({ page: 'chat', width, longDirection: true, ...geometry })
+      check(`${width}px: long profile does not enlarge or crowd chat header`, (width <= 860 ? geometry.headerHeight <= 52 : geometry.headerHeight === 0)
+        && geometry.titleFits && geometry.buttonsFit && !geometry.contentOverflow, geometry)
+      if (width > 860) check(`${width}px: chat uses all remaining content height`, Math.abs(geometry.remainingBottomSpace) <= 1, geometry)
+      if ([360, 1440].includes(width)) await page.screenshot({ path: path.join(output, `chat-${width}.png`), fullPage: true, animations: 'disabled' })
+    }
+    showLongDirection = false
 
     await page.setViewportSize({ width: 360, height: 800 })
     await page.goto(`${baseURL}/library?conversationId=1`)

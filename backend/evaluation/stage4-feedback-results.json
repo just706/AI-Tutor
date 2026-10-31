@@ -1,0 +1,84 @@
+{
+  "version": "stage4-feedback-review-v1",
+  "date": "2026-10-29",
+  "suiteVersion": "stage4-feedback-v1",
+  "scope": "Production prompt evaluation with synthetic histories, null profile and no learner memories. No database, browser, learner-effect or stage-two acceptance.",
+  "reviewer": "coding_assistant",
+  "independentSubjectReview": false,
+  "recordingDirectory": "D:\\AI-Tutor-工作资料\\stage4-feedback-20261029-real-a",
+  "appCommit": "9ba8636",
+  "suiteSha256": "3661053e8277b8f47546705193c1fe10db6e042d1b33eaf3ec206842c2e06abe",
+  "recordingSha256": "564124b5497d67263e2e8a0debb98c85aadaf5d2a9d89abfc7b37498131548e1",
+  "provenanceSha256": "aa4832f12b02285b71219a08d6ad71c3eb986cc7ce72931f70dfd0a7b6be16bb",
+  "evaluatedPromptSourceSha256": "22fe331a2ef99d03f88799a7f4a4d48c2ed45cb9384c364a2c2f4e9c802744d9",
+  "requestedModel": "deepseek-v4-flash",
+  "reportedModel": "deepseek-flash",
+  "realModelCalls": 8,
+  "authorizedCalls": 8,
+  "remainingCalls": 0,
+  "automaticRetries": 0,
+  "receivedResponses": 8,
+  "usage": { "promptTokens": 3908, "completionTokens": 1518, "totalTokens": 5426 },
+  "interfacePassed": true,
+  "contentAcceptance": "failed",
+  "passCount": 6,
+  "failCount": 2,
+  "rubricStatusOrder": "Each case's rubricStatuses follows its two frozen rubric items. Common rubric reviewed separately in commonReview.",
+  "cases": [
+    {
+      "id": "J01", "status": "pass", "rubricStatuses": ["pass", "pass"],
+      "responseSha256": "935337b0331507c480d0508f119fd33e179349e8545b80d6079cd5c09bd8bad0",
+      "reason": "Accepts both the printed list and size=3 without treating 3 as an intermediate value. One follow-up about formatting; warnings are generic, not attributed to the student. Explanation is verbose but no frozen criterion fails."
+    },
+    {
+      "id": "J02", "status": "pass", "rubricStatuses": ["pass", "pass"],
+      "responseSha256": "761cdabf99cd7f639ac8d93bac129f1c99b449f03a1af53a3bdd6fb8e5e0e02d",
+      "reason": "Accepts size=2 and get(N)=3. Explains replacement and asks one missing-reason question without replacing the exercise or asserting mastery."
+    },
+    {
+      "id": "J03", "status": "fail", "rubricStatuses": ["fail", "pass"],
+      "responseSha256": "2d6a43fcc599db7c93f1a2d24f4a1039edf5b465d9703367bc6676edf411c51e",
+      "reason": "First labels [2,3] correct, then works through remove(int index) and retracts that judgment in the same answer. The final [1,3] and overload explanation are correct, but explicit contradictory grading in a single response fails the original verify-first requirement. Later correction does not erase the initial false verdict."
+    },
+    {
+      "id": "J04", "status": "pass", "rubricStatuses": ["pass", "pass"],
+      "responseSha256": "c167b72a02da0b96683e039f765c6d584770299e99847a4caaa4e68e84b78f91",
+      "reason": "Explicitly retracts the prior index/count diagnosis and accepts the list and size. Only the reason remains unverified; no full-mastery claim. Suggests optional future practice after the reason, without replacing this turn's task."
+    },
+    {
+      "id": "M01", "status": "pass", "rubricStatuses": ["pass", "pass"],
+      "responseSha256": "5fb51f18e286ac16230a11f6866d56bc85e6da40977c025118e7d4cfd53ce4a8",
+      "reason": "Accepts 7, shows the correct substitution and asks one substitution question. The contrasting placement of 3 is a question, not a claim that the student made that error."
+    },
+    {
+      "id": "M02", "status": "fail", "rubricStatuses": ["pass", "fail"],
+      "responseSha256": "8bf021f119610ea9f6398cb5ad37de39b3c86e6c18f2dcc8bc943bb9efb0aafe",
+      "reason": "Correctly accepts 4, but asks how this 4 transitioned from average to instantaneous rate and then asks for the student's method. That presupposes an unstated average-rate route, excluding the valid power-rule route. It does not explicitly assert a student error, but fails the frozen requirement not to invent the method used."
+    },
+    {
+      "id": "M03", "status": "pass", "rubricStatuses": ["pass", "pass"],
+      "responseSha256": "a0c2a760618c5507194c3992816081d2bed32dd2d2e8a0fe5c83a4b18794ae68",
+      "reason": "Separately accepts the interval-average arithmetic 4 and rejects it as the derivative at 3; gives the correct derivative 6 and a shrinking-interval explanation. The diagnosed substitution was explicitly stated by the synthetic student."
+    },
+    {
+      "id": "M04", "status": "pass", "rubricStatuses": ["pass", "pass"],
+      "responseSha256": "5721c952de23a6de9417f4c2ec87c56fff88afd7ea6d812678ef97888683b3eb",
+      "reason": "Requests the missing original function, conditions and task. Does not judge 7, invent a question, diagnose an error, or assert mastery."
+    }
+  ],
+  "commonReview": {
+    "verifyBeforeFeedback": "fail_J03",
+    "missingExplanationDistinctFromErrorOrMastery": "pass",
+    "noUnsupportedErrorAttribution": "pass_with_M02_method_presupposition_recorded_separately",
+    "noRepeatedCorrectTaskAndAtMostOneReasonQuestion": "pass",
+    "noUnsupportedFactsOrInventedConditions": "fail_J03_false_initial_verdict",
+    "learningEffectsClaimed": false
+  },
+  "followUp": {
+    "action": "Add generic independent-verification, consistent-verdict and open-method-question instructions, then check prompt contracts locally.",
+    "postChangeRealModelVerification": "not_run_budget_exhausted",
+    "originalFailuresRetained": true,
+    "stageTwo": "deferred",
+    "stageFourLearningEffects": "not_evaluated"
+  }
+}

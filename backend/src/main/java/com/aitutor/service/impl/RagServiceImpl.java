@@ -7,6 +7,8 @@ import com.aitutor.ai.DeepSeekClient;
 import com.aitutor.ai.RagKeywordScorer;
 import com.aitutor.ai.RagFollowUpResolver;
 import com.aitutor.config.RagProperties;
+import com.aitutor.agent.AgentContracts.Context;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.aitutor.dto.RagChatRequest;
 import com.aitutor.entity.AiCallLog;
 import com.aitutor.entity.ChatHistory;
@@ -72,6 +74,8 @@ public class RagServiceImpl implements RagService {
     private final TransactionTemplate transactions;
     private final ObjectMapper objectMapper;
     private final DeepSeekProperties modelProperties;
+    private final com.aitutor.agent.PythonAgentGateway agentGateway;
+    private final com.aitutor.agent.PythonAgentClient agentClient;
 
     public RagServiceImpl(ConversationDocumentBinding documentBinding,
                           DocumentChunkMapper documentChunkMapper,
@@ -82,7 +86,10 @@ public class RagServiceImpl implements RagService {
                           AiPromptBuilder aiPromptBuilder,
                           RagProperties ragProperties,
                           RagCitationService citationService, PlatformTransactionManager transactionManager,
-                          ObjectMapper objectMapper, DeepSeekProperties modelProperties, LearningFlowGuard flowGuard) {
+                          ObjectMapper objectMapper, DeepSeekProperties modelProperties, LearningFlowGuard flowGuard,
+                          com.aitutor.agent.PythonAgentGateway agentGateway, com.aitutor.agent.PythonAgentClient agentClient) {
+        this.agentGateway=agentGateway;
+        this.agentClient=agentClient;
         this.flowGuard = flowGuard;
         this.transactions = new TransactionTemplate(transactionManager);
         this.objectMapper = objectMapper;
@@ -136,14 +143,17 @@ public class RagServiceImpl implements RagService {
                 requireOwnedRagConversation(userId, turn.getConversationId());
                 ChatHistory current = requestMessage(userId, turn.getConversationId(), key, ROLE_USER);
                 requireCurrentAttempt(current, turn);
-                ChatHistory assistant = message(userId, turn.getConversationId(), ROLE_ASSISTANT, outcome.answer().getAnswer());
+                RagChatVO reply = outcome.agentResult() == null ? outcome.answer()
+                        : agentGateway.finish(current,start.context().agent(),outcome.agentResult());
+                ChatHistory assistant = message(userId, turn.getConversationId(), ROLE_ASSISTANT, reply.getAnswer());
                 assistant.setRagRequestId(key);
-                assistant.setRagSources(citationService.serialize(outcome.answer().getSources()));
+                assistant.setRagSources(citationService.serialize(reply.getSources()));
                 chatHistoryMapper.insert(assistant);
                 current.setRagStatus("completed");
                 chatHistoryMapper.updateById(current);
                 if (outcome.model() != null) saveAiCallLog(userId, outcome.model().getPromptTokens(),
                         outcome.model().getCompletionTokens(), "success", null);
+                if (outcome.agentResult()!=null) saveAgentCallLog(userId,outcome.agentResult(),null);
                 touchConversation(turn.getConversationId());
                 return response(current, assistant);
             });
@@ -155,7 +165,8 @@ public class RagServiceImpl implements RagService {
                     if (isCurrentAttempt(current, turn)) {
                         current.setRagStatus("failed");
                         chatHistoryMapper.updateById(current);
-                        if (ex instanceof AiServiceException) saveAiCallLog(userId, null, null, "failed", ex.getMessage());
+                        if (start.context().usesAgent()) saveAgentCallLog(userId,null,"教材 Agent 本次执行未完成");
+                        else if (ex instanceof AiServiceException) saveAiCallLog(userId, null, null, "failed", ex.getMessage());
                         touchConversation(turn.getConversationId());
                     }
                 });
@@ -171,7 +182,7 @@ public class RagServiceImpl implements RagService {
         String question = request.getQuestion().trim();
         int attempt = request.getAttempt() == null ? 1 : request.getAttempt();
         ChatHistory current = requestMessage(userId, conversation.getId(), key, ROLE_USER);
-        RequestContext context;
+        Context context;
         if (current != null) {
             context = readContext(current);
             if (!question.equals(current.getMessageContent()) || (request.getDocumentIds() != null
@@ -202,13 +213,19 @@ public class RagServiceImpl implements RagService {
                 update.setId(conversation.getId()); update.setDocumentIds(documentBinding.serialize(documents));
                 conversationMapper.updateById(update);
             }
-            RagFollowUpResolver.Resolution resolution = resolveQuestion(userId, conversation.getId(), question);
-            context = new RequestContext(List.copyOf(ids), resolution.question(), resolution.clarification());
+            if (agentGateway.isEnabled()) {
+                if (question.length()>2000) throw new BusinessException(400,"Agent 试验的问题上限为2000字符，请缩短问题。");
+                context=new Context(List.copyOf(ids),question,null,"python-v1",recentUserQuestions(userId,conversation.getId()),null);
+            } else {
+                RagFollowUpResolver.Resolution resolution = resolveQuestion(userId, conversation.getId(), question);
+                context = new Context(List.copyOf(ids), resolution.question(), resolution.clarification(),null,null,null);
+            }
             current = message(userId, conversation.getId(), ROLE_USER, question);
             current.setRagRequestId(key);
-            try { current.setRagContext(objectMapper.writeValueAsString(context)); }
-            catch (JsonProcessingException ex) { throw new BusinessException(500, "无法保存请求上下文"); }
         }
+        if (context.usesAgent()) context=context.withAgent(agentGateway.prepare(userId,context.documentIds(),context.agent()));
+        try { current.setRagContext(objectMapper.writeValueAsString(context)); }
+        catch (JsonProcessingException ex) { throw new BusinessException(500, "无法保存请求上下文"); }
         current.setRagAttempt(attempt);
         current.setRagStatus("processing");
         int timeout = modelProperties.getTimeoutMs() == null ? 60000 : modelProperties.getTimeoutMs();
@@ -219,8 +236,8 @@ public class RagServiceImpl implements RagService {
         return new Start(current, context, null);
     }
 
-    private RequestContext readContext(ChatHistory turn) {
-        try { return objectMapper.readValue(turn.getRagContext(), RequestContext.class); }
+    private Context readContext(ChatHistory turn) {
+        try { return objectMapper.readValue(turn.getRagContext(), Context.class); }
         catch (JsonProcessingException ex) { throw new BusinessException(500, "请求上下文无法读取"); }
     }
 
@@ -246,7 +263,17 @@ public class RagServiceImpl implements RagService {
         return result;
     }
 
-    private Outcome answer(Long userId, ChatHistory turn, RequestContext context) {
+    private Outcome answer(Long userId, ChatHistory turn, Context context) {
+        if (context.usesAgent()) {
+            // 每个持久化尝试只分派一次；失败由原协议记录，不回退或自动重发。
+            Map<String,Object> request=new LinkedHashMap<>();
+            request.put("version","1"); request.put("request_id",turn.getRagRequestId()); request.put("attempt",turn.getRagAttempt());
+            request.put("user_id",userId); request.put("conversation_id",turn.getConversationId());
+            request.put("document_ids",context.documentIds()); request.put("question",context.question());
+            request.put("recent_user_questions",context.recentQuestions()); request.put("scope_version",context.agent().scopeVersion());
+            request.put("scope_token",agentGateway.capability(turn,context.agent()));
+            return new Outcome(null,null,agentClient.run(request));
+        }
         List<LearningDocument> documents = documentBinding.validateDocuments(userId, context.documentIds());
         Long conversationId = turn.getConversationId();
         if (context.clarification() != null) return new Outcome(new RagChatVO(conversationId, context.clarification(), List.of()), null);
@@ -261,9 +288,29 @@ public class RagServiceImpl implements RagService {
         return new Outcome(new RagChatVO(conversationId, contextNote + result.getContent(), toSources(retrievedChunks)), result);
     }
 
-    private record RequestContext(List<Long> documentIds, String question, String clarification) {}
-    private record Start(ChatHistory turn, RequestContext context, RagChatVO cached) {}
-    private record Outcome(RagChatVO answer, AiChatResult model) {}
+    private record Start(ChatHistory turn, Context context, RagChatVO cached) {}
+    private record Outcome(RagChatVO answer, AiChatResult model, JsonNode agentResult) {
+        Outcome(RagChatVO answer,AiChatResult model) { this(answer,model,null); }
+    }
+
+    private List<String> recentUserQuestions(Long userId,Long conversationId) {
+        var questions=new ArrayList<>(chatHistoryMapper.selectList(new LambdaQueryWrapper<ChatHistory>()
+                .eq(ChatHistory::getUserId,userId).eq(ChatHistory::getConversationId,conversationId).eq(ChatHistory::getRole,ROLE_USER)
+                .orderByDesc(ChatHistory::getCreateTime).orderByDesc(ChatHistory::getId).last("LIMIT 10"))
+                .stream().filter(message->userId.equals(message.getUserId()) && conversationId.equals(message.getConversationId())
+                        && ROLE_USER.equals(message.getRole()) && message.getMessageContent()!=null && !message.getMessageContent().isBlank())
+                .map(ChatHistory::getMessageContent).map(text->text.substring(0,Math.min(text.length(),2000))).toList());
+        java.util.Collections.reverse(questions);
+        return List.copyOf(questions);
+    }
+
+    private void saveAgentCallLog(Long userId,JsonNode result,String error) {
+        AiCallLog log=new AiCallLog(); log.setUserId(userId); log.setProvider("PythonAgent");
+        log.setModelName("python-agent-v1"); log.setRequestType("rag_agent_chat");
+        log.setPromptTokens(result==null?0:result.path("prompt_tokens").asInt());
+        log.setCompletionTokens(result==null?0:result.path("completion_tokens").asInt());
+        log.setStatus(error==null?"success":"failed"); log.setErrorMessage(error); aiCallLogMapper.insert(log);
+    }
 
     private RagFollowUpResolver.Resolution resolveQuestion(Long userId, Long conversationId, String question) {
         if (!RagFollowUpResolver.needsContext(question)) return new RagFollowUpResolver.Resolution(question, null);

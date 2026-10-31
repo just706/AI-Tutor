@@ -31,15 +31,23 @@
 
 2026-10-29继续自动检查：修复兼容复习列表同秒完成时的排序问题，52组隔离接口检查和11项浏览器故障恢复检查通过；后端292项、前端56项、脚本77项测试通过，后端构建成功。新增真实模型调用0次，临时库及服务已清理，截图与原始记录保存在D盘；阶段四教学效果仍未验收。
 
+随后新增8次预算完成 [反馈准确性真实复测](backend/evaluation/stage4-feedback-results.md)：八例接口成功，内容审阅6例通过、2例未通过。已补充一致判定及开放询问方法的提示约束，本地检查通过；预算已用完，修改后真实复测仍待完成，不将提示修改等同于模型问题已解决。
+
+2026-10-30启动阶段五的离线检索评估：[首轮基线](backend/evaluation/stage5-retrieval-results.md)为16/24。随后完成[本地BGE向量及混合检索对照](backend/evaluation/stage5-vector-results.md)：混合检索在原题集可达18/24，但相同配置在新增16题上由词法基线13/16降至11/16，出现无答案题误召回，因此未接入应用。模型仅本地推理，外部模型调用0次；阶段二、四的未验收项继续保留，完整清单见[阶段五](docs/Development.md#阶段-5按结果评估架构升级)。
+
+后续[答案依据规则验证](backend/evaluation/stage5-evidence-results.md)拦住了两处已知误召回，但新增24组对照仅15组判断一致，包含7组误放行与2组误拒，仍未准入。脚本105项测试通过，本轮新增模型计算0次；工具测试通过不代表语义判断已验收。
+
+已接入 [Python 教材问答 Agent](agent-service/README.md)，复用原网页、历史及重试入口。运行 `backend/run-with-agent.cmd` 可启用；普通 `run.cmd` 默认保留Java基线。[首轮真实对照](backend/evaluation/stage5-agent-results.md)为Java 5/8、Python 1/8；修复搜索契约、过早澄清及停止原因后，[6题真实回归](backend/evaluation/stage5-agent-fix-results.md)全部通过，另外2题尚未新版真实复测。最新314项后端、52项Python、111项脚本测试、两端服务构建及15组本地联调通过。本轮授权累计37/40次调用，剩余3次；阶段五整体仍未验收。
+
 阶段 3 已实现持久化练习、教学评价和针对性复习的证据闭环：近期错误会调整工程状态分，相同答案重复提交恢复原结果；学习分析页可生成、完成复习任务并分页查看完整历史。教学评价校验会话的知识点绑定。启动新后端前需执行 [stage22 学习证据迁移](docs/Database.md#已有库升级学习证据)、stage23 复习任务迁移和 stage24 教学绑定迁移；旧教学会话需重新开始才能评分。阶段 2 的备课内容质量问题仍保留，循序学习暂不用于提高掌握状态，详见 [开发进度](docs/Development.md#阶段-3让学习记录有依据)。
 
 - 后端：Java 17、Spring Boot 3.3.5、MyBatis-Plus、MySQL。
 - 前端：Vue 3、TypeScript、Pinia、Vue Router、Element Plus、Vite。
-- 模型：通过 DeepSeek HTTP API 同步生成回答；未接入 Python、LangChain/LangGraph、向量数据库或 Multi-Agent 运行时。
+- 模型：通过 DeepSeek HTTP API 同步生成回答；教材问答可启用Python Agent编排，未使用LangChain/LangGraph、向量数据库或Multi-Agent运行时。
 - RAG：支持 TXT/Markdown/PDF/DOC/DOCX 解析、分片和用户文档检索；当前是 MySQL 关键词基线，不是 embedding 向量检索。
 - 个人图谱：文档上传后可异步提取候选节点和关系，用户发布后才替换自己的个人图谱。
 
-“已实现”和“计划采用”必须分开描述。候选的 Java + Python 方案见 [docs/Development.md](docs/Development.md)，目前不改变现有运行方式。
+“已实现”和“质量已验收”分别记录；Python接入方式见[服务说明](agent-service/README.md)，阶段五对照收益仍见[开发记录](docs/Development.md)。
 
 ## 配置
 
@@ -61,6 +69,8 @@ cd D:\AI-Tutor\backend
 ```
 
 `cd` 用于切换目录，执行后提示符应显示 `PS D:\AI-Tutor\backend>`。`run.cmd` 会先构建，再启动后端；日志出现 `Started AiTutorApplication` 后，保持这个窗口打开。后端默认使用 `8080` 端口。
+
+要让教材问答使用Python Agent，先停止上述后端，再在同目录运行 `.\run-with-agent.cmd`。需要Python3.11+及[服务依赖](agent-service/README.md)，启动器复用后端模型配置并同时启动Python与Java；前端命令不变。启动本身不生成回答，之后每次Agent尝试最多调用模型4次。
 
 再打开另一个 PowerShell 窗口启动前端：
 

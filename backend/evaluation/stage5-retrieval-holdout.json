@@ -1,0 +1,60 @@
+{
+  "version": "stage5-holdout-v1",
+  "scope": "Synthetic follow-up fixture authored after observing the original 24-case development comparison, but frozen before running these new cases. Same author, not independent expert validation or a population sample. No tuning of the four preregistered thresholds. Multiple distractor chunks; real upload parsing and long-document splitting are excluded.",
+  "topK": 4,
+  "documents": [
+    {"id":"computing","chunks":[
+      {"id":"computing:0","text":"ArrayList 使用动态数组保存元素。需要按元素的位置编号取值时，ArrayList 可以通过索引直接定位，随机访问通常为 O(1)。在中间插入或删除元素时，后续元素可能需要移动。按位置读取适合直接定位，连续遍历则可以依次访问所有元素。"},
+      {"id":"computing:1","text":"HashMap 保存键与值的对应关系。HashMap 的 key 不能重复，向已有 key 再写入一个 value 时，新 value 会覆盖旧 value。不同的 key 可以对应相同的 value。通过 key 查询 value 是使用这种映射结构的一种常见方式。"},
+      {"id":"computing:2","text":"LinkedList 使用链表结构组织节点。LinkedList 通过节点之间的连接访问相邻元素，按任意索引查找通常需要沿链移动。不能仅凭使用链表就断言任何插入删除操作都比数组实现更快，还需要考虑定位节点的开销。"},
+      {"id":"computing:3","text":"HashSet 用于保存不重复的元素。HashSet 不会保留重复元素；判断自定义对象是否相同需要正确配合 equals 与 hashCode。HashSet 不保证元素的遍历顺序，不能把它当成有固定位置编号的列表。"},
+      {"id":"computing:4","text":"栈遵循后进先出的顺序，最后压入的元素先弹出。队列通常遵循先进先出的顺序，先进入的元素先离开。栈和队列描述的是元素处理次序，不等同于某一种特定的底层存储结构。"},
+      {"id":"computing:5","text":"Java 虚拟机执行字节码并承担内存管理等职责。字节码和虚拟机有助于不同平台运行同一程序。程序源代码需要经过编译，生成的字节码由相应平台上的虚拟机执行。"}
+    ]},
+    {"id":"math_ext","chunks":[
+      {"id":"math_ext:0","text":"导数衡量函数在某一点的局部瞬时变化率。函数的点导数描述这一位置附近自变量发生微小改变时函数值的变化快慢。它不同于在整个区间内计算的平均变化率。局部变化与区间变化是两个需要区分的观察角度。"},
+      {"id":"math_ext:1","text":"定积分可以表示区间上的累积量，也可以解释为曲线与横轴之间的有向面积。位于横轴下方的部分按负号计入，所以有向面积不一定等于几何面积。这里不讨论积分数值算法或误差估计。"},
+      {"id":"math_ext:2","text":"平均变化率是函数值在两个端点之间的增量与自变量增量之比。它描述整个区间的平均变化情况，不能直接当成任意一点的瞬时变化率。区间平均值和局部值应根据题目所问分别使用。"},
+      {"id":"math_ext:3","text":"总体方差衡量总体数据相对总体均值的离散程度。它是各观测值与总体均值之差的平方的平均数。总体方差越大，数据整体偏离均值的程度越大。平方可以防止正负偏差相互抵消。"},
+      {"id":"math_ext:4","text":"中位数用于描述排序后的数据中心位置。数据个数为奇数时取中间一个值，为偶数时取中间两个值的平均数。中位数与算术平均数是不同的统计量，不应把两种定义混为一谈。"}
+    ]},
+    {"id":"physics_ext","chunks":[
+      {"id":"physics_ext:0","text":"瞬时速度描述物体某一时刻的运动状态，包含大小和方向。平均速度等于总位移除以总时间；位移与路程不是同一个量，因此平均速度的大小不一定等于平均速率。"},
+      {"id":"physics_ext:1","text":"加速度描述速度随时间的变化快慢，平均加速度等于速度变化量除以时间间隔。速度较大不意味着加速度较大，匀速直线运动的速度可以不为零而加速度为零。加速度与速度是不同的物理量。"},
+      {"id":"physics_ext:2","text":"质量是衡量惯性大小的物理量。物体在没有外力或合外力为零时保持静止或匀速直线运动。力改变运动状态，而不是维持匀速直线运动所必需的条件。"},
+      {"id":"physics_ext:3","text":"当恒力与位移方向相同时，功等于力的大小乘以位移的大小。本段仅讨论方向相同的恒力做功，不给出任意夹角的公式，也不介绍变力做功的计算方法。"}
+    ]},
+    {"id":"decisions","chunks":[
+      {"id":"decisions:0","text":"机会成本是作出选择时放弃的最佳替代方案的价值。比较当前可选方案时，应关注被放弃的最好收益，而不是把所有未选方案的收益相加。机会成本取决于仍然可以选择的替代方案。"},
+      {"id":"decisions:1","text":"沉没成本是已经发生且无法收回的支出。沉没成本不应影响后续决策，因为现在采取哪一种行动都不能收回这笔过去支出。后续选择应比较未来相关的增量收益和增量成本。"},
+      {"id":"decisions:2","text":"比较优势指生产某种产品的机会成本较低。绝对优势指在同样投入下能生产更多产品；两者定义不同，生产率较高不能直接证明对所有产品都具有比较优势。"}
+    ]},
+    {"id":"costs_current","chunks":[
+      {"id":"costs_current:0","text":"边际成本是每增加一单位产量引起的总成本增加量。多生产一件产品需要多付出的成本属于边际成本。它与已经生产的全部产品所分摊的平均成本不同。"},
+      {"id":"costs_current:1","text":"平均成本等于总成本除以产量，表示每单位产品平均分摊的成本。产量变化时，平均成本可能随之变化。平均成本反映全部产出的单位成本，边际成本则关注多生产一个单位时的成本增量。"}
+    ]},
+    {"id":"synthetic_ext","chunks":[
+      {"id":"synthetic_ext:0","text":"蓝桥编码是本测试定义的合成规则，表示把样本编号映射为颜色。蓝桥编码的输出类别是颜色。映射建立编号与颜色类别之间的对应关系，输入编号和输出类别承担不同的角色。"},
+      {"id":"synthetic_ext:1","text":"赤羽编码是本测试定义的另一种合成规则，表示把样本编号映射为形状。赤羽编码的输出类别是形状。它与输出颜色的规则有不同的输出空间。"},
+      {"id":"synthetic_ext:2","text":"青石排序是本测试定义的合成规则，表示按样本标签的字母顺序排列记录。它改变记录的次序，不执行颜色或形状的映射。标签相同时保留原先的记录次序。"}
+    ]}
+  ],
+  "cases": [
+    {"id":"H01","group":"holdout","category":"semantic_paraphrase","documents":["math_ext"],"question":"函数某一位置的瞬间变化快慢，应该观察哪个量？","evidence":[["导数衡量函数在某一点的局部瞬时变化率"]]},
+    {"id":"H02","group":"holdout","category":"semantic_paraphrase","documents":["computing"],"question":"经常根据元素排在第几位直接取值，该选哪种列表实现？","evidence":[["ArrayList 可以通过索引直接定位"]]},
+    {"id":"H03","group":"holdout","category":"semantic_paraphrase","documents":["physics_ext"],"question":"汽车的速度每秒改变了多少，用什么物理量描述？","evidence":[["加速度描述速度随时间的变化快慢"]]},
+    {"id":"H04","group":"holdout","category":"semantic_paraphrase","documents":["costs_current","decisions"],"question":"多生产一件产品导致的总开支增量，属于哪类成本？","evidence":[["边际成本是每增加一单位产量引起的总成本增加量"]]},
+    {"id":"H05","group":"holdout","category":"cross_chunk","documents":["computing"],"question":"HashMap 重复写入同一个 key 会怎样？HashSet 如何处理相同元素？","evidence":[["新 value 会覆盖旧 value"],["HashSet 不会保留重复元素"]],"distinctChunks":true},
+    {"id":"H06","group":"holdout","category":"cross_chunk","documents":["decisions","costs_current"],"question":"机会成本和沉没成本有什么区别？","evidence":[["机会成本是作出选择时放弃的最佳替代方案的价值"],["沉没成本是已经发生且无法收回的支出"]],"distinctChunks":true},
+    {"id":"H07","group":"holdout","category":"follow_up","documents":["math_ext"],"setup":["什么是总体方差？"],"question":"它衡量什么？","evidence":[["总体方差衡量总体数据相对总体均值的离散程度"]],"resolvedIncludes":["总体方差"]},
+    {"id":"H08","group":"holdout","category":"cross_chunk","documents":["synthetic_ext"],"question":"蓝桥编码和赤羽编码有什么区别？","evidence":[["蓝桥编码是本测试定义的合成规则，表示把样本编号映射为颜色"],["赤羽编码是本测试定义的另一种合成规则，表示把样本编号映射为形状"]],"distinctChunks":true},
+    {"id":"H09","group":"holdout","category":"unanswerable","documents":["math_ext"],"question":"导数的发明年份是多少？","expect":"refusal"},
+    {"id":"H10","group":"holdout","category":"unanswerable","documents":["computing"],"question":"HashMap 的树化阈值是多少？","expect":"refusal"},
+    {"id":"H11","group":"holdout","category":"unanswerable","documents":["computing"],"question":"虚拟线程的默认调度器是什么？","expect":"refusal"},
+    {"id":"H12","group":"holdout","category":"selection_boundary","documents":["costs_current"],"question":"沉没成本为何不该决定下一步选择？","expect":"refusal"},
+    {"id":"H13","group":"holdout","category":"unanswerable","documents":["synthetic_ext"],"question":"蓝桥编码的发明者是谁？","expect":"refusal"},
+    {"id":"H14","group":"holdout","category":"unanswerable","documents":["math_ext"],"question":"总体方差在这份调查中的实际数值是多少？","expect":"refusal"},
+    {"id":"H15","group":"holdout","category":"clarification","documents":["math_ext"],"setup":["导数和定积分有什么区别？"],"question":"它衡量什么？","expect":"clarification"},
+    {"id":"H16","group":"holdout","category":"clarification","documents":["computing"],"question":"它什么时候需要扩容？","expect":"clarification"}
+  ]
+}

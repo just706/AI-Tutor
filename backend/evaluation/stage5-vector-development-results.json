@@ -1,0 +1,2354 @@
+{
+  "version": "stage5-vector-v1",
+  "suiteVersion": "stage5-retrieval-v1",
+  "preparedAt": "2026-10-30T01:47:09.043Z",
+  "finishedAt": "2026-10-30T01:47:28.386Z",
+  "scope": "Offline comparison on stage5-retrieval-v1 (24 cases); no generated answers or application integration.",
+  "config": {
+    "version": "stage5-vector-v1",
+    "modelId": "BAAI/bge-small-zh-v1.5",
+    "revision": "7999e1d3359715c523056ef9478215996d62a620",
+    "queryPrefix": "为这个句子生成表示以用于检索相关文章：",
+    "pooling": "cls",
+    "normalizeEmbeddings": true,
+    "maxTokens": 512,
+    "batchSize": 8,
+    "cpuThreads": 4,
+    "cosineThresholds": [
+      0.5,
+      0.6,
+      0.7,
+      0.8
+    ],
+    "rrfK": 60,
+    "rrfWeights": {
+      "lexical": 1,
+      "vector": 1
+    },
+    "policy": "Freeze before encoding the evaluation inputs. Report every threshold, no post-hoc threshold selection or pass claim. Reuse the same Java-resolved question and clarification, selected documents, chunks and topK. Hybrid uses equal-weight RRF of the production lexical shortlist and the thresholded vector shortlist. No generated query expansion, no answer generation, no production integration."
+  },
+  "externalModelCalls": 0,
+  "localForwardPasses": 66,
+  "candidateAcceptance": "not_accepted",
+  "nextDecision": "requires_independent_holdout_and_system_validation",
+  "exclusions": [
+    "SQL/ownership",
+    "real parsing/chunking",
+    "answer and citation correctness",
+    "held-out generalization",
+    "production latency/cost",
+    "service timeout/fallback",
+    "learning outcomes"
+  ],
+  "timingScope": "Candidate latency is a sum of the measured Java lexical/preprocessing median, local per-query encoding median (3 samples), and in-process selection time. Includes the lexical prepass even for vector-only to share reference resolution. Model loading and corpus encoding are separate; not an end-to-end SLA.",
+  "provenance": {
+    "sourceHashes": {
+      "backend/evaluation/stage5-vector-config.json": "d61d5a1bb5fbc5169f48c677b2de8c21437d5688ca3bee7ab12c3a5248780d8e",
+      "backend/scripts/encode-stage5-local.py": "8d580f084247247496db219675622ca2a6fc7baf98043e4eced34cbf12fd9f61",
+      "backend/scripts/stage5-vector.mjs": "77f83e5d6c058ae5ef9de9a270e1a76fdca4c79495e93488c453ea75da8cc2ec",
+      "backend/scripts/evaluate-stage5-vector.mjs": "acdeb664515aec7ebb10209d1d3bc7914291f4ca42d42c6b9714b05e1d23115e",
+      "backend/scripts/evaluate-stage5-retrieval.mjs": "fd617dcf242cf7ac1801966e6b8bf8f343097c25e95a27f3498ae4589ab62272",
+      "backend/scripts/prepare-stage5-model.py": "92fbde31c51217d1bc5e5a6dd1cb7d72a70cb15619d888e30800e1b824d0fc13"
+    },
+    "suiteSha256": "f6dba57801fce527dfcc913a9f0ef61da47609b4c975d822e617aa2a91c0a1e5",
+    "inputSha256": "ce9666079a4676375389c5fb5da90b356cd2944a665622fc5fd542f12dd817ea",
+    "baselineReportSha256": "7cfe1e4b03d0e9c2a395e6afaf1b5672dd83c95536d2bbe9c30696c6f6981934",
+    "embeddingsSha256": "840cfdd6afeeafee001d44d893fda72ab07e17dd381bbad043f2390818d96940",
+    "nodeVersion": "v24.15.0",
+    "encoder": {
+      "modelId": "BAAI/bge-small-zh-v1.5",
+      "revision": "7999e1d3359715c523056ef9478215996d62a620",
+      "modelManifestSha256": "ce3149de4ba17c9069e034e9eb34d07c5eba95e9326cdc7f9d1234bd9c687288",
+      "modelFiles": {
+        "README.md": {
+          "bytes": 27670,
+          "sha256": "c48a4eeea77f6b1d38b48ec1c5b8d4f86d5550cc43fa345a0db1b2ca1d082369",
+          "upstreamLfsSha256": null
+        },
+        "config.json": {
+          "bytes": 776,
+          "sha256": "3853a7979202c348751b753e36f579c41d8da7d36af617d3d907e1fc9b441f2a",
+          "upstreamLfsSha256": null
+        },
+        "tokenizer.json": {
+          "bytes": 439125,
+          "sha256": "48cea5d44424912a6fd1ea647bf4fe50b55ab8b1e5879c3275f80e339e8fae26",
+          "upstreamLfsSha256": null
+        },
+        "tokenizer_config.json": {
+          "bytes": 367,
+          "sha256": "e6f3b96db926a37d4039995fbf5ad17de158dfb8f6343d607e4dbaad18d75f5a",
+          "upstreamLfsSha256": null
+        },
+        "special_tokens_map.json": {
+          "bytes": 125,
+          "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+          "upstreamLfsSha256": null
+        },
+        "vocab.txt": {
+          "bytes": 109540,
+          "sha256": "45bbac6b341c319adc98a532532882e91a9cefc0329aa57bac9ae761c27b291c",
+          "upstreamLfsSha256": null
+        },
+        "model.safetensors": {
+          "bytes": 95827648,
+          "sha256": "354763b9b1357bc9c44f62c6be2276321081ed2567773608c0d0785b61d5a026",
+          "upstreamLfsSha256": "354763b9b1357bc9c44f62c6be2276321081ed2567773608c0d0785b61d5a026"
+        }
+      },
+      "inputSha256": "3bf8cf89e6b54816e8b309c81a46c79a6b4ccb59f273570be4d7070159e2ae6b",
+      "configSha256": "d61d5a1bb5fbc5169f48c677b2de8c21437d5688ca3bee7ab12c3a5248780d8e",
+      "encoderSha256": "8d580f084247247496db219675622ca2a6fc7baf98043e4eced34cbf12fd9f61",
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu",
+      "transformers": "5.10.2",
+      "device": "cpu",
+      "dtype": "torch.float32",
+      "cpuThreads": 4,
+      "remoteCode": false,
+      "localFilesOnly": true,
+      "externalModelCalls": 0,
+      "localForwardPasses": 66,
+      "modelLoadMs": 2158.7028000003556,
+      "documentEncodingMs": 210.2314000003389,
+      "queryMeasurements": 3,
+      "warmupPasses": 2
+    }
+  },
+  "baseline": {
+    "passedCases": 16,
+    "totalCases": 24,
+    "answerable": {
+      "passed": 9,
+      "total": 16
+    },
+    "evidenceGroups": {
+      "found": 11,
+      "total": 19
+    },
+    "refusal": {
+      "passed": 5,
+      "total": 6
+    },
+    "clarification": {
+      "passed": 2,
+      "total": 2
+    },
+    "groups": {
+      "stage1_supplement": {
+        "passed": 12,
+        "total": 12
+      },
+      "challenge": {
+        "passed": 4,
+        "total": 12
+      }
+    },
+    "latencyMs": {
+      "median": 0.38029999999999997,
+      "p95": 0.8982
+    }
+  },
+  "comparisons": [
+    {
+      "mode": "vector",
+      "threshold": 0.5,
+      "totalCases": 24,
+      "passedCases": 17,
+      "answerable": {
+        "passed": 14,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 17,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 1,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 9,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 8,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.602600000120248,
+        "p95": 16.381199999714976
+      },
+      "changes": {
+        "improved": [
+          "S01",
+          "S02",
+          "S04",
+          "S05",
+          "S07"
+        ],
+        "regressed": [
+          "P02",
+          "E03",
+          "C03",
+          "S12"
+        ],
+        "unchanged": [
+          "M01",
+          "M02",
+          "M03",
+          "P01",
+          "P03",
+          "E01",
+          "E02",
+          "C01",
+          "C02",
+          "S03",
+          "S06",
+          "S08",
+          "S09",
+          "S10",
+          "S11"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": false,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": true,
+          "retrieved": [
+            "sunk:0",
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": false,
+          "retrieved": [
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": false,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": true,
+          "retrieved": [
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": true,
+          "retrieved": [
+            "java_synthetic:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": true,
+          "retrieved": [
+            "physics:0",
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": false,
+          "retrieved": [
+            "java_synthetic:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.5,
+      "totalCases": 24,
+      "passedCases": 17,
+      "answerable": {
+        "passed": 14,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 17,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 1,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 9,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 8,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.614150000169696,
+        "p95": 16.404299999713498
+      },
+      "changes": {
+        "improved": [
+          "S01",
+          "S02",
+          "S04",
+          "S05",
+          "S07"
+        ],
+        "regressed": [
+          "P02",
+          "E03",
+          "C03",
+          "S12"
+        ],
+        "unchanged": [
+          "M01",
+          "M02",
+          "M03",
+          "P01",
+          "P03",
+          "E01",
+          "E02",
+          "C01",
+          "C02",
+          "S03",
+          "S06",
+          "S08",
+          "S09",
+          "S10",
+          "S11"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": false,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": true,
+          "retrieved": [
+            "opportunity:0",
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": false,
+          "retrieved": [
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": false,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": true,
+          "retrieved": [
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": true,
+          "retrieved": [
+            "java_synthetic:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": true,
+          "retrieved": [
+            "math:0",
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": false,
+          "retrieved": [
+            "java_synthetic:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    },
+    {
+      "mode": "vector",
+      "threshold": 0.6,
+      "totalCases": 24,
+      "passedCases": 14,
+      "answerable": {
+        "passed": 7,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 8,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 9,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 5,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.60165000011878,
+        "p95": 16.395399999716414
+      },
+      "changes": {
+        "improved": [
+          "S04",
+          "S07"
+        ],
+        "regressed": [
+          "P01",
+          "E01",
+          "C02",
+          "S08"
+        ],
+        "unchanged": [
+          "M01",
+          "M02",
+          "M03",
+          "P02",
+          "P03",
+          "E02",
+          "E03",
+          "C01",
+          "C03",
+          "S01",
+          "S02",
+          "S03",
+          "S05",
+          "S06",
+          "S09",
+          "S10",
+          "S11",
+          "S12"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": false,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": true,
+          "retrieved": [
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": true,
+          "retrieved": [
+            "java_synthetic:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.6,
+      "totalCases": 24,
+      "passedCases": 18,
+      "answerable": {
+        "passed": 11,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 13,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 12,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 6,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.60915000011849,
+        "p95": 16.394999999715605
+      },
+      "changes": {
+        "improved": [
+          "S04",
+          "S07"
+        ],
+        "regressed": [],
+        "unchanged": [
+          "M01",
+          "M02",
+          "M03",
+          "P01",
+          "P02",
+          "P03",
+          "E01",
+          "E02",
+          "E03",
+          "C01",
+          "C02",
+          "C03",
+          "S01",
+          "S02",
+          "S03",
+          "S05",
+          "S06",
+          "S08",
+          "S09",
+          "S10",
+          "S11",
+          "S12"
+        ]
+      },
+      "improvesWithoutRegression": true,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": true,
+          "retrieved": [
+            "sunk:0",
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": true,
+          "retrieved": [
+            "opportunity:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": true,
+          "retrieved": [
+            "java_synthetic:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": true,
+          "retrieved": [
+            "math:0",
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    },
+    {
+      "mode": "vector",
+      "threshold": 0.7,
+      "totalCases": 24,
+      "passedCases": 8,
+      "answerable": {
+        "passed": 1,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 1,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 5,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 3,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.601400000169827,
+        "p95": 16.395099999716717
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [
+          "M01",
+          "M02",
+          "P01",
+          "P03",
+          "E01",
+          "C01",
+          "C02",
+          "S08"
+        ],
+        "unchanged": [
+          "M03",
+          "P02",
+          "E02",
+          "E03",
+          "C03",
+          "S01",
+          "S02",
+          "S03",
+          "S04",
+          "S05",
+          "S06",
+          "S07",
+          "S09",
+          "S10",
+          "S11",
+          "S12"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.7,
+      "totalCases": 24,
+      "passedCases": 16,
+      "answerable": {
+        "passed": 9,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 11,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 12,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 4,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.605550000120303,
+        "p95": 16.398699999713084
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [],
+        "unchanged": [
+          "M01",
+          "M02",
+          "M03",
+          "P01",
+          "P02",
+          "P03",
+          "E01",
+          "E02",
+          "E03",
+          "C01",
+          "C02",
+          "C03",
+          "S01",
+          "S02",
+          "S03",
+          "S04",
+          "S05",
+          "S06",
+          "S07",
+          "S08",
+          "S09",
+          "S10",
+          "S11",
+          "S12"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": true,
+          "retrieved": [
+            "opportunity:0",
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": true,
+          "retrieved": [
+            "math:0",
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    },
+    {
+      "mode": "vector",
+      "threshold": 0.8,
+      "totalCases": 24,
+      "passedCases": 8,
+      "answerable": {
+        "passed": 1,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 1,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 5,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 3,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.590400000119217,
+        "p95": 16.38519999971579
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [
+          "M01",
+          "M02",
+          "P01",
+          "P03",
+          "E01",
+          "C01",
+          "C02",
+          "S08"
+        ],
+        "unchanged": [
+          "M03",
+          "P02",
+          "E02",
+          "E03",
+          "C03",
+          "S01",
+          "S02",
+          "S03",
+          "S04",
+          "S05",
+          "S06",
+          "S07",
+          "S09",
+          "S10",
+          "S11",
+          "S12"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.8,
+      "totalCases": 24,
+      "passedCases": 16,
+      "answerable": {
+        "passed": 9,
+        "total": 16
+      },
+      "evidenceGroups": {
+        "found": 11,
+        "total": 19
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "stage1_supplement": {
+          "passed": 12,
+          "total": 12
+        },
+        "challenge": {
+          "passed": 4,
+          "total": 12
+        }
+      },
+      "latencyMs": {
+        "median": 13.603200000173468,
+        "p95": 16.380299999715884
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [],
+        "unchanged": [
+          "M01",
+          "M02",
+          "M03",
+          "P01",
+          "P02",
+          "P03",
+          "E01",
+          "E02",
+          "E03",
+          "C01",
+          "C02",
+          "C03",
+          "S01",
+          "S02",
+          "S03",
+          "S04",
+          "S05",
+          "S06",
+          "S07",
+          "S08",
+          "S09",
+          "S10",
+          "S11",
+          "S12"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "M01",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6371855092754211
+        },
+        {
+          "caseId": "M02",
+          "passed": true,
+          "retrieved": [
+            "math:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6909277047424904
+        },
+        {
+          "caseId": "M03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "P01",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5233715395425842
+        },
+        {
+          "caseId": "P02",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5946846888412913
+        },
+        {
+          "caseId": "P03",
+          "passed": true,
+          "retrieved": [
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6869703603538906
+        },
+        {
+          "caseId": "E01",
+          "passed": true,
+          "retrieved": [
+            "opportunity:0",
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6184862151561535
+        },
+        {
+          "caseId": "E02",
+          "passed": true,
+          "retrieved": [
+            "sunk:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.8157119201459094
+        },
+        {
+          "caseId": "E03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5893934092045975
+        },
+        {
+          "caseId": "C01",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6383843890401001
+        },
+        {
+          "caseId": "C02",
+          "passed": true,
+          "retrieved": [
+            "custom:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.574923885672738
+        },
+        {
+          "caseId": "C03",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.546020692744637
+        },
+        {
+          "caseId": "S01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5412788259744391
+        },
+        {
+          "caseId": "S02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5046320037201668
+        },
+        {
+          "caseId": "S03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.48773689991144714
+        },
+        {
+          "caseId": "S04",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6261724654390435
+        },
+        {
+          "caseId": "S05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.5576798262954441
+        },
+        {
+          "caseId": "S06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.4621580005466953
+        },
+        {
+          "caseId": "S07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6311504173951193
+        },
+        {
+          "caseId": "S08",
+          "passed": true,
+          "retrieved": [
+            "math:0",
+            "physics:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5318072031635369
+        },
+        {
+          "caseId": "S09",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4995109544503382
+        },
+        {
+          "caseId": "S11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "S12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5394528171334807
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1700 @@
+{
+  "version": "stage5-vector-v1",
+  "suiteVersion": "stage5-holdout-v1",
+  "preparedAt": "2026-10-30T01:44:53.539Z",
+  "finishedAt": "2026-10-30T01:45:15.647Z",
+  "scope": "Offline comparison on stage5-holdout-v1 (16 cases); no generated answers or application integration.",
+  "config": {
+    "version": "stage5-vector-v1",
+    "modelId": "BAAI/bge-small-zh-v1.5",
+    "revision": "7999e1d3359715c523056ef9478215996d62a620",
+    "queryPrefix": "为这个句子生成表示以用于检索相关文章：",
+    "pooling": "cls",
+    "normalizeEmbeddings": true,
+    "maxTokens": 512,
+    "batchSize": 8,
+    "cpuThreads": 4,
+    "cosineThresholds": [
+      0.5,
+      0.6,
+      0.7,
+      0.8
+    ],
+    "rrfK": 60,
+    "rrfWeights": {
+      "lexical": 1,
+      "vector": 1
+    },
+    "policy": "Freeze before encoding the evaluation inputs. Report every threshold, no post-hoc threshold selection or pass claim. Reuse the same Java-resolved question and clarification, selected documents, chunks and topK. Hybrid uses equal-weight RRF of the production lexical shortlist and the thresholded vector shortlist. No generated query expansion, no answer generation, no production integration."
+  },
+  "externalModelCalls": 0,
+  "localForwardPasses": 44,
+  "candidateAcceptance": "not_accepted",
+  "nextDecision": "do_not_integrate",
+  "exclusions": [
+    "SQL/ownership",
+    "real parsing/chunking",
+    "answer and citation correctness",
+    "held-out generalization",
+    "production latency/cost",
+    "service timeout/fallback",
+    "learning outcomes"
+  ],
+  "timingScope": "Candidate latency is a sum of the measured Java lexical/preprocessing median, local per-query encoding median (3 samples), and in-process selection time. Includes the lexical prepass even for vector-only to share reference resolution. Model loading and corpus encoding are separate; not an end-to-end SLA.",
+  "provenance": {
+    "sourceHashes": {
+      "backend/evaluation/stage5-vector-config.json": "d61d5a1bb5fbc5169f48c677b2de8c21437d5688ca3bee7ab12c3a5248780d8e",
+      "backend/scripts/encode-stage5-local.py": "8d580f084247247496db219675622ca2a6fc7baf98043e4eced34cbf12fd9f61",
+      "backend/scripts/stage5-vector.mjs": "77f83e5d6c058ae5ef9de9a270e1a76fdca4c79495e93488c453ea75da8cc2ec",
+      "backend/scripts/evaluate-stage5-vector.mjs": "acdeb664515aec7ebb10209d1d3bc7914291f4ca42d42c6b9714b05e1d23115e",
+      "backend/scripts/evaluate-stage5-retrieval.mjs": "fd617dcf242cf7ac1801966e6b8bf8f343097c25e95a27f3498ae4589ab62272",
+      "backend/scripts/prepare-stage5-model.py": "92fbde31c51217d1bc5e5a6dd1cb7d72a70cb15619d888e30800e1b824d0fc13"
+    },
+    "suiteSha256": "82ac148444175ac5d5e1c43399d17f2f725d455ddfe6722dee76686c3d236f50",
+    "inputSha256": "edd4f848940669dad96204a345c78ebc6653058ef42ee6bdc940043c4e860627",
+    "baselineReportSha256": "bd2fa3d615c926b41805ca1757c66758fde20e430d68f92ecf4443b6c2f4e98d",
+    "embeddingsSha256": "9417a80a3f301117c95e4fdee134b7240eb7fd503810271d525c568db647ab7d",
+    "nodeVersion": "v24.15.0",
+    "encoder": {
+      "modelId": "BAAI/bge-small-zh-v1.5",
+      "revision": "7999e1d3359715c523056ef9478215996d62a620",
+      "modelManifestSha256": "ce3149de4ba17c9069e034e9eb34d07c5eba95e9326cdc7f9d1234bd9c687288",
+      "modelFiles": {
+        "README.md": {
+          "bytes": 27670,
+          "sha256": "c48a4eeea77f6b1d38b48ec1c5b8d4f86d5550cc43fa345a0db1b2ca1d082369",
+          "upstreamLfsSha256": null
+        },
+        "config.json": {
+          "bytes": 776,
+          "sha256": "3853a7979202c348751b753e36f579c41d8da7d36af617d3d907e1fc9b441f2a",
+          "upstreamLfsSha256": null
+        },
+        "tokenizer.json": {
+          "bytes": 439125,
+          "sha256": "48cea5d44424912a6fd1ea647bf4fe50b55ab8b1e5879c3275f80e339e8fae26",
+          "upstreamLfsSha256": null
+        },
+        "tokenizer_config.json": {
+          "bytes": 367,
+          "sha256": "e6f3b96db926a37d4039995fbf5ad17de158dfb8f6343d607e4dbaad18d75f5a",
+          "upstreamLfsSha256": null
+        },
+        "special_tokens_map.json": {
+          "bytes": 125,
+          "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+          "upstreamLfsSha256": null
+        },
+        "vocab.txt": {
+          "bytes": 109540,
+          "sha256": "45bbac6b341c319adc98a532532882e91a9cefc0329aa57bac9ae761c27b291c",
+          "upstreamLfsSha256": null
+        },
+        "model.safetensors": {
+          "bytes": 95827648,
+          "sha256": "354763b9b1357bc9c44f62c6be2276321081ed2567773608c0d0785b61d5a026",
+          "upstreamLfsSha256": "354763b9b1357bc9c44f62c6be2276321081ed2567773608c0d0785b61d5a026"
+        }
+      },
+      "inputSha256": "4392897539545a46eee041f2b0b7b1fc3a1ba09a590b18d04b4f3db43c8d30e7",
+      "configSha256": "d61d5a1bb5fbc5169f48c677b2de8c21437d5688ca3bee7ab12c3a5248780d8e",
+      "encoderSha256": "8d580f084247247496db219675622ca2a6fc7baf98043e4eced34cbf12fd9f61",
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu",
+      "transformers": "5.10.2",
+      "device": "cpu",
+      "dtype": "torch.float32",
+      "cpuThreads": 4,
+      "remoteCode": false,
+      "localFilesOnly": true,
+      "externalModelCalls": 0,
+      "localForwardPasses": 44,
+      "modelLoadMs": 2317.7661999998236,
+      "documentEncodingMs": 420.4694999998537,
+      "queryMeasurements": 3,
+      "warmupPasses": 2
+    }
+  },
+  "baseline": {
+    "passedCases": 13,
+    "totalCases": 16,
+    "answerable": {
+      "passed": 5,
+      "total": 8
+    },
+    "evidenceGroups": {
+      "found": 8,
+      "total": 11
+    },
+    "refusal": {
+      "passed": 6,
+      "total": 6
+    },
+    "clarification": {
+      "passed": 2,
+      "total": 2
+    },
+    "groups": {
+      "holdout": {
+        "passed": 13,
+        "total": 16
+      }
+    },
+    "latencyMs": {
+      "median": 1.2063000000000001,
+      "p95": 4.3113
+    }
+  },
+  "comparisons": [
+    {
+      "mode": "vector",
+      "threshold": 0.5,
+      "totalCases": 16,
+      "passedCases": 13,
+      "answerable": {
+        "passed": 7,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 10,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 4,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 13,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.390749999928062,
+        "p95": 17.939699999957764
+      },
+      "changes": {
+        "improved": [
+          "H02",
+          "H03"
+        ],
+        "regressed": [
+          "H13",
+          "H14"
+        ],
+        "unchanged": [
+          "H01",
+          "H04",
+          "H05",
+          "H06",
+          "H07",
+          "H08",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": true,
+          "retrieved": [
+            "math_ext:0",
+            "math_ext:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": true,
+          "retrieved": [
+            "computing:0",
+            "computing:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": true,
+          "retrieved": [
+            "physics_ext:1",
+            "physics_ext:0",
+            "physics_ext:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": true,
+          "retrieved": [
+            "costs_current:0",
+            "costs_current:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": true,
+          "retrieved": [
+            "computing:1",
+            "computing:3",
+            "computing:0",
+            "computing:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": true,
+          "retrieved": [
+            "decisions:1",
+            "decisions:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": true,
+          "retrieved": [
+            "synthetic_ext:0",
+            "synthetic_ext:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": false,
+          "retrieved": [
+            "synthetic_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": false,
+          "retrieved": [
+            "math_ext:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.5,
+      "totalCases": 16,
+      "passedCases": 13,
+      "answerable": {
+        "passed": 7,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 10,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 4,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 13,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.291199999927244,
+        "p95": 17.865999999956937
+      },
+      "changes": {
+        "improved": [
+          "H02",
+          "H03"
+        ],
+        "regressed": [
+          "H13",
+          "H14"
+        ],
+        "unchanged": [
+          "H01",
+          "H04",
+          "H05",
+          "H06",
+          "H07",
+          "H08",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": true,
+          "retrieved": [
+            "math_ext:0",
+            "math_ext:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": true,
+          "retrieved": [
+            "computing:0",
+            "computing:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": true,
+          "retrieved": [
+            "physics_ext:1",
+            "physics_ext:0",
+            "physics_ext:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": true,
+          "retrieved": [
+            "costs_current:0",
+            "costs_current:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": true,
+          "retrieved": [
+            "computing:1",
+            "computing:3",
+            "computing:0",
+            "computing:2"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": true,
+          "retrieved": [
+            "decisions:0",
+            "decisions:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": true,
+          "retrieved": [
+            "synthetic_ext:0",
+            "synthetic_ext:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": false,
+          "retrieved": [
+            "synthetic_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": false,
+          "retrieved": [
+            "math_ext:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    },
+    {
+      "mode": "vector",
+      "threshold": 0.6,
+      "totalCases": 16,
+      "passedCases": 10,
+      "answerable": {
+        "passed": 4,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 7,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 4,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 10,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.28899999992825,
+        "p95": 17.862799999954103
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [
+          "H05",
+          "H13",
+          "H14"
+        ],
+        "unchanged": [
+          "H01",
+          "H02",
+          "H03",
+          "H04",
+          "H06",
+          "H07",
+          "H08",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": true,
+          "retrieved": [
+            "math_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": true,
+          "retrieved": [
+            "costs_current:0",
+            "costs_current:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": false,
+          "retrieved": [
+            "computing:1"
+          ],
+          "missingEvidenceGroups": [
+            1
+          ],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": true,
+          "retrieved": [
+            "decisions:1",
+            "decisions:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": true,
+          "retrieved": [
+            "synthetic_ext:0",
+            "synthetic_ext:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": false,
+          "retrieved": [
+            "synthetic_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": false,
+          "retrieved": [
+            "math_ext:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.6,
+      "totalCases": 16,
+      "passedCases": 11,
+      "answerable": {
+        "passed": 5,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 8,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 4,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 11,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.293649999927197,
+        "p95": 17.860099999956827
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [
+          "H13",
+          "H14"
+        ],
+        "unchanged": [
+          "H01",
+          "H02",
+          "H03",
+          "H04",
+          "H05",
+          "H06",
+          "H07",
+          "H08",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": true,
+          "retrieved": [
+            "math_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": true,
+          "retrieved": [
+            "costs_current:0",
+            "costs_current:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": true,
+          "retrieved": [
+            "computing:1",
+            "computing:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": true,
+          "retrieved": [
+            "decisions:0",
+            "decisions:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": true,
+          "retrieved": [
+            "synthetic_ext:0",
+            "synthetic_ext:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": false,
+          "retrieved": [
+            "synthetic_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": false,
+          "retrieved": [
+            "math_ext:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    },
+    {
+      "mode": "vector",
+      "threshold": 0.7,
+      "totalCases": 16,
+      "passedCases": 8,
+      "answerable": {
+        "passed": 1,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 1,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 8,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.36829999992949,
+        "p95": 17.91519999995823
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [
+          "H04",
+          "H05",
+          "H06",
+          "H08",
+          "H14"
+        ],
+        "unchanged": [
+          "H01",
+          "H02",
+          "H03",
+          "H07",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H13",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": true,
+          "retrieved": [
+            "math_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": false,
+          "retrieved": [
+            "math_ext:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.7,
+      "totalCases": 16,
+      "passedCases": 12,
+      "answerable": {
+        "passed": 5,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 8,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 5,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 12,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.365149999927212,
+        "p95": 17.921599999956623
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [
+          "H14"
+        ],
+        "unchanged": [
+          "H01",
+          "H02",
+          "H03",
+          "H04",
+          "H05",
+          "H06",
+          "H07",
+          "H08",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H13",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": true,
+          "retrieved": [
+            "math_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": true,
+          "retrieved": [
+            "costs_current:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": true,
+          "retrieved": [
+            "computing:1",
+            "computing:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": true,
+          "retrieved": [
+            "decisions:0",
+            "decisions:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": true,
+          "retrieved": [
+            "synthetic_ext:0",
+            "synthetic_ext:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": false,
+          "retrieved": [
+            "math_ext:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    },
+    {
+      "mode": "vector",
+      "threshold": 0.8,
+      "totalCases": 16,
+      "passedCases": 8,
+      "answerable": {
+        "passed": 0,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 0,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 6,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 8,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.45024999992927,
+        "p95": 17.91479999995742
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [
+          "H01",
+          "H04",
+          "H05",
+          "H06",
+          "H08"
+        ],
+        "unchanged": [
+          "H02",
+          "H03",
+          "H07",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H13",
+          "H14",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0,
+            1
+          ],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    },
+    {
+      "mode": "hybrid",
+      "threshold": 0.8,
+      "totalCases": 16,
+      "passedCases": 13,
+      "answerable": {
+        "passed": 5,
+        "total": 8
+      },
+      "evidenceGroups": {
+        "found": 8,
+        "total": 11
+      },
+      "refusal": {
+        "passed": 6,
+        "total": 6
+      },
+      "clarification": {
+        "passed": 2,
+        "total": 2
+      },
+      "groups": {
+        "holdout": {
+          "passed": 13,
+          "total": 16
+        }
+      },
+      "latencyMs": {
+        "median": 15.47439999992855,
+        "p95": 17.917199999955
+      },
+      "changes": {
+        "improved": [],
+        "regressed": [],
+        "unchanged": [
+          "H01",
+          "H02",
+          "H03",
+          "H04",
+          "H05",
+          "H06",
+          "H07",
+          "H08",
+          "H09",
+          "H10",
+          "H11",
+          "H12",
+          "H13",
+          "H14",
+          "H15",
+          "H16"
+        ]
+      },
+      "improvesWithoutRegression": false,
+      "cases": [
+        {
+          "caseId": "H01",
+          "passed": true,
+          "retrieved": [
+            "math_ext:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7078646854562738
+        },
+        {
+          "caseId": "H02",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5787632129430768
+        },
+        {
+          "caseId": "H03",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": 0.5859419465208785
+        },
+        {
+          "caseId": "H04",
+          "passed": true,
+          "retrieved": [
+            "costs_current:0"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6698629987846891
+        },
+        {
+          "caseId": "H05",
+          "passed": true,
+          "retrieved": [
+            "computing:1",
+            "computing:3"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6803436212119758
+        },
+        {
+          "caseId": "H06",
+          "passed": true,
+          "retrieved": [
+            "decisions:0",
+            "decisions:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6460819434660606
+        },
+        {
+          "caseId": "H07",
+          "passed": false,
+          "retrieved": [],
+          "missingEvidenceGroups": [
+            0
+          ],
+          "topCosine": null
+        },
+        {
+          "caseId": "H08",
+          "passed": true,
+          "retrieved": [
+            "synthetic_ext:0",
+            "synthetic_ext:1"
+          ],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.6850108139460506
+        },
+        {
+          "caseId": "H09",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4060861428268082
+        },
+        {
+          "caseId": "H10",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.43179024639006003
+        },
+        {
+          "caseId": "H11",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.4444480640524588
+        },
+        {
+          "caseId": "H12",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.37427946775877136
+        },
+        {
+          "caseId": "H13",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.652982644514056
+        },
+        {
+          "caseId": "H14",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": 0.7330819379564246
+        },
+        {
+          "caseId": "H15",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        },
+        {
+          "caseId": "H16",
+          "passed": true,
+          "retrieved": [],
+          "missingEvidenceGroups": [],
+          "topCosine": null
+        }
+      ]
+    }
+  ]
+}

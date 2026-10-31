@@ -1,0 +1,30 @@
+{
+  "version": "stage5-evidence-contrast-v1",
+  "scope": "Synthetic question/snippet contrasts, including two known failures and new controls. Authored by the same coding assistant before executing the rule experiment; neither independent annotation nor a production error-rate sample. Labels are not inputs to the gate.",
+  "cases": [
+    {"id":"E01","category":"definition_only","question":"蓝桥编码的发明者是谁？","snippets":["蓝桥编码是本测试定义的合成规则，表示把样本编号映射为颜色。"],"expectedSupport":false,"reason":"只有定义，没有发明者；对应原H13的信息缺口。"},
+    {"id":"E02","category":"direct_fact","question":"蓝桥编码的发明者是谁？","snippets":["在本合成案例中，蓝桥编码由陈雨发明。"],"expectedSupport":true,"expectedAnswer":"陈雨","reason":"原文明确给出对应对象与发明者。"},
+    {"id":"E03","category":"wrong_subject","question":"蓝桥编码的发明者是谁？","snippets":["蓝桥编码映射为颜色。赤羽编码由陈雨发明。"],"expectedSupport":false,"reason":"给出的是另一个对象的发明者。"},
+    {"id":"E04","category":"negation","question":"蓝桥编码的发明者是谁？","snippets":["“蓝桥编码由陈雨发明”这一说法已被证伪，真正的发明者尚不清楚。"],"expectedSupport":false,"reason":"人物关系出现在被否定的说法中，不能当作事实。"},
+    {"id":"E05","category":"cross_sentence","question":"蓝桥编码的发明者是谁？","snippets":["蓝桥编码是本例唯一讨论的规则。该规则由陈雨发明。"],"expectedSupport":true,"expectedAnswer":"陈雨","reason":"唯一指代的跨句关系足以回答。"},
+    {"id":"E06","category":"hypothetical","question":"蓝桥编码的发明者是谁？","snippets":["假设蓝桥编码由陈雨发明，再讨论专利归属；这是假设，并非事实记录。"],"expectedSupport":false,"reason":"假设不能证明发明者身份。"},
+    {"id":"E07","category":"definition_only","question":"总体方差在这份调查中的实际数值是多少？","snippets":["总体方差衡量总体数据相对总体均值的离散程度，是各观测值与总体均值之差的平方的平均数。"],"expectedSupport":false,"reason":"只有定义，没有这份调查的观测数据或结果；对应原H14。"},
+    {"id":"E08","category":"direct_fact","question":"总体方差在这份调查中的实际数值是多少？","snippets":["这份调查的观测值为2、6。该调查的总体方差为4。"],"expectedSupport":true,"expectedAnswer":"4","reason":"原文明确报告所问调查的数值，数据也与结果一致。"},
+    {"id":"E09","category":"formula_only","question":"总体方差在这份调查中的实际数值是多少？","snippets":["总体方差为(1/n)乘以各观测值与总体均值之差的平方和。"],"expectedSupport":false,"reason":"公式中的常数1不是具体调查的方差结果，且没有样本。"},
+    {"id":"E10","category":"wrong_dataset","question":"总体方差在这份调查中的实际数值是多少？","snippets":["另一份旧调查的总体方差为4。这份新调查尚未收集观测值。"],"expectedSupport":false,"reason":"4属于另一份数据，不能迁移给当前调查。"},
+    {"id":"E11","category":"calculation","question":"总体方差在这份调查中的实际数值是多少？","snippets":["这份调查的全部观测值为0和2，所求指标为这两个观测值的总体方差。"],"expectedSupport":true,"expectedAnswer":"1","reason":"均值1，两个平方偏差均为1，平均为1；可由已给数据计算。"},
+    {"id":"E12","category":"written_numeral","question":"总体方差在这份调查中的实际数值是多少？","snippets":["这份调查的总体方差是四。"],"expectedSupport":true,"expectedAnswer":"4","reason":"中文数字给出明确结果。"},
+    {"id":"E13","category":"direct_fact","question":"蓝桥编码的发明年份是多少？","snippets":["蓝桥编码于2014年发明。"],"expectedSupport":true,"expectedAnswer":"2014年","reason":"对象、事件与年份对应。"},
+    {"id":"E14","category":"wrong_subject","question":"蓝桥编码的发明年份是多少？","snippets":["蓝桥编码映射为颜色。赤羽编码于2014年发明。"],"expectedSupport":false,"reason":"另一对象的年份不能补足所问对象。"},
+    {"id":"E15","category":"wrong_event","question":"蓝桥编码的发明年份是多少？","snippets":["蓝桥编码在2014年展出，发明者和发明时间尚未查明。"],"expectedSupport":false,"reason":"展出年份不是发明年份。"},
+    {"id":"E16","category":"cross_sentence","question":"蓝桥编码的发明年份是多少？","snippets":["蓝桥编码是本例唯一讨论的规则。其发明时间为2014年。"],"expectedSupport":true,"expectedAnswer":"2014年","reason":"唯一指代使跨句年份关系明确。"},
+    {"id":"E17","category":"incomplete_comparison","question":"蓝桥编码和赤羽编码有什么区别？","snippets":["蓝桥编码把编号映射为颜色。"],"expectedSupport":false,"reason":"只说明一方，缺少另一方的信息。"},
+    {"id":"E18","category":"complete_comparison","question":"蓝桥编码和赤羽编码有什么区别？","snippets":["蓝桥编码把编号映射为颜色。","赤羽编码把编号映射为形状。"],"expectedSupport":true,"expectedAnswer":"蓝桥输出颜色，赤羽输出形状。","reason":"两方定义完整，可比较输出类别。"},
+    {"id":"E19","category":"missing_subquestion","question":"蓝桥编码的发明者是谁？蓝桥编码的发明年份是多少？","snippets":["蓝桥编码由陈雨发明。"],"expectedSupport":false,"reason":"只回答人物，不能回答年份。"},
+    {"id":"E20","category":"complete_subquestions","question":"蓝桥编码的发明者是谁？蓝桥编码的发明年份是多少？","snippets":["蓝桥编码由陈雨发明。","蓝桥编码于2014年发明。"],"expectedSupport":true,"expectedAnswer":"陈雨，2014年。","reason":"两项问题都有对应事实。"},
+    {"id":"E21","category":"unrelated_number","question":"总体方差在这份调查中的实际数值是多少？","snippets":["总体方差衡量数据离散程度。问卷的单价为9元。"],"expectedSupport":false,"reason":"无关价格不是统计结果。"},
+    {"id":"E22","category":"causal_gap","question":"蓝桥编码为什么能避免颜色碰撞？","snippets":["蓝桥编码把编号映射为颜色。"],"expectedSupport":false,"reason":"定义没有保证不同编号获得不同颜色，也没有避免碰撞的原因。"},
+    {"id":"E23","category":"causal_explanation","question":"蓝桥编码为什么能避免颜色碰撞？","snippets":["本例蓝桥编码为每个样本分配不同的颜色，因此任意两个样本都不会取得相同颜色。"],"expectedSupport":true,"expectedAnswer":"每个样本获得不同颜色。","reason":"给出了避免相同颜色的明确机制。"},
+    {"id":"E24","category":"direct_quantity","question":"蓝桥编码的阈值是多少？","snippets":["本合成案例中，蓝桥编码的阈值设为16。"],"expectedSupport":true,"expectedAnswer":"16","reason":"对象和阈值明确对应。"}
+  ]
+}

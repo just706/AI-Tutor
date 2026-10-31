@@ -33,7 +33,7 @@ export function createEvaluationProvider({ baseUrl, apiKey, maxCalls, fetchImpl 
   if (provider.origin !== 'https://api.deepseek.com' || provider.username || provider.password || provider.search || provider.hash) {
     throw new Error('真实验收仅允许无凭据参数的 DeepSeek 官方 HTTPS 地址。');
   }
-  if (!Number.isSafeInteger(maxCalls) || maxCalls < 1 || maxCalls > 16) throw new Error('真实验收调用上限必须为1至16的整数。');
+  if (!Number.isSafeInteger(maxCalls) || maxCalls < 1 || maxCalls > 40) throw new Error('真实验收调用上限必须为1至40的整数。');
   const endpoint = provider.href.replace(/\/$/, '');
   let calls = 0, blocked = null, preflightResult;
   const fail = (record, diagnostic, message, stop) => {

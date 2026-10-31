@@ -19,11 +19,10 @@
           </span>
         </el-tooltip>
         <div class="workspace-heading">
-          <p class="eyebrow">{{ currentRouteLabel }}</p>
           <h1>{{ currentRouteTitle }}</h1>
         </div>
         <div class="topbar-actions">
-          <el-tag v-if="workspaceStore.profile.learningDirection" effect="plain">
+          <el-tag v-if="workspaceStore.profile.learningDirection" :title="workspaceStore.profile.learningDirection" effect="plain">
             {{ workspaceStore.profile.learningDirection }}
           </el-tag>
           <el-button aria-label="学习档案" :icon="User" circle @click="router.push({ name: 'profile' })" />
@@ -68,21 +67,19 @@ onMounted(() => desktopViewport.addEventListener('change', closeDesktopNavigatio
 onBeforeUnmount(() => desktopViewport.removeEventListener('change', closeDesktopNavigation))
 watch(() => route.fullPath, () => { navigationOpen.value = false })
 
-const routeLabels: Record<string, { label: string; title: string }> = {
-  chat: { label: 'AI Tutor Workspace', title: 'AI Chat' },
-  learn: { label: 'Learning Path Detail', title: '学习路径详情' },
-  knowledgeGraph: { label: 'Knowledge Graph', title: '知识关系图谱' },
-  practice: { label: 'Practice Detail', title: '练习详情' },
-  library: { label: 'Sources Detail', title: '资料详情' },
-  analysis: { label: 'Progress Detail', title: '学习分析详情' },
-  agent: { label: 'Agent Suggestions', title: 'Agent 建议详情' },
-  dashboard: { label: 'Progress Detail', title: '学习总览详情' },
-  profile: { label: 'Profile', title: '学习档案' }
+const routeTitles: Record<string, string> = {
+  chat: 'AI Chat',
+  learn: '学习路径详情',
+  knowledgeGraph: '知识关系图谱',
+  practice: '练习详情',
+  library: '资料详情',
+  analysis: '学习分析详情',
+  agent: 'Agent 建议详情',
+  dashboard: '学习总览详情',
+  profile: '学习档案'
 }
 
-const currentRoute = computed(() => routeLabels[String(route.name)] || null)
-const currentRouteLabel = computed(() => currentRoute.value?.label || 'Learning Workspace')
-const currentRouteTitle = computed(() => currentRoute.value?.title || 'AI Tutor')
+const currentRouteTitle = computed(() => routeTitles[String(route.name)] || 'AI Tutor')
 
 onMounted(async () => {
   try {

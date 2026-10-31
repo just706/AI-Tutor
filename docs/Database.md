@@ -85,7 +85,7 @@ SOURCE D:/AI-Tutor/backend/src/main/resources/db/stage20-rag-retry.sql;
 | `rag_request_id` | VARCHAR(36)，ascii_bin | 客户端请求标识，问题与回答共享 |
 | `rag_status` | VARCHAR(16) | 用户消息的 processing / failed / completed 状态 |
 | `rag_attempt` | INT | 用户请求当前尝试次数，从 1 开始 |
-| `rag_context` | JSON | 当时教材 ID、明确后的问题、可选澄清；不直接返回客户端 |
+| `rag_context` | JSON | 当时教材ID、明确后的问题、可选澄清；Agent请求另保存engine、最近用户问题、范围版本、教材修订指纹、工具额度、已返回片段ID、模型调用预占及结果审计；不直接返回客户端 |
 | `rag_retry_after` | DATETIME(6) | 处理中请求允许恢复的时间边界 |
 
 唯一索引 `uk_chat_rag_request_role(user_id, conversation_id, rag_request_id, role)` 保证同一请求至多一条用户消息和一条助手消息。旧消息的标识保持 NULL，不受该去重约束影响，也不会被推断为可重试。历史接口将已过期的 processing 展示为 interrupted，不需要读取时写库。处理中有效期为 `max(180 秒, (2 × 模型 timeoutMs + 30000) / 1000 秒向下取整)`。

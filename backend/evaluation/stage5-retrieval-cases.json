@@ -1,0 +1,27 @@
+{
+  "version": "stage5-retrieval-v1",
+  "scope": "Offline retrieval only. Include the unchanged 12 non-Java stage1-v1 cases plus these synthetic challenge cases. Expectations are frozen before the first run; no generated answers or learner outcomes are evaluated.",
+  "topK": 4,
+  "baselineCaseIds": ["M01", "M02", "M03", "P01", "P02", "P03", "E01", "E02", "E03", "C01", "C02", "C03"],
+  "additionalMaterials": {
+    "java_synthetic": [
+      "ArrayList 使用动态数组。ArrayList 可以直接根据索引定位元素，随机访问的时间复杂度通常为 O(1)。",
+      "HashMap 保存 key 与 value 的映射。HashMap 的 key 不能重复，使用相同 key 写入新的 value 会覆盖旧的 value。",
+      "Java 虚拟机执行字节码。Java 虚拟机负责内存管理。此段资料没有讨论线程。"
+    ]
+  },
+  "cases": [
+    {"id":"S01","category":"semantic_paraphrase","documents":["math"],"question":"函数在某一点变化得有多快，用什么量表示？","evidence":[["导数表示函数的局部变化率"]],"rubric":"局部变化快慢对应导数；不要求推导或教材未给的公式。"},
+    {"id":"S02","category":"semantic_paraphrase","documents":["math"],"question":"想计算曲线下面那块区域的大小，应使用哪个数学概念？","evidence":[["积分的用途是计算曲线下方的面积"]],"rubric":"区域大小改写为面积，需要召回积分用途。"},
+    {"id":"S03","category":"semantic_paraphrase","documents":["physics"],"question":"想描述物体此刻而非整段行程的运动状况，应该用什么量？","evidence":[["瞬时速度描述某一时刻的运动状态"]],"rubric":"此刻的运动状况对应瞬时速度，不要求教材外推导。"},
+    {"id":"S04","category":"semantic_paraphrase","documents":["opportunity"],"question":"选择一个方案时，放弃的最好备选收益叫什么？","evidence":[["机会成本是放弃的最佳替代选择的价值"]],"rubric":"最好备选收益对应放弃的最佳替代价值。"},
+    {"id":"S05","category":"semantic_paraphrase","documents":["sunk"],"question":"已经花出去而且拿不回来的钱，应不应该左右接下来的选择？","evidence":[["沉没成本是已经发生且无法收回的支出"],["沉没成本不应影响后续决策"]],"rubric":"需同时支持沉没成本定义及不影响后续决策。"},
+    {"id":"S06","category":"semantic_paraphrase","documents":["java_synthetic"],"question":"用位置编号快速取出列表中的一项，哪种容器合适？","evidence":[["ArrayList 可以直接根据索引定位元素"]],"rubric":"位置编号取出是索引访问的改写，合适容器为ArrayList。"},
+    {"id":"S07","category":"semantic_paraphrase","documents":["java_synthetic"],"question":"往键值容器写入已有键时，旧的映射会怎样？","evidence":[["使用相同 key 写入新的 value 会覆盖旧的 value"]],"rubric":"教材的键值容器为HashMap，应召回覆盖规则。"},
+    {"id":"S08","category":"cross_chunk","documents":["math","physics"],"question":"导数表示什么？瞬时速度描述什么？","evidence":[["导数表示函数的局部变化率"],["瞬时速度描述某一时刻的运动状态"]],"distinctChunks":true,"rubric":"两部分分别依据数学和物理资料，不能只召回其中一项。"},
+    {"id":"S09","category":"unanswerable","documents":["math"],"question":"导数这个术语最早出现在哪一年？","expect":"refusal","rubric":"资料没有术语历史，概念名称命中不能替代年份证据。"},
+    {"id":"S10","category":"selection_boundary","documents":["opportunity"],"question":"沉没成本是否应该影响后续决策？","expect":"refusal","rubric":"沉没成本资料虽存在于夹具中，但本案没有选择，不得用来回答。此处只测预先选定的候选集合，不等于线上所有权验收。"},
+    {"id":"S11","category":"clarification","documents":["custom"],"setup":["星云投影和月影映射有什么区别？"],"question":"它映射成什么？","expect":"clarification","rubric":"两个候选后的单数指代不明，应澄清。"},
+    {"id":"S12","category":"unanswerable","documents":["java_synthetic"],"question":"虚拟线程在什么条件下适合使用？","expect":"refusal","rubric":"虚拟机不是虚拟线程，不能用部分重叠名称的资料回答。"}
+  ]
+}

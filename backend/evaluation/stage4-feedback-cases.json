@@ -1,0 +1,96 @@
+{
+  "version": "stage4-feedback-v1",
+  "scope": "Eight fixed prompt-level cases; synthetic histories, no learner records, no database or UI acceptance.",
+  "maxRealCalls": 8,
+  "commonRubric": [
+    "Verify against the original question before teaching or asking another question.",
+    "Missing explanation is not an incorrect result or proof of mastery.",
+    "Attribute an error only when the student response directly supports that attribution.",
+    "Do not repeat an already correct task; ask at most one missing-reason question.",
+    "No unsupported facts, invented conditions, or claim of established learning effects."
+  ],
+  "cases": [
+    {
+      "id": "J01", "subject": "Java", "topic": "ArrayList", "strategy": null,
+      "risk": "short correct output",
+      "history": [
+        {"role":"assistant","content":"Java 17：List<String> a = new ArrayList<>(List.of(\"cat\", \"fish\", \"bird\")); System.out.println(a); System.out.println(a.size()); 请给出两行输出。"},
+        {"role":"user","content":"[cat, fish, bird]；3"}
+      ],
+      "expected": "Both outputs are correct: [cat, fish, bird] and 3. Do not treat 3 as an intermediate step or ask to redo the outputs.",
+      "rubric": ["Explicitly accept both outputs.", "Do not infer a misconception from brevity."]
+    },
+    {
+      "id": "J02", "subject": "Java", "topic": "HashMap", "strategy": "practice_first",
+      "risk": "correct result without reason under practice instruction",
+      "history": [
+        {"role":"assistant","content":"Java 17：Map<String,Integer> m = new HashMap<>(); m.put(\"N\",1); m.put(\"S\",2); m.put(\"N\",3); 问 m.size() 和 m.get(\"N\") 分别是多少？请给结果并解释同键 put 的效果。"},
+        {"role":"user","content":"2，3"}
+      ],
+      "expected": "size=2 and get(N)=3 are correct. The reason is not supplied. Acknowledge results and ask one question about replacement rather than issuing a new exercise.",
+      "rubric": ["Accept both values and distinguish missing reason.", "Ask only one remaining reason question, with no replacement exercise or mastery claim."]
+    },
+    {
+      "id": "J03", "subject": "Java", "topic": "ArrayList remove", "strategy": "debug_misconception",
+      "risk": "explicitly wrong result and reasoning",
+      "history": [
+        {"role":"assistant","content":"Java 17：List<Integer> a = new ArrayList<>(List.of(1,2,3)); a.remove(1); 执行后 a 是什么？说明调用的是哪一种 remove。"},
+        {"role":"user","content":"[2,3]，因为 remove(1) 删除值为1的元素。"}
+      ],
+      "expected": "Correct output [1, 3]. Literal int 1 resolves to remove(int index), removing value 2 at index 1. remove(Integer.valueOf(1)) removes by value. The explicit reasoning supports discussing this particular overload confusion only.",
+      "rubric": ["Reject [2,3] and explain index 1 removes value 2.", "Any value-removal example must use the object overload correctly; no unsupported broader diagnosis."]
+    },
+    {
+      "id": "J04", "subject": "Java", "topic": "ArrayList", "strategy": "summary_review",
+      "risk": "repeated correct answer and challenge to erroneous prior feedback",
+      "history": [
+        {"role":"assistant","content":"Java 17：List<String> a = new ArrayList<>(List.of(\"cat\",\"fish\",\"bird\")); 问列表内容和 size 是多少？请给结果与理由。"},
+        {"role":"user","content":"[cat, fish, bird]，3"},
+        {"role":"assistant","content":"你只给了中间结果，说明你混淆了元素个数与下标，请重新计算。"},
+        {"role":"user","content":"我还是回答 [cat, fish, bird]，3。这不是最终答案吗？请先复核你的批改，再总结我真正答错了什么。"}
+      ],
+      "expected": "Explicitly retract previous incorrect feedback, accept the outputs, and state no actual student error is established. Reasoning remains unverified, not wrong or mastered.",
+      "rubric": ["Clearly correct the assistant's prior misjudgment.", "Summary must not preserve the invented index/count misconception or declare full mastery."]
+    },
+    {
+      "id": "M01", "subject": "数学", "topic": "一次函数", "strategy": "concept_first",
+      "risk": "correct bare number",
+      "history": [
+        {"role":"assistant","content":"一次函数 y=2x+1，当 x=3 时 y 是多少？请写结果和代入理由。"},
+        {"role":"user","content":"7"}
+      ],
+      "expected": "7 is correct. Acknowledge it, distinguish the missing substitution explanation, and ask one reason question rather than starting another lesson or task.",
+      "rubric": ["Accept 7 as the final answer, not an intermediate value.", "At most one follow-up about substitution; no claim of error or complete mastery."]
+    },
+    {
+      "id": "M02", "subject": "数学", "topic": "导数", "strategy": "practice_first",
+      "risk": "correct derivative without explanation",
+      "history": [
+        {"role":"assistant","content":"设 f(x)=x^2，求 x=2 时的瞬时变化率，请给数值并解释所用方法。"},
+        {"role":"user","content":"4"}
+      ],
+      "expected": "The instantaneous rate is 4. Acknowledge the result and ask one missing-method question. Do not assume the student used an average rate or replace the problem under practice_first.",
+      "rubric": ["Accept 4 and keep the original task.", "Do not invent the method used; at most one question about reasoning."]
+    },
+    {
+      "id": "M03", "subject": "数学", "topic": "平均与瞬时变化率", "strategy": "debug_misconception",
+      "risk": "explicit average-rate substitution for derivative",
+      "history": [
+        {"role":"assistant","content":"设 f(x)=x^2，求 x=3 处的瞬时变化率，并说明方法。"},
+        {"role":"user","content":"4，因为我用区间[1,3]的平均变化率 (9-1)/(3-1) 来算 x=3 的瞬时变化率。"}
+      ],
+      "expected": "Instantaneous rate at 3 is 6 via f'(x)=2x. The interval average calculation 4 is arithmetically correct but is not the requested point derivative. Attribute only the explicitly stated substitution.",
+      "rubric": ["Give 6 and distinguish interval average 4 from derivative at 3.", "Do not call the average-rate arithmetic wrong or invent further hidden steps."]
+    },
+    {
+      "id": "M04", "subject": "数学", "topic": "函数", "strategy": "summary_review",
+      "risk": "missing original conditions and unsupported summary",
+      "history": [
+        {"role":"assistant","content":"请给出那道函数题的最终结果。"},
+        {"role":"user","content":"7。请判断是否正确，再总结我错在哪里。"}
+      ],
+      "expected": "There is no original function, input or task in context. Ask for the original question/conditions before judging; do not invent y=2x+1 or label 7 right/wrong, and do not invent student errors.",
+      "rubric": ["Explicitly explain the original conditions are missing and request them.", "No fabricated original question, correctness judgment, misconception or mastery summary."]
+    }
+  ]
+}

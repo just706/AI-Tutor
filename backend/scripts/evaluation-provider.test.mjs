@@ -279,8 +279,23 @@ test('unsafe endpoints and invalid call budgets are rejected before any network 
   ]) {
     assert.throws(() => createEvaluationProvider({ ...options, baseUrl }), `reject ${baseUrl}`);
   }
-  for (const maxCalls of [0, -1, 17, 1.5, NaN, Infinity]) {
+  for (const maxCalls of [0, -1, 41, 1.5, NaN, Infinity]) {
     assert.throws(() => createEvaluationProvider({ ...options, maxCalls }), `reject budget ${maxCalls}`);
   }
   assert.equal(requests, 0);
+});
+
+test('explicit forty-call authorization caps concurrent attempts at forty', async () => {
+  let sent = 0;
+  const provider = createEvaluationProvider({ baseUrl: 'https://api.deepseek.com', apiKey, maxCalls: 40,
+    fetchImpl: async (_, options) => {
+      if (options.method === 'GET') return new Response(null, { status: 401 });
+      sent++;
+      return completionResponse();
+    } });
+  await provider.preflight();
+  const results = await Promise.allSettled(Array.from({ length: 45 }, () => provider.complete(payload)));
+  assert.equal(results.filter(item => item.status === 'fulfilled').length, 40);
+  assert.equal(sent, 40);
+  assert.equal(provider.calls, 40);
 });

@@ -62,6 +62,8 @@ class RagServiceImplTest {
     @Mock private AiCallLogMapper logMapper;
     @Mock private DeepSeekClient client;
     @Mock private com.aitutor.service.LearningFlowGuard flowGuard;
+    @Mock private com.aitutor.agent.PythonAgentGateway agentGateway;
+    @Mock private com.aitutor.agent.PythonAgentClient agentClient;
     @Captor private ArgumentCaptor<List<AiMessage>> sentMessages;
 
     private final java.util.Map<String, ChatHistory> stored = new java.util.HashMap<>();
@@ -98,7 +100,8 @@ class RagServiceImplTest {
         });
         service = new RagServiceImpl(new ConversationDocumentBinding(documentMapper, new ObjectMapper()), chunkMapper, conversationMapper,
                 historyMapper, logMapper, client, new AiPromptBuilder(), properties,
-                new RagCitationService(documentMapper, new ObjectMapper()), tx, new ObjectMapper(), new com.aitutor.ai.DeepSeekProperties(), flowGuard);
+                new RagCitationService(documentMapper, new ObjectMapper()), tx, new ObjectMapper(), new com.aitutor.ai.DeepSeekProperties(), flowGuard,
+                agentGateway,agentClient);
     }
 
     @AfterEach
@@ -648,6 +651,21 @@ class RagServiceImplTest {
     private void prepareLessonDocuments() {
         prepareDocuments();
         conversationMapper.selectOne(null).setDocumentIds("[21]");
+    }
+
+    @Test void enabledAgentOwnsPlanningAndPersistsThroughExistingRequestProtocol() {
+        prepareDocuments();
+        when(agentGateway.isEnabled()).thenReturn(true);
+        var state=new com.aitutor.agent.AgentContracts.State("snapshot",System.currentTimeMillis()+60000,java.util.Map.of(),List.of(),0,0,4,List.of(),null);
+        lenient().when(agentGateway.prepare(any(),any(),any())).thenReturn(state);
+        lenient().when(agentGateway.capability(any(),any())).thenReturn("scope-token");
+        var remote=new ObjectMapper().createObjectNode().put("model_calls",1).put("prompt_tokens",10).put("completion_tokens",5);
+        lenient().when(agentClient.run(any())).thenReturn(remote);
+        lenient().when(agentGateway.finish(any(),any(),any())).thenReturn(new RagChatVO(11L,"独立 Agent 的澄清",List.of()));
+        var question=request("它是什么？"); question.setRequestId("32d1d73b-5e5d-4d0f-a05d-854f651817c8");
+        assertEquals("独立 Agent 的澄清",service.chat(question).getAnswer());
+        assertEquals("独立 Agent 的澄清",service.chat(question).getAnswer());
+        assertEquals(2,stored.size()); verify(agentClient,times(1)).run(any()); verifyNoInteractions(client);
     }
 
     private RagChatRequest request(String question) {

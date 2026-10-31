@@ -1,0 +1,15 @@
+{
+  "version": "stage5-vector-v1",
+  "modelId": "BAAI/bge-small-zh-v1.5",
+  "revision": "7999e1d3359715c523056ef9478215996d62a620",
+  "queryPrefix": "为这个句子生成表示以用于检索相关文章：",
+  "pooling": "cls",
+  "normalizeEmbeddings": true,
+  "maxTokens": 512,
+  "batchSize": 8,
+  "cpuThreads": 4,
+  "cosineThresholds": [0.5, 0.6, 0.7, 0.8],
+  "rrfK": 60,
+  "rrfWeights": { "lexical": 1, "vector": 1 },
+  "policy": "Freeze before encoding the evaluation inputs. Report every threshold, no post-hoc threshold selection or pass claim. Reuse the same Java-resolved question and clarification, selected documents, chunks and topK. Hybrid uses equal-weight RRF of the production lexical shortlist and the thresholded vector shortlist. No generated query expansion, no answer generation, no production integration."
+}

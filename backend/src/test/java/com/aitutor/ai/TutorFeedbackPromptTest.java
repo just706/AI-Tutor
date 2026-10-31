@@ -34,6 +34,9 @@ class TutorFeedbackPromptTest {
                 () -> assertTrue(prompt.contains("不能仅因回答简短就说缺少上下文")),
                 () -> assertTrue(prompt.contains("分别说明结果是否正确、理由是否提供")),
                 () -> assertTrue(prompt.contains("未提供理由不等于答案错误")),
+                () -> assertTrue(prompt.contains("先独立计算或推演")),
+                () -> assertTrue(prompt.contains("不要展示先肯定后否定")),
+                () -> assertTrue(prompt.contains("开放式询问所用方法")),
                 () -> assertTrue(prompt.contains("题目或必要条件已不在上下文时，先请用户补充")),
                 () -> assertTrue(prompt.contains("不能把缺少解释当作已观察到的错误")),
                 () -> assertTrue(prompt.contains("发现此前反馈误判时明确更正")));
